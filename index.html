@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#061a5f">
+    <title>Acessa+ | IA Pedagógica Inclusiva</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">A+</div>
+          <div>
+            <strong>ACESSA<span>+</span></strong>
+            <em>Inclui · Transforma · Conecta</em>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="home" type="button">
+            <span>01</span>
+            Início
+          </button>
+          <button class="nav-item" data-view="login" type="button">
+            <span>02</span>
+            Login
+          </button>
+          <button class="nav-item" data-view="dashboard" type="button">
+            <span>03</span>
+            Painel
+          </button>
+          <button class="nav-item" data-view="workspace" type="button">
+            <span>04</span>
+            Atividades
+          </button>
+          <button class="nav-item" data-view="library" type="button">
+            <span>05</span>
+            Biblioteca
+          </button>
+          <button class="nav-item" data-view="peiHub" type="button">
+            <span>06</span>
+            PEI
+          </button>
+          <button class="nav-item" data-view="caaHub" type="button">
+            <span>07</span>
+            CAA
+          </button>
+          <button class="nav-item" data-view="profilesHub" type="button">
+            <span>08</span>
+            Perfis
+          </button>
+          <button class="nav-item" data-view="assistiveHub" type="button">
+            <span>09</span>
+            Tecnologia
+          </button>
+          <button class="nav-item" data-view="familyHub" type="button">
+            <span>10</span>
+            Família
+          </button>
+          <button class="nav-item" data-view="reportsHub" type="button">
+            <span>11</span>
+            Relatórios
+          </button>
+          <button class="nav-item" data-view="guide" type="button">
+            <span>12</span>
+            Guia pedagógico
+          </button>
+          <button class="nav-item" data-view="settings" type="button">
+            <span>13</span>
+            Acessibilidade
+          </button>
+        </nav>
+
+        <div class="sidebar-note">
+          <strong>Plataforma inteligente para inclusão</strong>
+          <p>Gera materiais adaptados, acessíveis e personalizados para professores, estudantes e AEE.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Inclui · Transforma · Conecta</p>
+            <h1>Produza atividades acessíveis, adaptadas e prontas para uso com estudantes.</h1>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-button" id="installBtn" type="button" hidden>Instalar app</button>
+            <button class="ghost-button" id="clearBtn" type="button">Limpar</button>
+            <button class="primary-button" id="generateTopBtn" type="button">Gerar material</button>
+          </div>
+        </header>
+
+        <section class="accessibility-bar" aria-label="Atalhos de acessibilidade">
+          <button class="access-button" id="simpleModeBtn" type="button" aria-pressed="false">Modo simples</button>
+          <button class="access-button" id="contrastBtn" type="button" aria-pressed="false">Alto contraste</button>
+          <button class="access-button" id="fontMinusBtn" type="button">A-</button>
+          <button class="access-button" id="fontPlusBtn" type="button">A+</button>
+        </section>
+
+        <section class="view active-view" id="home">
+          <div class="hero-panel">
+            <div>
+              <p class="eyebrow">Plataforma inteligente para inclusão, acessibilidade e aprendizagem personalizada</p>
+              <h2>ACESSA<span>+</span></h2>
+              <p class="hero-copy">Crie atividades adaptadas, PEI, recursos de CAA, orientações pedagógicas e registros de evolução com uma estrutura pensada para professores e AEE.</p>
+              <div class="hero-actions">
+                <button class="primary-button" data-go-view="workspace" type="button">Criar atividade</button>
+                <button class="secondary-button" data-go-view="dashboard" type="button">Abrir painel</button>
+              </div>
+            </div>
+            <div class="hero-phone" aria-hidden="true">
+              <div class="phone-top">ACESSA<span>+</span></div>
+              <div class="phone-line"></div>
+              <div class="phone-card">Gerar Atividade</div>
+              <div class="phone-card green">Gerar PEI</div>
+              <div class="phone-card purple">Biblioteca Inclusiva</div>
+              <div class="phone-card orange">Comunicação</div>
+            </div>
+          </div>
+
+          <div class="feature-grid" aria-label="Principais recursos">
+            <article class="feature-card"><span>01</span><h3>Atividades adaptadas</h3><p>Folhas A4, exercícios, objetivos, recursos e avaliação.</p></article>
+            <article class="feature-card"><span>02</span><h3>PEI</h3><p>Metas, estratégias, barreiras e acompanhamento pedagógico.</p></article>
+            <article class="feature-card"><span>03</span><h3>CAA e Libras</h3><p>Pranchas, cartões, comandos simples e comunicação alternativa.</p></article>
+            <article class="feature-card"><span>04</span><h3>Tecnologia assistiva</h3><p>Recursos para ampliar acesso, participação e autonomia.</p></article>
+          </div>
+        </section>
+
+        <section class="view" id="login">
+          <div class="login-grid">
+            <section class="panel login-panel" aria-labelledby="loginTitle">
+              <p class="eyebrow">Acesso do professor</p>
+              <h2 id="loginTitle">Entrar no Acessa+</h2>
+              <label>E-mail institucional ou pessoal<input type="email" placeholder="professor@email.com"></label>
+              <label>Senha<input type="password" placeholder="Digite sua senha"></label>
+              <button class="primary-button" data-go-view="dashboard" type="button">Entrar</button>
+              <p class="form-note">Protótipo local. A autenticação real será integrada em fase futura.</p>
+            </section>
+            <section class="panel login-panel" aria-labelledby="signupTitle">
+              <p class="eyebrow">Cadastro</p>
+              <h2 id="signupTitle">Criar perfil profissional</h2>
+              <label>Nome<input type="text" placeholder="Nome do professor"></label>
+              <label>Área de atuação<select><option>AEE</option><option>Sala comum</option><option>Gestão escolar</option><option>Equipe pedagógica</option></select></label>
+              <button class="secondary-button" data-go-view="dashboard" type="button">Continuar</button>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="dashboard">
+          <div class="dashboard-header panel">
+            <div>
+              <p class="eyebrow">Painel do professor</p>
+              <h2>O que você deseja criar hoje?</h2>
+              <p>Escolha um módulo. O Acessa+ organiza o fluxo para reduzir tempo e aumentar acessibilidade.</p>
+            </div>
+            <button class="primary-button" data-go-view="workspace" type="button">Nova atividade</button>
+          </div>
+          <div class="dashboard-grid">
+            <button class="dashboard-card" data-go-view="workspace" type="button"><strong>Gerador de Atividades</strong><span>Atividades A4, exercícios e adaptações.</span></button>
+            <button class="dashboard-card" data-go-view="peiHub" type="button"><strong>Gerador de PEI</strong><span>Objetivos, metas e estratégias.</span></button>
+            <button class="dashboard-card" data-go-view="caaHub" type="button"><strong>Módulo de CAA</strong><span>Pranchas, cartões e vocabulário funcional.</span></button>
+            <button class="dashboard-card" data-go-view="profilesHub" type="button"><strong>Recursos por perfil</strong><span>TEA, DI, DV, DA e múltiplas necessidades.</span></button>
+            <button class="dashboard-card" data-go-view="assistiveHub" type="button"><strong>Tecnologia Assistiva</strong><span>Leitor de tela, contraste, Braille e recursos táteis.</span></button>
+            <button class="dashboard-card" data-go-view="familyHub" type="button"><strong>Escola-Família</strong><span>Orientações e comunicação objetiva.</span></button>
+            <button class="dashboard-card" data-go-view="reportsHub" type="button"><strong>Relatórios de evolução</strong><span>Evidências, participação e próximos passos.</span></button>
+            <button class="dashboard-card" data-go-view="library" type="button"><strong>Biblioteca Inclusiva</strong><span>Materiais salvos e reutilizáveis.</span></button>
+          </div>
+        </section>
+
+        <section class="view" id="workspace">
+          <div class="module-grid" aria-label="Tipos de material">
+            <button class="module-card selected" data-kind="activity" type="button">
+              <span>Atividade</span>
+              <strong>Atividade adaptada A4</strong>
+              <small>Pronta para impressão, com comandos acessíveis.</small>
+            </button>
+            <button class="module-card" data-kind="adaptation" type="button">
+              <span>Adaptação</span>
+              <strong>Adaptar atividade existente</strong>
+              <small>Transforma uma proposta comum em acessível.</small>
+            </button>
+            <button class="module-card" data-kind="plan" type="button">
+              <span>Planejamento</span>
+              <strong>Plano de aula inclusivo</strong>
+              <small>Objetivos, metodologia, Bloom, DUA e avaliação.</small>
+            </button>
+            <button class="module-card" data-kind="pei" type="button">
+              <span>PEI</span>
+              <strong>Plano Educacional Individualizado</strong>
+              <small>Metas, barreiras, apoios e acompanhamento.</small>
+            </button>
+            <button class="module-card" data-kind="evaluation" type="button">
+              <span>Avaliação</span>
+              <strong>Avaliação adaptada</strong>
+              <small>Critérios observáveis e formas alternativas de resposta.</small>
+            </button>
+            <button class="module-card" data-kind="aba" type="button">
+              <span>ABA</span>
+              <strong>ABA na prática escolar</strong>
+              <small>Rotina, reforçadores, análise de tarefa e registro.</small>
+            </button>
+            <button class="module-card" data-kind="caa" type="button">
+              <span>CAA</span>
+              <strong>CAA e tecnologia assistiva</strong>
+              <small>Cartões, prancha, comandos simples e sequência visual.</small>
+            </button>
+            <button class="module-card" data-kind="report" type="button">
+              <span>Relatório</span>
+              <strong>Relatório pedagógico</strong>
+              <small>Texto técnico, humano e observável.</small>
+            </button>
+          </div>
+
+          <div class="workspace-grid">
+            <form class="panel form-panel" id="mainForm">
+              <div class="panel-header">
+                <p class="eyebrow">Dados essenciais</p>
+                <h2>Perfil do estudante e intenção pedagógica</h2>
+              </div>
+
+              <div class="form-grid two">
+                <label>
+                  Nome do estudante
+                  <input id="studentName" type="text" placeholder="Ex.: Ana">
+                </label>
+                <label>
+                  Série / turma
+                  <input id="grade" type="text" placeholder="Ex.: 4º ano">
+                </label>
+                <label>
+                  Idade
+                  <input id="age" type="number" min="1" max="30" placeholder="Ex.: 9">
+                </label>
+                <label>
+                  Área do AEE
+                  <select id="aeeArea">
+                    <option>Apoio pedagógico e acessibilidade</option>
+                    <option>Comunicação e linguagem</option>
+                    <option>Autonomia e vida diária</option>
+                    <option>Funções executivas</option>
+                    <option>Tecnologia assistiva</option>
+                    <option>Enriquecimento curricular</option>
+                  </select>
+                </label>
+                <label>
+                  Nível de leitura
+                  <select id="readingLevel">
+                    <option>Pré-leitor</option>
+                    <option>Leitor inicial</option>
+                    <option>Leitor em desenvolvimento</option>
+                    <option>Leitor fluente</option>
+                  </select>
+                </label>
+                <label>
+                  Comunicação
+                  <select id="communication">
+                    <option>Oral</option>
+                    <option>Gestual</option>
+                    <option>CAA</option>
+                    <option>Libras</option>
+                    <option>Braille</option>
+                    <option>Mista</option>
+                  </select>
+                </label>
+              </div>
+
+              <fieldset class="segmented">
+                <legend>Perfil de adaptação</legend>
+                <label><input type="checkbox" name="needs" value="DI"> <span>DI</span></label>
+                <label><input type="checkbox" name="needs" value="TEA"> <span>TEA</span></label>
+                <label><input type="checkbox" name="needs" value="DV"> <span>DV</span></label>
+                <label><input type="checkbox" name="needs" value="DA"> <span>DA</span></label>
+                <label><input type="checkbox" name="needs" value="TDAH"> <span>TDAH</span></label>
+                <label><input type="checkbox" name="needs" value="AH/SD"> <span>AH/SD</span></label>
+                <label><input type="checkbox" name="needs" value="Múltiplas deficiências"> <span>Múltiplas</span></label>
+              </fieldset>
+
+              <div class="form-grid two">
+                <label>
+                  Disciplina
+                  <input id="subject" type="text" placeholder="Ex.: Língua Portuguesa">
+                </label>
+                <label>
+                  Objeto de conhecimento
+                  <input id="knowledgeObject" type="text" placeholder="Ex.: Leitura e interpretação de texto">
+                </label>
+              </div>
+
+              <label>
+                Habilidade curricular
+                <textarea id="skill" rows="4" placeholder="Cole a habilidade da BNCC ou do Currículo Capixaba"></textarea>
+              </label>
+
+              <label id="baseActivityWrap">
+                Atividade original, observações ou situação de aprendizagem
+                <textarea id="baseActivity" rows="4" placeholder="Cole aqui uma atividade que deseja adaptar ou descreva o contexto da aula"></textarea>
+              </label>
+
+              <div class="form-grid two">
+                <label>
+                  Autonomia
+                  <select id="autonomy">
+                    <option>Necessita mediação constante</option>
+                    <option>Necessita mediação parcial</option>
+                    <option>Realiza com pistas</option>
+                    <option>Realiza com autonomia</option>
+                  </select>
+                </label>
+                <label>
+                  Formato
+                  <select id="format">
+                    <option>Atividade A4 para impressão</option>
+                    <option>Roteiro de mediação</option>
+                    <option>Cartões visuais</option>
+                    <option>Avaliação adaptada</option>
+                    <option>Plano de aula</option>
+                    <option>Relatório técnico-pedagógico</option>
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                Recursos necessários
+                <input id="resourcesNeeded" type="text" placeholder="Ex.: pictogramas, fonte ampliada, rotina visual, objetos concretos">
+              </label>
+
+              <div class="action-row">
+                <button class="primary-button" id="generateBtn" type="button">Gerar material</button>
+                <button class="secondary-button" id="saveBtn" type="button">Salvar no banco</button>
+              </div>
+            </form>
+
+            <section class="panel result-panel" aria-label="Resultado">
+              <div class="panel-header result-header">
+                <div>
+                  <p class="eyebrow">Resultado editável</p>
+                  <h2 id="resultTitle">Material gerado</h2>
+                </div>
+                <span class="status-pill" id="engineStatus">Modo local</span>
+              </div>
+
+              <article class="result-paper" id="resultPaper" contenteditable="true" spellcheck="true">
+                <h2>Acessa+</h2>
+                <p>Preencha os dados e clique em <strong>Gerar material</strong>. O resultado aparecerá aqui para editar, salvar e exportar.</p>
+              </article>
+
+              <div class="action-row export-row">
+                <button class="secondary-button" id="printBtn" type="button">PDF / imprimir</button>
+                <button class="secondary-button" id="imageBtn" type="button">Imagem A4</button>
+                <button class="secondary-button" id="wordBtn" type="button">Word</button>
+                <button class="secondary-button" id="htmlBtn" type="button">HTML</button>
+                <button class="secondary-button" id="copyBtn" type="button">Copiar</button>
+                <button class="primary-button" id="saveResultBtn" type="button">Salvar</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="library">
+          <div class="panel wide-panel">
+            <div class="panel-header library-header">
+              <div>
+                <p class="eyebrow">Banco local</p>
+                <h2>Materiais salvos</h2>
+              </div>
+              <input id="searchSaved" type="search" placeholder="Pesquisar por título, estudante ou tipo">
+            </div>
+            <div class="saved-list" id="savedList"></div>
+          </div>
+        </section>
+
+        <section class="view" id="peiHub">
+          <div class="panel wide-panel hub-panel">
+            <p class="eyebrow">PEI</p>
+            <h2>Plano Educacional Individualizado</h2>
+            <p>Organize metas, barreiras, apoios, estratégias e acompanhamento por evidências.</p>
+            <div class="hub-grid">
+              <article class="hub-card"><h3>Perfil funcional</h3><p>Comunicação, autonomia, leitura, participação e recursos necessários.</p></article>
+              <article class="hub-card"><h3>Metas pedagógicas</h3><p>Objetivos claros, mensuráveis e compatíveis com o estudante.</p></article>
+              <article class="hub-card"><h3>Acompanhamento</h3><p>Registro de avanços, apoios usados e próximos passos.</p></article>
+            </div>
+            <button class="primary-button" data-kind-shortcut="pei" type="button">Gerar PEI</button>
+          </div>
+        </section>
+
+        <section class="view" id="caaHub">
+          <div class="panel wide-panel hub-panel">
+            <p class="eyebrow">Comunicação alternativa</p>
+            <h2>CAA, cartões e pranchas de comunicação</h2>
+            <p>Crie vocabulário funcional, comandos simples e materiais de apoio à comunicação.</p>
+            <div class="hub-grid">
+              <article class="hub-card"><h3>Pranchas CAA</h3><p>Sim, não, ajuda, terminar, escolher e vocabulário do conteúdo.</p></article>
+              <article class="hub-card"><h3>Rotina visual</h3><p>Sequência de início, atividade, pausa, resposta e finalização.</p></article>
+              <article class="hub-card"><h3>Comunicação funcional</h3><p>Respostas por apontar, olhar, gesto, fala, Libras ou recurso digital.</p></article>
+            </div>
+            <button class="primary-button" data-kind-shortcut="caa" type="button">Gerar CAA</button>
+          </div>
+        </section>
+
+        <section class="view" id="profilesHub">
+          <div class="panel wide-panel hub-panel">
+            <p class="eyebrow">Perfis de aprendizagem</p>
+            <h2>Recursos para TEA, DI, DV e DA</h2>
+            <div class="profile-grid">
+              <article class="profile-card teal"><h3>TEA</h3><p>Rotina visual, previsibilidade, histórias sociais e instruções diretas.</p></article>
+              <article class="profile-card green"><h3>DI</h3><p>Linguagem simples, etapas curtas, exemplos concretos e repetição planejada.</p></article>
+              <article class="profile-card purple"><h3>DV</h3><p>Contraste, audiodescrição, fonte ampliada, Braille e recursos táteis.</p></article>
+              <article class="profile-card orange"><h3>DA</h3><p>Libras, legendas, pistas visuais, comandos escritos e apoio bilíngue.</p></article>
+            </div>
+            <button class="primary-button" data-go-view="workspace" type="button">Criar material por perfil</button>
+          </div>
+        </section>
+
+        <section class="view" id="assistiveHub">
+          <div class="panel wide-panel hub-panel">
+            <p class="eyebrow">Tecnologia assistiva</p>
+            <h2>Recursos para ampliar acesso e autonomia</h2>
+            <div class="hub-grid">
+              <article class="hub-card"><h3>Leitor de tela</h3><p>Estrutura compatível com rótulos, botões nomeados e textos objetivos.</p></article>
+              <article class="hub-card"><h3>Alto contraste</h3><p>Modo de contraste ampliado para baixa visão e melhor legibilidade.</p></article>
+              <article class="hub-card"><h3>Braille e tátil</h3><p>Orientações para conversão, descrição e materiais manipuláveis.</p></article>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="familyHub">
+          <div class="panel wide-panel hub-panel">
+            <p class="eyebrow">Comunicação escola-família</p>
+            <h2>Orientações claras para acompanhar o estudante</h2>
+            <div class="hub-grid">
+              <article class="hub-card"><h3>Bilhete pedagógico</h3><p>Mensagem objetiva sobre participação, apoio e próxima meta.</p></article>
+              <article class="hub-card"><h3>Rotina em casa</h3><p>Sugestões simples para fortalecer autonomia e comunicação.</p></article>
+              <article class="hub-card"><h3>Devolutiva acessível</h3><p>Texto claro, respeitoso e baseado em evidências observáveis.</p></article>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="reportsHub">
+          <div class="panel wide-panel hub-panel">
+            <p class="eyebrow">Evidências de aprendizagem</p>
+            <h2>Relatórios de evolução do estudante</h2>
+            <p>Registre participação, tipo de apoio, barreiras removidas e avanços observáveis.</p>
+            <div class="hub-grid">
+              <article class="hub-card"><h3>Participação</h3><p>Como o estudante acessou a atividade e respondeu.</p></article>
+              <article class="hub-card"><h3>Apoios usados</h3><p>Mediação, CAA, Libras, Braille, tecnologia assistiva ou recurso visual.</p></article>
+              <article class="hub-card"><h3>Próximos passos</h3><p>Estratégias para continuidade no AEE e na sala comum.</p></article>
+            </div>
+            <button class="primary-button" data-kind-shortcut="report" type="button">Gerar relatório</button>
+          </div>
+        </section>
+
+        <section class="view" id="guide">
+          <div class="panel wide-panel">
+            <div class="panel-header">
+              <p class="eyebrow">Base pedagógica</p>
+              <h2>Como o Acessa+ pensa</h2>
+            </div>
+            <div class="guide-grid" id="guideGrid"></div>
+          </div>
+        </section>
+
+        <section class="view" id="settings">
+          <div class="panel wide-panel">
+            <div class="panel-header">
+              <p class="eyebrow">Administração</p>
+              <h2>Configurações do aplicativo</h2>
+            </div>
+            <div class="settings-grid">
+              <div class="settings-card">
+                <h3>Identidade</h3>
+                <label>
+                  Nome da instituição ou professor
+                  <input id="ownerName" type="text" placeholder="Mozahinter Alves Vieira">
+                </label>
+                <label>
+                  Rodapé dos materiais
+                  <input id="footerText" type="text" placeholder="Acessa+ | Educação Inclusiva na Prática">
+                </label>
+                <button class="secondary-button" id="saveSettingsBtn" type="button">Salvar configurações</button>
+              </div>
+              <div class="settings-card">
+                <h3>Integração com IA</h3>
+                <p>Esta versão funciona em modo local. Para uso público com OpenAI, Gemini ou outro provedor, o ideal é criar um backend para proteger a chave da API.</p>
+                <label>
+                  Endpoint futuro da IA
+                  <input id="aiEndpoint" type="url" placeholder="https://seu-servidor.com/api/gerar">
+                </label>
+              </div>
+              <div class="settings-card">
+                <h3>Acessibilidade visual</h3>
+                <p>Ajustes rápidos para melhorar leitura, contraste e simplicidade da interface.</p>
+                <div class="settings-actions">
+                  <button class="secondary-button" id="settingsSimpleBtn" type="button">Alternar modo simples</button>
+                  <button class="secondary-button" id="settingsContrastBtn" type="button">Alternar alto contraste</button>
+                  <button class="secondary-button" id="settingsFontBtn" type="button">Aumentar fonte</button>
+                </div>
+              </div>
+              <div class="settings-card">
+                <h3>Dados locais</h3>
+                <p>Os materiais ficam salvos apenas neste navegador.</p>
+                <button class="danger-button" id="clearLibraryBtn" type="button">Apagar banco local</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

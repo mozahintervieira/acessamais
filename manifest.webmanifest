@@ -1,0 +1,17 @@
+{
+  "name": "Acessa+",
+  "short_name": "Acessa+",
+  "description": "IA pedagógica inclusiva para criação de atividades, PEI, avaliações, planos e recursos acessíveis.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#eef5ff",
+  "theme_color": "#061a5f",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
