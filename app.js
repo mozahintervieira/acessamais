@@ -21,6 +21,7 @@ const state = {
   currentKind: "activity",
   currentResult: "",
   currentMeta: null,
+  aiLatestText: "",
   saved: readJson(STORAGE_KEYS.saved, readJson(LEGACY_STORAGE_KEYS.saved, [])),
   settings: normalizeSettings(readJson(STORAGE_KEYS.settings, readJson(LEGACY_STORAGE_KEYS.settings, DEFAULT_SETTINGS))),
   installPrompt: null
@@ -897,7 +898,7 @@ function renderPremiumSection(section) {
 
 function premiumWorksheet(data, title = "Atividade adaptada") {
   const context = getPremiumWorksheetContext(data);
-  const owner = state.settings.ownerName || "@mozahintervieira";
+  const owner = state.settings.ownerName || "Prof. Mozahinter Vieira";
   return `
     <div class="premium-sheet theme-${context.theme}">
       <header class="sheet-hero">
@@ -1827,49 +1828,7 @@ async function copyResult() {
   $("#copyBtn").textContent = "Copiado";
   setTimeout(() => $("#copyBtn").textContent = "Copiar", 1500);
 }
-async function gerarComIA() {
-  const data = getFormData();
 
-  $("#engineStatus").textContent = "Gerando com IA...";
-  $("#resultPaper").innerHTML = "<h2>Acessa+</h2><p>Gerando material com o Assistente AEE...</p>";
-
-  try {
-    const resposta = await fetch("/api/gerar", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(data)
-    });
-
-    const json = await resposta.json();
-
-    if (!resposta.ok) {
-      throw new Error(json.erro || "Erro ao gerar material.");
-    }
-
-    $("#resultPaper").innerHTML = json.resultado;
-    $("#resultTitle").textContent = kindLabels[data.kind];
-    $("#engineStatus").textContent = "Gerado com IA";
-
-    state.currentResult = json.resultado;
-    state.currentMeta = {
-      kind: data.kind,
-      title: `${kindLabels[data.kind]} - ${data.subject}`,
-      studentName: data.studentName,
-      subject: data.subject,
-      date: new Date().toISOString()
-    };
-  } catch (erro) {
-    $("#engineStatus").textContent = "Erro na IA";
-    $("#resultPaper").innerHTML = `
-      <h2>Erro ao gerar com IA</h2>
-      <p>Não foi possível gerar o material com a OpenAI.</p>
-      <p><strong>Detalhe:</strong> ${escapeHtml(erro.message)}</p>
-      <p>Você ainda pode usar o modo local enquanto ajusta a configuração.</p>
-    `;
-  }
-}
 function clearForm() {
   $("#mainForm").reset();
   $$("input[name='needs']").forEach((field) => field.checked = false);
@@ -1914,13 +1873,536 @@ function clearLibrary() {
   renderSaved();
 }
 
+const AI_SECTION_LABELS = {
+  titulo: "Título da atividade",
+  publicoAlvo: "Público-alvo",
+  objetivoPedagogico: "Objetivo pedagógico",
+  habilidade: "Habilidade",
+  materiaisNecessarios: "Materiais necessários",
+  metodologiaInclusiva: "Metodologia inclusiva",
+  atividadeAdaptada: "Atividade adaptada",
+  pistasVisuais: "Pistas visuais e pictogramas",
+  recursosAcessibilidade: "Recursos de acessibilidade",
+  estrategiasAEE: "Estratégias do AEE",
+  avaliacao: "Avaliação",
+  sugestoesProfessor: "Sugestões para o professor"
+};
+
+const METADATA_LABELS = {
+  objetivo_pedagogico: "Objetivo pedagógico",
+  habilidade_bncc_adaptada: "Habilidade BNCC adaptada",
+  publico_alvo: "Público-alvo",
+  nivel_apoio: "Nível de apoio",
+  observacoes_acessibilidade: "Observações de acessibilidade"
+};
+
+function getAssistantPayload() {
+  return {
+    perfil: $("#aiPerfil").value,
+    serie: $("#aiSerie").value.trim(),
+    disciplina: $("#aiDisciplina").value.trim(),
+    habilidade: $("#aiHabilidade").value.trim(),
+    objetoConhecimento: $("#aiObjeto").value.trim(),
+    nivelAlfabetizacao: $("#aiNivelAlfabetizacao").value,
+    nivelApoio: $("#aiNivelApoio").value,
+    areaInteresse: $("#aiAreaInteresse").value.trim(),
+    pedidoProfessor: $("#aiPedido").value.trim()
+  };
+}
+
+function validateAssistantPayload(payload) {
+  const required = [
+    ["serie", "Ano/série"],
+    ["disciplina", "Disciplina"],
+    ["habilidade", "Habilidade"],
+    ["objetoConhecimento", "Objeto de conhecimento"],
+    ["nivelAlfabetizacao", "Nível de alfabetização"],
+    ["nivelApoio", "Nível de apoio"],
+    ["pedidoProfessor", "Pedido do professor"]
+  ];
+  const missing = required.filter(([key]) => !payload[key]).map(([, label]) => label);
+  return missing.length ? `Preencha: ${missing.join(", ")}.` : "";
+}
+
+async function generateAeeMaterial() {
+  const payload = getAssistantPayload();
+  const validationError = validateAssistantPayload(payload);
+
+  if (validationError) {
+    setAiStatus(validationError, true);
+    return;
+  }
+
+  setAiStatus("Gerando material com IA. Aguarde...");
+  renderAiLoading();
+  $("#aiGenerateBtn").disabled = true;
+
+  try {
+    const apiResponse = await fetch("/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await apiResponse.json();
+
+    if (!apiResponse.ok) {
+      throw new Error(data.error || "Não foi possível gerar o material.");
+    }
+
+    renderAiMaterial(data.material);
+    state.aiLatestText = materialToText(data.material);
+    setAiStatus("Material gerado com sucesso.");
+  } catch (error) {
+    renderAiError(error.message);
+    setAiStatus(error.message, true);
+  } finally {
+    $("#aiGenerateBtn").disabled = false;
+  }
+}
+
+function setAiStatus(message, isError = false) {
+  const status = $("#aiStatus");
+  status.textContent = message;
+  status.classList.toggle("status-error", isError);
+}
+
+function renderAiLoading() {
+  $("#aiResultCards").innerHTML = `
+    <article class="ai-card loading">
+      <h3>Gerando material</h3>
+      <p>A API está organizando a proposta com foco em AEE, DUA, acessibilidade e estratégias pedagógicas inclusivas.</p>
+    </article>
+  `;
+}
+
+function renderAiError(message) {
+  $("#aiResultCards").innerHTML = `
+    <article class="ai-card error">
+      <h3>Não foi possível gerar</h3>
+      <p>${escapeHtml(message)}</p>
+    </article>
+  `;
+}
+
+function renderAiMaterial(material = {}) {
+  if (material.configuracao_folha || material.cabecalho || material.ancoras_cognitivas || material.secoes_desafios) {
+    renderA4AiMaterial(material);
+    return;
+  }
+
+  if (material.metadados || material.conteudo_adaptado || material.atividades) {
+    renderStructuredAiMaterial(material);
+    return;
+  }
+
+  const cards = Object.entries(AI_SECTION_LABELS).map(([key, label]) => `
+    <article class="ai-card">
+      <h3>${escapeHtml(label)}</h3>
+      <p>${escapeHtml(material[key] || "Não informado.")}</p>
+    </article>
+  `);
+
+  $("#aiResultCards").innerHTML = cards.join("");
+}
+
+function renderA4AiMaterial(material = {}) {
+  const configuracao = material.configuracao_folha || {};
+  const cabecalho = material.cabecalho || {};
+  const metadados = material.metadados || {};
+  const ancoras = material.ancoras_cognitivas || {};
+  const secoes = Array.isArray(material.secoes_desafios) ? material.secoes_desafios : [];
+  const orientacoes = material.orientacoes_docente || {};
+  const footerText = configuracao.rodape_autor || "@mozahintervieira";
+  const isUppercase = Boolean(configuracao.caixa_alta);
+
+  $("#aiResultCards").innerHTML = `
+    <article class="ai-a4-sheet ${isUppercase ? "uppercase-sheet" : ""}" aria-label="Folha A4 gerada pela IA">
+      <header class="ai-a4-header">
+        <div>
+          <span class="ai-a4-badge">${escapeHtml(configuracao.tamanho || "A4")} · ${escapeHtml(configuracao.layout_orientacao || "Retrato")}</span>
+          <h3>${escapeHtml(cabecalho.titulo_atividade || material.conteudo_adaptado?.titulo || "Atividade adaptada")}</h3>
+          <p>${escapeHtml(cabecalho.instrucoes_gerais || "Realize uma etapa de cada vez com apoio do professor.")}</p>
+        </div>
+        <div class="ai-a4-stamp">
+          <strong>ACESSA+</strong>
+          <span>${escapeHtml(configuracao.tema_estilo || "Folha inclusiva")}</span>
+        </div>
+      </header>
+
+      <section class="ai-a4-meta" aria-label="Dados pedagogicos">
+        ${renderA4Meta("Objetivo", metadados.objetivo_pedagogico)}
+        ${renderA4Meta("Habilidade", metadados.habilidade_bncc_adaptada)}
+        ${renderA4Meta("Publico-alvo", metadados.publico_alvo)}
+        ${renderA4Meta("Apoio", metadados.nivel_apoio)}
+      </section>
+
+      <section class="ai-a4-anchor">
+        <div>
+          <h4>Ancora cognitiva</h4>
+          <p>${escapeHtml(ancoras.contextualizacao || material.conteudo_adaptado?.texto_simplificado || "Contextualizacao nao informada.")}</p>
+        </div>
+        <div class="ai-a4-visuals">
+          ${(ancoras.pistas_graficas || []).map(renderGraphicHint).join("")}
+        </div>
+      </section>
+
+      <section class="ai-a4-challenges" aria-label="Secoes da atividade">
+        ${secoes.length ? secoes.map(renderChallengeSection).join("") : "<p>Nenhuma secao foi informada pela IA.</p>"}
+      </section>
+
+      <section class="ai-a4-teacher">
+        ${renderTeacherNote("Metodologia inclusiva", orientacoes.metodologia_inclusiva)}
+        ${renderTeacherNote("Recursos de acessibilidade", orientacoes.recursos_acessibilidade)}
+        ${renderTeacherNote("Estrategias do AEE", orientacoes.estrategias_aee)}
+        ${renderTeacherNote("Avaliacao", orientacoes.avaliacao)}
+        ${renderTeacherNote("Sugestoes ao professor", orientacoes.sugestoes_professor)}
+      </section>
+
+      <footer class="ai-a4-footer">
+        <span>${escapeHtml(footerText)}</span>
+        <span>ACESSA+ · Inclui · Transforma · Conecta</span>
+      </footer>
+    </article>
+  `;
+}
+
+function renderA4Meta(label, value) {
+  return `
+    <div>
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(value || "Nao informado.")}</span>
+    </div>
+  `;
+}
+
+function renderGraphicHint(hint = {}) {
+  return `
+    <div class="ai-a4-visual-card">
+      <strong>${escapeHtml(hint.elemento || hint.termo || "Pista visual")}</strong>
+      <span>${escapeHtml(hint.posicionamento || "Proximo ao conteudo")}</span>
+      <p>${escapeHtml(hint.descricao_prompt_imagem || hint.descricao_para_icone_ou_ia_generativa || "Descricao visual nao informada.")}</p>
+    </div>
+  `;
+}
+
+function renderChallengeSection(section = {}) {
+  const title = section.titulo_bloco || `Missao ${section.fase_id || ""}`;
+  return `
+    <div class="ai-a4-challenge">
+      <div class="ai-a4-challenge-title">
+        <span>${escapeHtml(String(section.fase_id || ""))}</span>
+        <h4>${escapeHtml(title)}</h4>
+      </div>
+      <p class="ai-a4-enunciation">${escapeHtml(section.enunciado || "Enunciado nao informado.")}</p>
+      ${renderChallengeOptions(section)}
+      ${renderChallengeMatching(section)}
+      ${renderChallengeWordBank(section)}
+      ${section.espaco_resposta ? `<div class="ai-a4-response-space">${escapeHtml(section.espaco_resposta)}</div>` : ""}
+      <div class="ai-a4-support">
+        <strong>Suporte:</strong>
+        <span>${escapeHtml(section.suporte_especifico || "Usar mediacao, apoio visual e forma alternativa de resposta.")}</span>
+      </div>
+      <div class="ai-a4-feedback">
+        <strong>Evidencia:</strong>
+        <span>${escapeHtml(section.feedback_professor || "Registrar participacao, acerto, comunicacao e nivel de ajuda.")}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderChallengeOptions(section) {
+  if (!Array.isArray(section.opcoes) || !section.opcoes.length) return "";
+
+  return `
+    <div class="ai-a4-options">
+      ${section.opcoes.map((option) => `
+        <div>
+          <strong>${escapeHtml(option.letra || "")}</strong>
+          <span>${escapeHtml(option.texto || "")}</span>
+          ${(option.valido || option.correta) ? "<em>gabarito</em>" : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderChallengeMatching(section) {
+  const left = section.coluna_esquerda || section.itens_esquerda || [];
+  const right = section.coluna_direita || section.itens_direita || [];
+  if (!left.length && !right.length) return "";
+
+  return `
+    <div class="ai-a4-matching">
+      <div>
+        <strong>Coluna 1</strong>
+        ${left.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+      <div>
+        <strong>Coluna 2</strong>
+        ${right.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderChallengeWordBank(section) {
+  const bank = section.banco_palavras || section.banco_de_palavras || [];
+  if (!Array.isArray(bank) || !bank.length) return "";
+
+  return `
+    <div class="ai-a4-word-bank">
+      ${bank.map((word) => `<span>${escapeHtml(word)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderTeacherNote(label, value) {
+  return `
+    <div>
+      <strong>${escapeHtml(label)}</strong>
+      <p>${escapeHtml(value || "Nao informado.")}</p>
+    </div>
+  `;
+}
+
+function renderStructuredAiMaterial(material = {}) {
+  const metadados = material.metadados || {};
+  const conteudo = material.conteudo_adaptado || {};
+  const atividades = Array.isArray(material.atividades) ? material.atividades : [];
+  const metadataCards = Object.entries(METADATA_LABELS).map(([key, label]) => `
+    <article class="ai-card">
+      <h3>${escapeHtml(label)}</h3>
+      <p>${escapeHtml(metadados[key] || "Não informado.")}</p>
+    </article>
+  `);
+
+  const visualCards = Array.isArray(conteudo.pistas_visuais_sugeridas)
+    ? conteudo.pistas_visuais_sugeridas.map((pista) => `
+      <article class="ai-card visual-card">
+        <h3>${escapeHtml(pista.termo || "Pista visual")}</h3>
+        <p>${escapeHtml(pista.descricao_para_icone_ou_ia_generativa || "Descrição visual não informada.")}</p>
+      </article>
+    `)
+    : [];
+
+  const activityCards = atividades.map(renderStructuredActivity);
+
+  $("#aiResultCards").innerHTML = [
+    `<article class="ai-card ai-card-feature">
+      <h3>${escapeHtml(conteudo.titulo || "Conteúdo adaptado")}</h3>
+      <p>${escapeHtml(conteudo.texto_simplificado || "Texto simplificado não informado.")}</p>
+    </article>`,
+    ...metadataCards,
+    ...visualCards,
+    ...activityCards
+  ].join("");
+}
+
+function renderStructuredActivity(activity = {}) {
+  return `
+    <article class="ai-card activity-card">
+      <h3>Atividade ${escapeHtml(activity.id || "")}: ${escapeHtml(activity.tipo || "Atividade adaptada")}</h3>
+      <p><strong>Enunciado:</strong><br>${escapeHtml(activity.enunciado || "Não informado.")}</p>
+      ${renderActivityOptions(activity)}
+      ${renderActivityMatching(activity)}
+      ${renderActivityBank(activity)}
+      <p><strong>Feedback para o professor:</strong><br>${escapeHtml(activity.feedback_professor || "Não informado.")}</p>
+    </article>
+  `;
+}
+
+function renderActivityOptions(activity) {
+  if (!Array.isArray(activity.opcoes) || !activity.opcoes.length) return "";
+
+  return `
+    <div class="ai-option-list">
+      ${activity.opcoes.map((option) => `
+        <div class="ai-option">
+          <strong>${escapeHtml(option.letra || "")}</strong>
+          <span>${escapeHtml(option.texto || "")}</span>
+          ${option.correta ? "<em>correta</em>" : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderActivityMatching(activity) {
+  if (!Array.isArray(activity.itens_esquerda) && !Array.isArray(activity.itens_direita)) return "";
+
+  return `
+    <div class="ai-match-grid">
+      <div>
+        <strong>Itens</strong>
+        ${(activity.itens_esquerda || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+      <div>
+        <strong>Correspondências</strong>
+        ${(activity.itens_direita || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderActivityBank(activity) {
+  const bank = activity.banco_palavras || activity.banco_de_palavras;
+  if (!Array.isArray(bank) || !bank.length) return "";
+
+  return `
+    <div class="ai-word-bank">
+      ${bank.map((word) => `<span>${escapeHtml(word)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function materialToText(material = {}) {
+  if (material.configuracao_folha || material.cabecalho || material.ancoras_cognitivas || material.secoes_desafios) {
+    return a4MaterialToText(material);
+  }
+
+  if (material.metadados || material.conteudo_adaptado || material.atividades) {
+    return structuredMaterialToText(material);
+  }
+
+  return Object.entries(AI_SECTION_LABELS)
+    .map(([key, label]) => `${label}\n${material[key] || "Não informado."}`)
+    .join("\n\n");
+}
+
+function structuredMaterialToText(material = {}) {
+  const metadados = material.metadados || {};
+  const conteudo = material.conteudo_adaptado || {};
+  const atividades = Array.isArray(material.atividades) ? material.atividades : [];
+
+  const metadataText = Object.entries(METADATA_LABELS)
+    .map(([key, label]) => `${label}\n${metadados[key] || "Não informado."}`)
+    .join("\n\n");
+
+  const visualText = (conteudo.pistas_visuais_sugeridas || [])
+    .map((pista) => `${pista.termo || "Pista visual"}\n${pista.descricao_para_icone_ou_ia_generativa || ""}`)
+    .join("\n\n");
+
+  const activitiesText = atividades.map((activity) => {
+    const options = (activity.opcoes || [])
+      .map((option) => `${option.letra}) ${option.texto}${option.correta ? " [correta]" : ""}`)
+      .join("\n");
+    const left = (activity.itens_esquerda || []).join(" | ");
+    const right = (activity.itens_direita || []).join(" | ");
+
+    return [
+      `Atividade ${activity.id || ""} - ${activity.tipo || ""}`,
+      activity.enunciado || "",
+      options,
+      left ? `Itens: ${left}` : "",
+      right ? `Correspondências: ${right}` : "",
+      activity.feedback_professor ? `Feedback: ${activity.feedback_professor}` : ""
+    ].filter(Boolean).join("\n");
+  }).join("\n\n");
+
+  return [
+    conteudo.titulo || "Conteúdo adaptado",
+    conteudo.texto_simplificado || "",
+    metadataText,
+    visualText,
+    activitiesText
+  ].filter(Boolean).join("\n\n");
+}
+
+function a4MaterialToText(material = {}) {
+  const configuracao = material.configuracao_folha || {};
+  const cabecalho = material.cabecalho || {};
+  const metadados = material.metadados || {};
+  const ancoras = material.ancoras_cognitivas || {};
+  const secoes = Array.isArray(material.secoes_desafios) ? material.secoes_desafios : [];
+  const orientacoes = material.orientacoes_docente || {};
+
+  const metaText = [
+    `Objetivo: ${metadados.objetivo_pedagogico || "Nao informado."}`,
+    `Habilidade: ${metadados.habilidade_bncc_adaptada || "Nao informado."}`,
+    `Publico-alvo: ${metadados.publico_alvo || "Nao informado."}`,
+    `Nivel de apoio: ${metadados.nivel_apoio || "Nao informado."}`,
+    `Acessibilidade: ${metadados.observacoes_acessibilidade || "Nao informado."}`
+  ].join("\n");
+
+  const visualText = (ancoras.pistas_graficas || [])
+    .map((hint) => [
+      hint.elemento || hint.termo || "Pista visual",
+      hint.descricao_prompt_imagem || hint.descricao_para_icone_ou_ia_generativa || "",
+      hint.posicionamento ? `Posicionamento: ${hint.posicionamento}` : ""
+    ].filter(Boolean).join("\n"))
+    .join("\n\n");
+
+  const challengeText = secoes.map((section) => {
+    const options = (section.opcoes || [])
+      .map((option) => `${option.letra}) ${option.texto}${(option.valido || option.correta) ? " [gabarito]" : ""}`)
+      .join("\n");
+    const left = (section.coluna_esquerda || section.itens_esquerda || []).join(" | ");
+    const right = (section.coluna_direita || section.itens_direita || []).join(" | ");
+    const bank = (section.banco_palavras || section.banco_de_palavras || []).join(" | ");
+
+    return [
+      section.titulo_bloco || `Missao ${section.fase_id || ""}`,
+      section.enunciado || "",
+      options,
+      left ? `Coluna 1: ${left}` : "",
+      right ? `Coluna 2: ${right}` : "",
+      bank ? `Banco de palavras: ${bank}` : "",
+      section.suporte_especifico ? `Suporte: ${section.suporte_especifico}` : "",
+      section.feedback_professor ? `Evidencia: ${section.feedback_professor}` : ""
+    ].filter(Boolean).join("\n");
+  }).join("\n\n");
+
+  const teacherText = [
+    `Metodologia inclusiva: ${orientacoes.metodologia_inclusiva || "Nao informado."}`,
+    `Recursos de acessibilidade: ${orientacoes.recursos_acessibilidade || "Nao informado."}`,
+    `Estrategias do AEE: ${orientacoes.estrategias_aee || "Nao informado."}`,
+    `Avaliacao: ${orientacoes.avaliacao || "Nao informado."}`,
+    `Sugestoes ao professor: ${orientacoes.sugestoes_professor || "Nao informado."}`
+  ].join("\n");
+
+  return [
+    cabecalho.titulo_atividade || "Atividade adaptada A4",
+    cabecalho.instrucoes_gerais || "",
+    metaText,
+    ancoras.contextualizacao || "",
+    visualText,
+    challengeText,
+    teacherText,
+    configuracao.rodape_autor || "@mozahintervieira"
+  ].filter(Boolean).join("\n\n");
+}
+
+async function copyAiMaterial() {
+  if (!state.aiLatestText) {
+    setAiStatus("Gere um material antes de copiar.", true);
+    return;
+  }
+
+  await navigator.clipboard.writeText(state.aiLatestText);
+  setAiStatus("Resposta copiada para a área de transferência.");
+}
+
+function printAiMaterial() {
+  if (!state.aiLatestText) {
+    setAiStatus("Gere um material antes de imprimir.", true);
+    return;
+  }
+
+  document.body.classList.add("print-assistant");
+  window.print();
+  setTimeout(() => document.body.classList.remove("print-assistant"), 600);
+}
+
 function bindEvents() {
   $$(".nav-item").forEach((item) => item.addEventListener("click", () => showView(item.dataset.view)));
   $$("[data-go-view]").forEach((item) => item.addEventListener("click", () => showView(item.dataset.goView)));
   $$("[data-kind-shortcut]").forEach((item) => item.addEventListener("click", () => shortcutKind(item.dataset.kindShortcut)));
   $$(".module-card").forEach((card) => card.addEventListener("click", () => selectKind(card.dataset.kind)));
-  $("#generateBtn").addEventListener("click", gerarComIA);
-  $("#generateTopBtn").addEventListener("click", gerarComIA);
+  $("#generateBtn").addEventListener("click", generateMaterial);
+  $("#generateTopBtn").addEventListener("click", generateMaterial);
   $("#saveBtn").addEventListener("click", saveCurrent);
   $("#saveResultBtn").addEventListener("click", saveCurrent);
   $("#printBtn").addEventListener("click", () => window.print());
@@ -1939,6 +2421,10 @@ function bindEvents() {
   $("#settingsContrastBtn").addEventListener("click", toggleHighContrast);
   $("#settingsSimpleBtn").addEventListener("click", toggleSimpleMode);
   $("#settingsFontBtn").addEventListener("click", () => changeFont(1));
+  $("#aiGenerateBtn").addEventListener("click", generateAeeMaterial);
+  $("#aiCopyBtn").addEventListener("click", copyAiMaterial);
+  $("#aiPrintBtn").addEventListener("click", printAiMaterial);
+  window.addEventListener("afterprint", () => document.body.classList.remove("print-assistant"));
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -1960,48 +2446,7 @@ function registerServiceWorker() {
     navigator.serviceWorker.register("service-worker.js").catch(() => {});
   }
 }
-async function gerarComIA() {
-  const data = getFormData();
 
-  $("#engineStatus").textContent = "Gerando com IA...";
-
-  try {
-    const resposta = await fetch("/api/gerar", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(data)
-    });
-
-    const json = await resposta.json();
-
-    if (!resposta.ok) {
-      throw new Error(json.erro || "Erro ao gerar.");
-    }
-
-    $("#resultPaper").innerHTML = json.resultado;
-    $("#resultTitle").textContent = kindLabels[data.kind];
-    $("#engineStatus").textContent = "OpenAI conectada";
-
-    state.currentResult = json.resultado;
-    state.currentMeta = {
-      kind: data.kind,
-      title: `${kindLabels[data.kind]} - ${data.subject}`,
-      studentName: data.studentName,
-      subject: data.subject,
-      date: new Date().toISOString()
-    };
-
-  } catch (erro) {
-    $("#engineStatus").textContent = "Erro";
-
-    $("#resultPaper").innerHTML = `
-      <h2>Erro ao gerar material</h2>
-      <p>${erro.message}</p>
-    `;
-  }
-}
 renderGuide();
 renderSaved();
 loadSettings();

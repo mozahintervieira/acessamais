@@ -32,44 +32,48 @@
             <span>03</span>
             Painel
           </button>
-          <button class="nav-item" data-view="workspace" type="button">
+          <button class="nav-item" data-view="assistantAee" type="button">
             <span>04</span>
+            Assistente AEE
+          </button>
+          <button class="nav-item" data-view="workspace" type="button">
+            <span>05</span>
             Atividades
           </button>
           <button class="nav-item" data-view="library" type="button">
-            <span>05</span>
+            <span>06</span>
             Biblioteca
           </button>
           <button class="nav-item" data-view="peiHub" type="button">
-            <span>06</span>
+            <span>07</span>
             PEI
           </button>
           <button class="nav-item" data-view="caaHub" type="button">
-            <span>07</span>
+            <span>08</span>
             CAA
           </button>
           <button class="nav-item" data-view="profilesHub" type="button">
-            <span>08</span>
+            <span>09</span>
             Perfis
           </button>
           <button class="nav-item" data-view="assistiveHub" type="button">
-            <span>09</span>
+            <span>10</span>
             Tecnologia
           </button>
           <button class="nav-item" data-view="familyHub" type="button">
-            <span>10</span>
+            <span>11</span>
             Família
           </button>
           <button class="nav-item" data-view="reportsHub" type="button">
-            <span>11</span>
+            <span>12</span>
             Relatórios
           </button>
           <button class="nav-item" data-view="guide" type="button">
-            <span>12</span>
+            <span>13</span>
             Guia pedagógico
           </button>
           <button class="nav-item" data-view="settings" type="button">
-            <span>13</span>
+            <span>14</span>
             Acessibilidade
           </button>
         </nav>
@@ -160,6 +164,7 @@
           </div>
           <div class="dashboard-grid">
             <button class="dashboard-card" data-go-view="workspace" type="button"><strong>Gerador de Atividades</strong><span>Atividades A4, exercícios e adaptações.</span></button>
+            <button class="dashboard-card" data-go-view="assistantAee" type="button"><strong>Assistente AEE com IA</strong><span>Gere material pedagógico completo por pedido do professor.</span></button>
             <button class="dashboard-card" data-go-view="peiHub" type="button"><strong>Gerador de PEI</strong><span>Objetivos, metas e estratégias.</span></button>
             <button class="dashboard-card" data-go-view="caaHub" type="button"><strong>Módulo de CAA</strong><span>Pranchas, cartões e vocabulário funcional.</span></button>
             <button class="dashboard-card" data-go-view="profilesHub" type="button"><strong>Recursos por perfil</strong><span>TEA, DI, DV, DA e múltiplas necessidades.</span></button>
@@ -167,6 +172,102 @@
             <button class="dashboard-card" data-go-view="familyHub" type="button"><strong>Escola-Família</strong><span>Orientações e comunicação objetiva.</span></button>
             <button class="dashboard-card" data-go-view="reportsHub" type="button"><strong>Relatórios de evolução</strong><span>Evidências, participação e próximos passos.</span></button>
             <button class="dashboard-card" data-go-view="library" type="button"><strong>Biblioteca Inclusiva</strong><span>Materiais salvos e reutilizáveis.</span></button>
+          </div>
+        </section>
+
+        <section class="view" id="assistantAee">
+          <div class="assistant-layout">
+            <form class="panel assistant-form" id="assistantForm">
+              <div class="panel-header">
+                <p class="eyebrow">IA segura no backend</p>
+                <h2>Assistente AEE</h2>
+                <p>Descreva o que precisa. A resposta será gerada pela API serverless da Vercel sem expor a chave da OpenAI no navegador.</p>
+              </div>
+
+              <div class="form-grid two">
+                <label>
+                  Perfil
+                  <select id="aiPerfil" required>
+                    <option value="TEA">TEA</option>
+                    <option value="DI">DI</option>
+                    <option value="DV">DV</option>
+                    <option value="DA">DA</option>
+                    <option value="CAA">CAA</option>
+                    <option value="TDAH">TDAH</option>
+                    <option value="AH/SD">AH/SD</option>
+                    <option value="Múltiplas necessidades">Múltiplas necessidades</option>
+                  </select>
+                </label>
+                <label>
+                  Ano/série
+                  <input id="aiSerie" type="text" placeholder="Ex.: 1ª série do Ensino Médio" required>
+                </label>
+                <label>
+                  Disciplina
+                  <input id="aiDisciplina" type="text" placeholder="Ex.: História" required>
+                </label>
+                <label>
+                  Objeto de conhecimento
+                  <input id="aiObjeto" type="text" placeholder="Ex.: Povos Indígenas" required>
+                </label>
+                <label>
+                  Nível de alfabetização
+                  <select id="aiNivelAlfabetizacao" required>
+                    <option value="Pré-silábico">Pré-silábico</option>
+                    <option value="Silábico">Silábico</option>
+                    <option value="Silábico-alfabético">Silábico-alfabético</option>
+                    <option value="Alfabético inicial">Alfabético inicial</option>
+                    <option value="Leitor em desenvolvimento">Leitor em desenvolvimento</option>
+                    <option value="Leitor fluente">Leitor fluente</option>
+                  </select>
+                </label>
+                <label>
+                  Nível de apoio necessário
+                  <select id="aiNivelApoio" required>
+                    <option value="Apoio intenso">Apoio intenso</option>
+                    <option value="Apoio moderado">Apoio moderado</option>
+                    <option value="Apoio leve">Apoio leve</option>
+                    <option value="Autonomia com pistas">Autonomia com pistas</option>
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                Habilidade da BNCC ou Currículo Capixaba
+                <textarea id="aiHabilidade" rows="4" placeholder="Cole ou descreva a habilidade curricular" required></textarea>
+              </label>
+
+              <label>
+                Área de interesse ou hiperfoco
+                <input id="aiAreaInteresse" type="text" placeholder="Ex.: futebol, animais, mapas, tecnologia, música">
+              </label>
+
+              <label>
+                Pedido do professor
+                <textarea id="aiPedido" rows="5" placeholder="Ex.: Crie uma atividade adaptada para estudante com DI da 1ª série do Ensino Médio sobre Povos Indígenas." required></textarea>
+              </label>
+
+              <div class="action-row">
+                <button class="primary-button large-action" id="aiGenerateBtn" type="button">Gerar material</button>
+                <button class="secondary-button" id="aiCopyBtn" type="button">Copiar resposta</button>
+                <button class="secondary-button" id="aiPrintBtn" type="button">Imprimir folha A4</button>
+              </div>
+
+              <p class="form-note" id="aiStatus" role="status" aria-live="polite">Preencha os campos e gere um material pedagógico inclusivo.</p>
+            </form>
+
+            <section class="assistant-result" aria-labelledby="assistantResultTitle">
+              <div class="panel-header">
+                <p class="eyebrow">Resposta organizada</p>
+                <h2 id="assistantResultTitle">Material gerado pela IA</h2>
+              </div>
+              <div class="assistant-cards" id="aiResultCards">
+                <article class="ai-card">
+                  <h3>Aguardando geração</h3>
+                  <p>O material aparecerá aqui em cards: objetivo, metodologia, atividade adaptada, acessibilidade, avaliação e orientações.</p>
+                </article>
+              </div>
+            </section>
           </div>
         </section>
 
