@@ -1827,7 +1827,49 @@ async function copyResult() {
   $("#copyBtn").textContent = "Copiado";
   setTimeout(() => $("#copyBtn").textContent = "Copiar", 1500);
 }
+async function gerarComIA() {
+  const data = getFormData();
 
+  $("#engineStatus").textContent = "Gerando com IA...";
+  $("#resultPaper").innerHTML = "<h2>Acessa+</h2><p>Gerando material com o Assistente AEE...</p>";
+
+  try {
+    const resposta = await fetch("/api/gerar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
+
+    const json = await resposta.json();
+
+    if (!resposta.ok) {
+      throw new Error(json.erro || "Erro ao gerar material.");
+    }
+
+    $("#resultPaper").innerHTML = json.resultado;
+    $("#resultTitle").textContent = kindLabels[data.kind];
+    $("#engineStatus").textContent = "Gerado com IA";
+
+    state.currentResult = json.resultado;
+    state.currentMeta = {
+      kind: data.kind,
+      title: `${kindLabels[data.kind]} - ${data.subject}`,
+      studentName: data.studentName,
+      subject: data.subject,
+      date: new Date().toISOString()
+    };
+  } catch (erro) {
+    $("#engineStatus").textContent = "Erro na IA";
+    $("#resultPaper").innerHTML = `
+      <h2>Erro ao gerar com IA</h2>
+      <p>Não foi possível gerar o material com a OpenAI.</p>
+      <p><strong>Detalhe:</strong> ${escapeHtml(erro.message)}</p>
+      <p>Você ainda pode usar o modo local enquanto ajusta a configuração.</p>
+    `;
+  }
+}
 function clearForm() {
   $("#mainForm").reset();
   $$("input[name='needs']").forEach((field) => field.checked = false);
@@ -1877,8 +1919,8 @@ function bindEvents() {
   $$("[data-go-view]").forEach((item) => item.addEventListener("click", () => showView(item.dataset.goView)));
   $$("[data-kind-shortcut]").forEach((item) => item.addEventListener("click", () => shortcutKind(item.dataset.kindShortcut)));
   $$(".module-card").forEach((card) => card.addEventListener("click", () => selectKind(card.dataset.kind)));
-  $("#generateBtn").addEventListener("click", generateMaterial);
-  $("#generateTopBtn").addEventListener("click", generateMaterial);
+$("#generateBtn").addEventListener("click", gerarComIA);
+$("#generateTopBtn").addEventListener("click", gerarComIA);
   $("#saveBtn").addEventListener("click", saveCurrent);
   $("#saveResultBtn").addEventListener("click", saveCurrent);
   $("#printBtn").addEventListener("click", () => window.print());
