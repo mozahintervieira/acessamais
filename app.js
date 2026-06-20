@@ -897,7 +897,7 @@ function renderPremiumSection(section) {
 
 function premiumWorksheet(data, title = "Atividade adaptada") {
   const context = getPremiumWorksheetContext(data);
-  const owner = state.settings.ownerName || "Prof. Mozahinter Vieira";
+  const owner = state.settings.ownerName || "@mozahintervieira";
   return `
     <div class="premium-sheet theme-${context.theme}">
       <header class="sheet-hero">
