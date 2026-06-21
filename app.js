@@ -1437,7 +1437,7 @@ function generateMaterial() {
   };
   $("#resultPaper").innerHTML = html;
   $("#resultTitle").textContent = kindLabels[data.kind];
-  $("#engineStatus").textContent = "Gerado em modo local";
+  $("#engineStatus").textContent = "Gerado com IA online";
 }
 
 function saveCurrent() {
