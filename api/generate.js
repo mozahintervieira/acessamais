@@ -208,7 +208,7 @@ function buildPrompt(payload) {
         `Area de interesse ou hiperfoco: ${payload.areaInteresse || "nao informada"}`,
         `Pedido do professor: ${payload.pedidoProfessor}`,
         "",
-        "Gere uma folha A4 completa, visualmente estruturada e pedagogicamente adaptada. Inclua de 3 a 6 secoes_desafios com formatos variados, evidencias de aprendizagem e orientacoes docentes objetivas."
+        "A folha deve ter organizacao espacial clara, estetica ludica, blocos como Missao, Desafio, Complete, Ligue ou Produza, e suporte visual por especificidade."
       ].join("\n")
     }
   ];
