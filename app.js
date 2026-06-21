@@ -2561,7 +2561,8 @@ async function generateAeeMaterial() {
 
     renderAiMaterial(data.material);
     state.aiLatestText = materialToText(data.material);
-    setAiStatus("Material gerado com sucesso.");
+    setAiStatus("Material gerado com IA online.");
+$("#engineStatus").textContent = "Gerado com IA online";
   } catch (error) {
     renderAiError(error.message);
     setAiStatus(error.message, true);
