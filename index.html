@@ -91,6 +91,11 @@
             <h1>Produza atividades acessíveis, adaptadas e prontas para uso com estudantes.</h1>
           </div>
           <div class="top-actions">
+            <div class="user-status" id="userStatus" aria-live="polite">
+              <span class="status-dot offline" aria-hidden="true"></span>
+              <strong>Sem professor logado</strong>
+              <button class="ghost-button mini-button" id="logoutBtn" type="button" hidden>Sair</button>
+            </div>
             <button class="ghost-button" id="installBtn" type="button" hidden>Instalar app</button>
             <button class="ghost-button" id="clearBtn" type="button">Limpar</button>
             <button class="primary-button" id="generateTopBtn" type="button">Gerar material</button>
@@ -276,6 +281,7 @@
                 <button class="primary-button large-action" id="aiGenerateBtn" type="button">Gerar material</button>
                 <button class="secondary-button" id="aiCopyBtn" type="button">Copiar resposta</button>
                 <button class="secondary-button" id="aiPrintBtn" type="button">Imprimir folha A4</button>
+                <button class="secondary-button" id="aiImageBtn" type="button">Baixar imagem A4</button>
               </div>
 
               <p class="form-note" id="aiStatus" role="status" aria-live="polite">Preencha os campos e gere um material pedagógico inclusivo.</p>
@@ -501,6 +507,34 @@
               <label>Disciplina<select id="filterSubject"><option value="">Todas</option><option>Língua Portuguesa</option><option>Matemática</option><option>Ciências</option><option>História</option><option>Geografia</option><option>Inglês</option><option>Arte</option><option>Educação Física</option><option>Ensino Religioso</option></select></label>
               <label>Perfil<select id="filterProfile"><option value="">Todos</option><option>DI</option><option>TEA</option><option>DV</option><option>DA</option><option>TDAH</option><option>AH/SD</option><option>Múltiplas deficiências</option></select></label>
             </div>
+            <div class="library-summary" id="librarySummary" aria-live="polite"></div>
+            <section class="library-upload" aria-labelledby="uploadLibraryTitle">
+              <div>
+                <p class="eyebrow">Upload para acervo</p>
+                <h3 id="uploadLibraryTitle">Adicionar atividade pronta</h3>
+                <p>Envie materiais que você produziu para ficarem disponíveis na Biblioteca, organizados por série, habilidade, disciplina e perfil.</p>
+              </div>
+              <div class="upload-form">
+                <label>Título da atividade<input id="uploadTitle" type="text" placeholder="Ex.: Ideia principal - compreensão de texto"></label>
+                <label>Ano/série<select id="uploadYear"><option>6º Ano</option><option>7º Ano</option><option>8º Ano</option><option>9º Ano</option><option>1ª série EM</option><option>2ª série EM</option><option>3ª série EM</option></select></label>
+                <label>Disciplina<select id="uploadSubject"><option>Língua Portuguesa</option><option>Matemática</option><option>Ciências</option><option>História</option><option>Geografia</option><option>Inglês</option><option>Arte</option><option>Educação Física</option><option>Ensino Religioso</option></select></label>
+                <label>Habilidade<input id="uploadSkill" type="text" placeholder="Ex.: EM13LP01 ou EF06HI07"></label>
+                <fieldset class="upload-profile-grid">
+                  <legend>Perfis AEE</legend>
+                  <label><input type="checkbox" name="uploadProfiles" value="DI"> <span>DI</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="TEA"> <span>TEA</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="DV"> <span>DV</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="DA"> <span>DA</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="TDAH"> <span>TDAH</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="AH/SD"> <span>AH/SD</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="Múltiplas deficiências"> <span>Múltiplas</span></label>
+                  <label><input type="checkbox" name="uploadProfiles" value="Geral" checked> <span>Geral</span></label>
+                </fieldset>
+                <label>Arquivo<input id="uploadFile" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.html,.txt"></label>
+                <button class="primary-button" id="uploadLibraryBtn" type="button">Salvar na biblioteca</button>
+                <p class="form-note" id="uploadStatus" role="status" aria-live="polite">Os arquivos ficam salvos neste navegador até a integração com banco real.</p>
+              </div>
+            </section>
             <div class="saved-list" id="savedList"></div>
           </div>
         </section>

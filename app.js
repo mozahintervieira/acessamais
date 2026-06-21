@@ -24,6 +24,7 @@ const state = {
   currentResult: "",
   currentMeta: null,
   aiLatestText: "",
+  aiLastPayload: null,
   saved: readJson(STORAGE_KEYS.saved, readJson(LEGACY_STORAGE_KEYS.saved, [])),
   users: readJson(STORAGE_KEYS.users, []),
   currentUser: readJson(STORAGE_KEYS.currentUser, null),
@@ -202,6 +203,35 @@ function validateSignup(user, password) {
 function persistUsers() {
   writeJson(STORAGE_KEYS.users, state.users);
   writeJson(STORAGE_KEYS.currentUser, state.currentUser);
+  refreshAuthUi();
+}
+
+function refreshAuthUi() {
+  const box = $("#userStatus");
+  if (!box) return;
+
+  const user = state.currentUser;
+  const dot = box.querySelector(".status-dot");
+  const label = box.querySelector("strong");
+  const logout = $("#logoutBtn");
+
+  box.classList.toggle("logged", Boolean(user));
+  dot?.classList.toggle("offline", !user);
+  dot?.classList.toggle("online", Boolean(user));
+
+  if (label) {
+    label.textContent = user ? `Professor: ${user.name}` : "Sem professor logado";
+  }
+
+  if (logout) {
+    logout.hidden = !user;
+  }
+}
+
+function logoutUser() {
+  state.currentUser = null;
+  persistUsers();
+  setAuthStatus("#loginStatus", "Perfil desconectado neste dispositivo.");
 }
 
 async function signupUser() {
@@ -1180,7 +1210,6 @@ function premiumWorksheet(data, title = "Atividade adaptada") {
         <span><strong>HABILIDADE:</strong> ${escapeHtml(skillCode)}</span>
         <span><strong>Turma:</strong> ${escapeHtml(data.grade === "Série não informada" ? "" : data.grade)}</span>
         <span><strong>Disciplina:</strong> ${escapeHtml(data.subject === "Disciplina não informada" ? "" : data.subject)}</span>
-        <span><strong>Data:</strong> ____ / ____ / ______</span>
       </div>
 
       <div class="intro-ribbon">${escapeHtml(context.intro)}</div>
@@ -1403,6 +1432,7 @@ function generateMaterial() {
     primaryProfile: data.needs[0] || "Geral",
     knowledgeObject: data.knowledgeObject,
     createdBy: state.currentUser?.id || null,
+    createdByName: state.currentUser?.name || "Professor não identificado",
     date: new Date().toISOString()
   };
   $("#resultPaper").innerHTML = html;
@@ -1411,6 +1441,12 @@ function generateMaterial() {
 }
 
 function saveCurrent() {
+  if (!state.currentUser) {
+    showView("login");
+    setAuthStatus("#loginStatus", "Entre ou crie um perfil para salvar materiais na biblioteca.", true);
+    return;
+  }
+
   if (!state.currentResult) generateMaterial();
   const item = {
     id: Date.now(),
@@ -1419,9 +1455,197 @@ function saveCurrent() {
     updatedAt: new Date().toISOString()
   };
   state.saved.unshift(item);
-  writeJson(STORAGE_KEYS.saved, state.saved);
+  try {
+    writeJson(STORAGE_KEYS.saved, state.saved);
+  } catch (error) {
+    state.saved = state.saved.filter((entry) => entry.id !== item.id);
+    $("#engineStatus").textContent = "Não foi possível salvar. O armazenamento local está cheio.";
+    return;
+  }
   renderSaved();
   showView("library");
+}
+
+function setUploadStatus(message, isError = false) {
+  const status = $("#uploadStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("status-error", isError);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function getUploadProfiles() {
+  const selected = $$("input[name='uploadProfiles']:checked").map((field) => field.value);
+  if (selected.length > 1 && selected.includes("Geral")) {
+    return selected.filter((profile) => profile !== "Geral");
+  }
+  return selected.length ? selected : ["Geral"];
+}
+
+function resetUploadProfiles() {
+  $$("input[name='uploadProfiles']").forEach((field) => {
+    field.checked = field.value === "Geral";
+  });
+}
+
+function syncUploadProfileSelection(event) {
+  const target = event.target;
+  if (!target?.matches?.("input[name='uploadProfiles']")) return;
+
+  const fields = $$("input[name='uploadProfiles']");
+  const general = fields.find((field) => field.value === "Geral");
+
+  if (target.value === "Geral" && target.checked) {
+    fields.forEach((field) => {
+      if (field.value !== "Geral") field.checked = false;
+    });
+    return;
+  }
+
+  if (target.value !== "Geral" && target.checked && general) {
+    general.checked = false;
+  }
+
+  if (!fields.some((field) => field.checked) && general) {
+    general.checked = true;
+  }
+}
+
+async function uploadLibraryMaterial() {
+  const fileInput = $("#uploadFile");
+  const file = fileInput?.files?.[0];
+  const title = $("#uploadTitle")?.value.trim();
+  const schoolYear = $("#uploadYear")?.value || "";
+  const discipline = $("#uploadSubject")?.value || "";
+  const skillCode = extractSkillCode($("#uploadSkill")?.value || "") || ($("#uploadSkill")?.value.trim() || "");
+  const profiles = getUploadProfiles();
+
+  if (!state.currentUser) {
+    setUploadStatus("Entre ou crie um perfil para enviar materiais para a biblioteca.", true);
+    showView("login");
+    return;
+  }
+
+  if (!title) {
+    setUploadStatus("Informe o título da atividade.", true);
+    return;
+  }
+
+  if (!skillCode) {
+    setUploadStatus("Informe a habilidade para organizar o acervo.", true);
+    return;
+  }
+
+  if (!file) {
+    setUploadStatus("Selecione um arquivo para enviar.", true);
+    return;
+  }
+
+  const maxBytes = 2 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    setUploadStatus("Arquivo muito grande para salvar localmente. Use até 2 MB por enquanto.", true);
+    return;
+  }
+
+  setUploadStatus("Salvando atividade na biblioteca...");
+  const fileDataUrl = await readFileAsDataUrl(file);
+  const item = {
+    id: Date.now(),
+    source: "upload",
+    kind: "uploaded",
+    title,
+    subject: discipline,
+    discipline,
+    schoolStage: classifySchoolStage(schoolYear),
+    schoolYear,
+    skillCode,
+    profiles,
+    primaryProfile: profiles[0],
+    knowledgeObject: title,
+    fileName: file.name,
+    fileType: file.type || "application/octet-stream",
+    fileSize: file.size,
+    fileDataUrl,
+    createdBy: state.currentUser?.id || null,
+    createdByName: state.currentUser?.name || "Professor não identificado",
+    date: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  state.saved.unshift(item);
+  try {
+    writeJson(STORAGE_KEYS.saved, state.saved);
+  } catch (error) {
+    state.saved = state.saved.filter((entry) => entry.id !== item.id);
+    setUploadStatus("Não foi possível salvar no navegador. Use um arquivo menor ou integre um banco real.", true);
+    return;
+  }
+
+  renderSaved();
+  setUploadStatus("Atividade salva na biblioteca local.");
+
+  $("#uploadTitle").value = "";
+  $("#uploadSkill").value = "";
+  fileInput.value = "";
+  resetUploadProfiles();
+}
+
+function schoolYearSortValue(value) {
+  const text = normalizeText(value);
+  if (text.includes("6")) return 6;
+  if (text.includes("7")) return 7;
+  if (text.includes("8")) return 8;
+  if (text.includes("9")) return 9;
+  if (text.includes("1") && text.includes("em")) return 10;
+  if (text.includes("2") && text.includes("em")) return 11;
+  if (text.includes("3") && text.includes("em")) return 12;
+  return 99;
+}
+
+function sortSavedItems(items) {
+  return [...items].sort((a, b) => {
+    const yearDiff = schoolYearSortValue(a.schoolYear) - schoolYearSortValue(b.schoolYear);
+    if (yearDiff) return yearDiff;
+    const skillDiff = String(a.skillCode || "").localeCompare(String(b.skillCode || ""), "pt-BR", { numeric: true });
+    if (skillDiff) return skillDiff;
+    const subjectDiff = String(a.discipline || a.subject || "").localeCompare(String(b.discipline || b.subject || ""), "pt-BR");
+    if (subjectDiff) return subjectDiff;
+    const profileDiff = String(a.primaryProfile || "").localeCompare(String(b.primaryProfile || ""), "pt-BR");
+    if (profileDiff) return profileDiff;
+    return new Date(b.updatedAt || b.date || 0) - new Date(a.updatedAt || a.date || 0);
+  });
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderLibrarySummary(filteredCount) {
+  const summary = $("#librarySummary");
+  if (!summary) return;
+
+  const uploaded = state.saved.filter((item) => item.source === "upload").length;
+  const generated = state.saved.length - uploaded;
+  const loggedUser = state.currentUser?.name || "sem professor logado";
+
+  summary.innerHTML = `
+    <span><strong>${filteredCount}</strong> materiais na visualização atual</span>
+    <span><strong>${state.saved.length}</strong> no acervo local</span>
+    <span><strong>${generated}</strong> gerados</span>
+    <span><strong>${uploaded}</strong> enviados por upload</span>
+    <span>Professor: <strong>${escapeHtml(loggedUser)}</strong></span>
+  `;
 }
 
 function renderSaved() {
@@ -1430,18 +1654,20 @@ function renderSaved() {
   const year = $("#filterYear")?.value || "";
   const subject = $("#filterSubject")?.value || "";
   const profile = $("#filterProfile")?.value || "";
-  const filtered = state.saved.filter((item) => {
+  const filtered = sortSavedItems(state.saved.filter((item) => {
     const itemProfiles = Array.isArray(item.profiles) ? item.profiles : [item.primaryProfile].filter(Boolean);
-    const haystack = `${item.title} ${item.studentName} ${item.subject} ${item.discipline} ${item.skillCode} ${item.knowledgeObject} ${itemProfiles.join(" ")} ${kindLabels[item.kind]}`.toLowerCase();
+    const haystack = `${item.title} ${item.fileName} ${item.createdByName} ${item.subject} ${item.discipline} ${item.skillCode} ${item.knowledgeObject} ${itemProfiles.join(" ")} ${kindLabels[item.kind]}`.toLowerCase();
     const matchesQuery = haystack.includes(query);
     const matchesStage = !stage || item.schoolStage === stage;
     const matchesYear = !year || item.schoolYear === year;
     const matchesSubject = !subject || item.discipline === subject || item.subject === subject;
     const matchesProfile = !profile || itemProfiles.includes(profile);
     return matchesQuery && matchesStage && matchesYear && matchesSubject && matchesProfile;
-  });
+  }));
 
   const list = $("#savedList");
+  renderLibrarySummary(filtered.length);
+
   if (!filtered.length) {
     list.innerHTML = `
       <div class="empty-state">
@@ -1452,22 +1678,46 @@ function renderSaved() {
     return;
   }
 
-  list.innerHTML = filtered.map((item) => `
-    <article class="saved-card">
-      <div>
-        <h3>${escapeHtml(item.title)}</h3>
-        <p>${escapeHtml(kindLabels[item.kind] || "Material")} | ${escapeHtml(item.schoolStage || "Etapa")} | ${escapeHtml(item.schoolYear || "Ano")} | ${escapeHtml(item.discipline || item.subject || "Disciplina")} | ${escapeHtml(item.skillCode || "Habilidade")}</p>
-        <div class="saved-tags">
-          ${(item.profiles || [item.primaryProfile || "Geral"]).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+  let lastGroup = "";
+  list.innerHTML = filtered.map((item) => {
+    const itemDiscipline = item.discipline || item.subject || "Disciplina não informada";
+    const groupKey = `${item.schoolYear || "Ano não informado"}|${itemDiscipline}|${item.skillCode || "Habilidade não informada"}`;
+    const groupHeader = groupKey !== lastGroup ? `
+      <div class="library-group-title">
+        <strong>${escapeHtml(item.schoolYear || "Ano não informado")} • ${escapeHtml(itemDiscipline)}</strong>
+        <span>${escapeHtml(item.skillCode || "Habilidade não informada")}</span>
+      </div>
+    ` : "";
+    lastGroup = groupKey;
+    const itemProfiles = item.profiles || [item.primaryProfile || "Geral"];
+    const typeLabel = kindLabels[item.kind] || (item.source === "upload" ? "Arquivo enviado" : "Material");
+    const fileInfo = item.fileName ? ` | Arquivo: ${item.fileName}${item.fileSize ? ` (${formatFileSize(item.fileSize)})` : ""}` : "";
+
+    return `
+      ${groupHeader}
+      <article class="saved-card">
+        <div>
+          <h3>${escapeHtml(item.title)}</h3>
+          <p class="saved-meta-line">
+            <span>${escapeHtml(typeLabel)}</span>
+            <span>${escapeHtml(item.schoolStage || "Etapa")}</span>
+            <span>${escapeHtml(item.schoolYear || "Ano")}</span>
+            <span>${escapeHtml(itemDiscipline)}</span>
+            <span>${escapeHtml(item.skillCode || "Habilidade")}</span>
+          </p>
+          <p class="saved-owner">Autor: ${escapeHtml(item.createdByName || "Professor não identificado")}${escapeHtml(fileInfo)}</p>
+          <div class="saved-tags">
+            ${itemProfiles.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+          </div>
         </div>
-      </div>
-      <div class="card-actions">
-        <button class="secondary-button" type="button" data-open="${item.id}">Abrir</button>
-        <button class="secondary-button" type="button" data-duplicate="${item.id}">Duplicar</button>
-        <button class="danger-button" type="button" data-delete="${item.id}">Excluir</button>
-      </div>
-    </article>
-  `).join("");
+        <div class="card-actions">
+          <button class="secondary-button" type="button" data-open="${item.id}">${item.source === "upload" ? "Abrir arquivo" : "Abrir"}</button>
+          <button class="secondary-button" type="button" data-duplicate="${item.id}">Duplicar</button>
+          <button class="danger-button" type="button" data-delete="${item.id}">Excluir</button>
+        </div>
+      </article>
+    `;
+  }).join("");
 
   $$('[data-open]').forEach((button) => {
     button.addEventListener("click", () => openSaved(Number(button.dataset.open)));
@@ -1479,9 +1729,29 @@ function renderSaved() {
     button.addEventListener("click", () => deleteSaved(Number(button.dataset.delete)));
   });
 }
+
+function openUploadedFile(item) {
+  if (!item.fileDataUrl) return;
+  const previewable = /^image\//.test(item.fileType || "")
+    || /pdf|text|html/.test(item.fileType || "")
+    || /\.(pdf|png|jpe?g|webp|gif|txt|html?)$/i.test(item.fileName || "");
+  const link = document.createElement("a");
+  link.href = item.fileDataUrl;
+  link.target = "_blank";
+  link.rel = "noopener";
+  if (!previewable) {
+    link.download = item.fileName || `${item.title}.pdf`;
+  }
+  link.click();
+}
+
 function openSaved(id) {
   const item = state.saved.find((entry) => entry.id === id);
   if (!item) return;
+  if (item.source === "upload") {
+    openUploadedFile(item);
+    return;
+  }
   state.currentKind = item.kind || "activity";
   state.currentResult = item.html;
   state.currentMeta = item;
@@ -2269,6 +2539,7 @@ async function generateAeeMaterial() {
     return;
   }
 
+  state.aiLastPayload = payload;
   setAiStatus("Gerando material com IA. Aguarde...");
   renderAiLoading();
   $("#aiGenerateBtn").disabled = true;
@@ -2344,7 +2615,433 @@ function renderAiMaterial(material = {}) {
   $("#aiResultCards").innerHTML = cards.join("");
 }
 
+function shouldUseEditorialA4(payload = {}, material = {}) {
+  const text = normalizeText([
+    payload.disciplina,
+    payload.habilidade,
+    payload.objetoConhecimento,
+    payload.areaInteresse,
+    payload.pedidoProfessor,
+    material.cabecalho?.titulo_atividade,
+    material.conteudo_adaptado?.titulo
+  ].filter(Boolean).join(" "));
+
+  return text.includes("portugues")
+    || text.includes("lingua portuguesa")
+    || text.includes("em13lp")
+    || text.includes("contexto")
+    || text.includes("producao")
+    || text.includes("produção")
+    || text.includes("genero textual")
+    || text.includes("gênero textual")
+    || text.includes("leitura")
+    || text.includes("escuta")
+    || text.includes("compreensao")
+    || text.includes("compreensão");
+}
+
+function renderEditorialA4Sequence(material = {}, payload = {}) {
+  const pages = buildEditorialLanguagePages(material, payload);
+  if (!pages.length) return false;
+
+  $("#aiResultCards").innerHTML = `
+    <div class="ai-a4-sequence" aria-label="Sequencia de folhas A4 geradas">
+      ${pages.map(renderEditorialPage).join("")}
+    </div>
+  `;
+  return true;
+}
+
+function buildEditorialLanguagePages(material = {}, payload = {}) {
+  const skillCode = extractSkillCode(payload.habilidade || material.metadados?.habilidade_bncc_adaptada || "");
+  const interest = normalizeText(`${payload.areaInteresse || ""} ${payload.pedidoProfessor || ""} ${payload.objetoConhecimento || ""}`);
+  const theme = interest.includes("musica") || interest.includes("música") || interest.includes("instrumento")
+    ? "music"
+    : interest.includes("futebol") ? "sport" : "reading";
+
+  const content = getEditorialThemeContent(theme);
+  return [
+    {
+      number: "1",
+      accent: "blue",
+      title: "QUAL E A IDEIA MAIS IMPORTANTE?",
+      icon: "lampada",
+      textTitle: "TEXTO:",
+      text: content.mainText,
+      image: content.mainImage,
+      blocks: [
+        {
+          type: "choices",
+          label: "1",
+          title: "ATIVIDADE 1",
+          prompt: "MARQUE A IDEIA PRINCIPAL.",
+          options: content.mainIdeaOptions
+        },
+        {
+          type: "bullets",
+          label: "2",
+          title: "ATIVIDADE 2",
+          prompt: "CIRCULE UMA INFORMACAO SECUNDARIA.",
+          items: content.secondaryInfo
+        },
+        {
+          type: "write",
+          label: "3",
+          title: "ATIVIDADE 3",
+          prompt: content.question,
+          lines: 1
+        }
+      ]
+    },
+    {
+      number: "2",
+      accent: "green",
+      title: "ORGANIZANDO AS INFORMACOES",
+      icon: "quebra-cabeca",
+      textTitle: "TEXTO:",
+      text: content.sequenceText,
+      image: content.sequenceImage,
+      sideTalk: content.talkQuestions,
+      blocks: [
+        {
+          type: "sequence",
+          label: "1",
+          title: "ATIVIDADE 1",
+          prompt: "NUMERE A ORDEM DOS ACONTECIMENTOS.",
+          items: content.sequenceItems
+        },
+        {
+          type: "problemSolution",
+          label: "2",
+          title: "ATIVIDADE 2",
+          prompt: "COMPLETE.",
+          fields: ["PROBLEMA:", "SOLUCAO:"]
+        },
+        {
+          type: "write",
+          label: "3",
+          title: "ATIVIDADE 3",
+          prompt: "O QUE ACONTECEU NO FINAL DA HISTORIA?",
+          lines: 1
+        }
+      ]
+    },
+    {
+      number: "3",
+      accent: "orange",
+      title: "CAUSA E CONSEQUENCIA",
+      icon: "raio",
+      textTitle: "TEXTO:",
+      text: content.causeText,
+      image: content.causeImage,
+      sideTalk: ["O QUE ACONTECEU PRIMEIRO?", "POR QUE ISSO ACONTECEU?", "O QUE ACONTECEU DEPOIS?", "QUAL FOI O RESULTADO?"],
+      blocks: [
+        {
+          type: "choicesGrid",
+          label: "1",
+          title: "ATIVIDADE 1",
+          prompt: "O QUE ACONTECEU PRIMEIRO?",
+          options: content.firstEventOptions
+        },
+        {
+          type: "match",
+          label: "2",
+          title: "ATIVIDADE 2",
+          prompt: "LIGUE CADA CAUSA A SUA CONSEQUENCIA.",
+          left: content.causes,
+          right: content.consequences
+        },
+        {
+          type: "causeTable",
+          label: "3",
+          title: "ATIVIDADE 3",
+          prompt: "LEIA AS SITUACOES E ESCREVA A CAUSA E A CONSEQUENCIA.",
+          rows: content.causeRows
+        }
+      ],
+      footerNote: "DESCOBRIR A CAUSA E ENTENDER O COMECO DA HISTORIA. DESCOBRIR A CONSEQUENCIA E ENTENDER O QUE ACONTECEU DEPOIS."
+    },
+    {
+      number: "4",
+      accent: "purple",
+      title: "CONTEXTO DE PRODUCAO DO TEXTO",
+      icon: "cartaz",
+      textTitle: "PARA LEMBRAR:",
+      text: `TODO TEXTO E PRODUZIDO POR ALGUEM, PARA UM PUBLICO, COM UMA FINALIDADE E EM UM LUGAR DE CIRCULACAO. ${skillCode ? `HABILIDADE: ${skillCode}.` : ""}`,
+      image: "texto-cartaz",
+      blocks: [
+        {
+          type: "match",
+          label: "1",
+          title: "ATIVIDADE 1",
+          prompt: "LIGUE CADA PALAVRA AO SIGNIFICADO.",
+          left: ["AUTOR", "PUBLICO", "FINALIDADE", "CIRCULACAO"],
+          right: ["QUEM PRODUZ O TEXTO", "QUEM RECEBE A MENSAGEM", "PARA QUE O TEXTO FOI FEITO", "ONDE O TEXTO APARECE"]
+        },
+        {
+          type: "choices",
+          label: "2",
+          title: "ATIVIDADE 2",
+          prompt: "UM CARTAZ SOBRE UM SHOW SERVE PARA:",
+          options: ["INFORMAR O PUBLICO.", "ESCONDER A MENSAGEM.", "IMPEDIR A LEITURA."]
+        },
+        {
+          type: "write",
+          label: "3",
+          title: "ATIVIDADE 3",
+          prompt: "CRIE UMA FRASE PARA CONVIDAR PESSOAS PARA UMA APRESENTACAO MUSICAL.",
+          lines: 2
+        }
+      ],
+      caa: true
+    },
+    {
+      number: "5",
+      accent: "pink",
+      title: "ATIVIDADE LUDICA - SALA DE RECURSOS",
+      icon: "estrela",
+      image: "tablet-leitura",
+      blocks: [
+        {
+          type: "tech",
+          label: "1",
+          title: "WORDWALL OU JOGO NO TABLET",
+          steps: ["ACESSE A ATIVIDADE NO TABLET.", "LEIA OU ESCUTE O TEXTO COM ATENCAO.", "RESPONDA AS PERGUNTAS.", "VEJA SE ACERTOU E TENTE DE NOVO."]
+        },
+        {
+          type: "tech",
+          label: "2",
+          title: "FICHAS DE LEITURA - BATE PAPO",
+          steps: ["LEIA O TEXTO EM VOZ ALTA OU COM APOIO.", "CONVERSE SOBRE AS IMAGENS.", "RESPONDA: O QUE ACONTECEU?", "MARQUE A IDEIA MAIS IMPORTANTE.", "CONTE COM SUAS PALAVRAS O QUE ENTENDEU."]
+        },
+        {
+          type: "goals",
+          label: "3",
+          title: "OBJETIVOS DA ATIVIDADE",
+          items: ["COMPREENDER O TEXTO.", "IDENTIFICAR A IDEIA PRINCIPAL.", "ORGANIZAR INFORMACOES.", "RELACIONAR CAUSA E CONSEQUENCIA.", "DESENVOLVER FOCO, AUTONOMIA E PARTICIPACAO."]
+        }
+      ],
+      footerNote: "LER, CONVERSAR E PENSAR FAZ VOCE CRESCER!"
+    }
+  ];
+}
+
+function getEditorialThemeContent(theme) {
+  if (theme === "music") {
+    return {
+      mainText: "LIA GOSTA DE MUSICA. TODOS OS DIAS, ELA OUVE DIFERENTES SONS E OBSERVA OS INSTRUMENTOS. SEU SONHO E TOCAR VIOLAO EM UMA APRESENTACAO DA ESCOLA.",
+      mainImage: "crianca-violao",
+      mainIdeaOptions: ["LIA GOSTA DE MUSICA.", "LIA TEM UM CADERNO.", "LIA MORA PERTO DA ESCOLA."],
+      secondaryInfo: ["TODOS OS DIAS, ELA OUVE SONS.", "LIA GOSTA DE MUSICA.", "VIOLAO E UM INSTRUMENTO."],
+      question: "QUAL E O SONHO DE LIA?",
+      sequenceText: "LIA VIU UM CARTAZ DE APRESENTACAO MUSICAL. ELA LEU AS INFORMACOES, ESCOLHEU UMA MUSICA, ENSAIOU COM A TURMA E PARTICIPOU DA APRESENTACAO.",
+      sequenceImage: "palco-musica",
+      talkQuestions: ["O QUE LIA VIU?", "O QUE ELA ESCOLHEU?", "O QUE A TURMA FEZ?", "O QUE ACONTECEU NO FINAL?"],
+      sequenceItems: ["LIA PARTICIPOU DA APRESENTACAO.", "LIA ESCOLHEU UMA MUSICA.", "LIA LEU O CARTAZ.", "A TURMA ENSAIOU."],
+      causeText: "A TURMA ENSAIOU DURANTE A SEMANA. POR ISSO, CONSEGUIU CANTAR COM MAIS SEGURANCA E PARTICIPOU DA APRESENTACAO COM ALEGRIA.",
+      causeImage: "ensaio-musica",
+      firstEventOptions: ["A TURMA ENSAIOU.", "A TURMA TERMINOU A APRESENTACAO.", "A TURMA GUARDOU OS INSTRUMENTOS."],
+      causes: ["A TURMA ENSAIOU.", "O CARTAZ FOI DIVULGADO.", "O SOM ESTAVA BAIXO.", "LIA OUVIU A MUSICA."],
+      consequences: ["CANTOU COM SEGURANCA.", "AS PESSOAS FICARAM INFORMADAS.", "A PROFESSORA AJUSTOU O VOLUME.", "ESCOLHEU SEU INSTRUMENTO."],
+      causeRows: ["O CARTAZ MOSTRAVA DATA E HORARIO.", "A TURMA ENSAIOU BASTANTE.", "O SOM ESTAVA MUITO BAIXO."]
+    };
+  }
+
+  return {
+    mainText: "PEDRO ADORA LER HISTORIAS. TODOS OS DIAS ELE OBSERVA AS IMAGENS, ESCUTA O TEXTO E CONVERSA SOBRE O QUE ENTENDEU. SEU OBJETIVO E CONTAR A HISTORIA COM SUAS PALAVRAS.",
+    mainImage: "leitura",
+    mainIdeaOptions: ["PEDRO GOSTA DE LER HISTORIAS.", "PEDRO TEM UM LAPIS.", "PEDRO VIU UMA JANELA."],
+    secondaryInfo: ["PEDRO OBSERVA AS IMAGENS.", "PEDRO GOSTA DE LER.", "TEXTO TEM IDEIAS."],
+    question: "QUAL E O OBJETIVO DE PEDRO?",
+    sequenceText: "ANA PEGOU UMA FICHA DE LEITURA. ELA OBSERVOU A IMAGEM, LEU O TEXTO, RESPONDEU AS PERGUNTAS E CONTOU A HISTORIA PARA A TURMA.",
+    sequenceImage: "fichas-leitura",
+    talkQuestions: ["O QUE ANA PEGOU?", "O QUE ELA OBSERVOU?", "O QUE ELA RESPONDEU?", "O QUE ELA CONTOU?"],
+    sequenceItems: ["ANA CONTOU A HISTORIA.", "ANA LEU O TEXTO.", "ANA PEGOU A FICHA.", "ANA RESPONDEU AS PERGUNTAS."],
+    causeText: "JOAO LEU O TEXTO COM ATENCAO. POR ISSO, CONSEGUIU IDENTIFICAR A IDEIA PRINCIPAL E EXPLICOU A HISTORIA COM SUAS PALAVRAS.",
+    causeImage: "estudo",
+    firstEventOptions: ["JOAO LEU O TEXTO.", "JOAO FECHOU O CADERNO.", "JOAO GUARDOU A MOCHILA."],
+    causes: ["JOAO LEU COM ATENCAO.", "A IMAGEM AJUDOU.", "O TEXTO ERA CURTO.", "A TURMA CONVERSOU."],
+    consequences: ["IDENTIFICOU A IDEIA PRINCIPAL.", "ENTENDEU MELHOR.", "FACILITOU A LEITURA.", "COMPARTILHOU OPINIOES."],
+    causeRows: ["O TEXTO ERA CURTO.", "A IMAGEM MOSTROU A CENA.", "A TURMA CONVERSOU SOBRE A HISTORIA."]
+  };
+}
+
+function renderEditorialPage(page) {
+  const accentClass = `editorial-${page.accent || "blue"}`;
+  return `
+    <article class="ai-a4-sheet editorial-a4 ${accentClass}" aria-label="Folha A4 ${escapeHtml(page.title)}">
+      <header class="editorial-header">
+        <div class="editorial-number">${escapeHtml(page.number)}</div>
+        <h3>${escapeHtml(page.title)}</h3>
+        <div class="editorial-icon">${renderPictogramSvg(page.icon || "estrela")}</div>
+      </header>
+
+      ${page.text ? `
+        <section class="editorial-context">
+          <div class="editorial-textbox">
+            <strong>${escapeHtml(page.textTitle || "TEXTO:")}</strong>
+            <p>${escapeHtml(page.text)}</p>
+          </div>
+          <div class="editorial-main-image">${renderPictogramSvg(page.image || "leitura")}</div>
+          ${page.sideTalk ? renderEditorialTalk(page.sideTalk) : ""}
+        </section>
+      ` : page.image ? `<section class="editorial-hero-image">${renderPictogramSvg(page.image)}</section>` : ""}
+
+      <section class="editorial-activities">
+        ${(page.blocks || []).map(renderEditorialBlock).join("")}
+      </section>
+
+      ${page.caa ? renderEditorialCaa() : ""}
+      ${page.footerNote ? `<div class="editorial-footer-note">${escapeHtml(page.footerNote)}</div>` : ""}
+
+      <footer class="ai-a4-footer editorial-footer">
+        <span>@MOZAHINTERVIEIRA</span>
+        <span>ACESSA+ • INCLUI • TRANSFORMA • CONECTA</span>
+      </footer>
+    </article>
+  `;
+}
+
+function renderEditorialTalk(items = []) {
+  return `
+    <aside class="editorial-talk">
+      <h4>VAMOS CONVERSAR!</h4>
+      <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </aside>
+  `;
+}
+
+function renderEditorialBlock(block = {}) {
+  const head = `
+    <div class="editorial-activity-title">
+      <span>${escapeHtml(block.label || "")}</span>
+      <strong>${escapeHtml(block.title || "ATIVIDADE")}</strong>
+    </div>
+    <p class="editorial-prompt">${escapeHtml(block.prompt || "")}</p>
+  `;
+
+  if (block.type === "choices") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <div class="editorial-choice-list">
+          ${(block.options || []).slice(0, 3).map((option) => `
+            <label><i></i><strong>${escapeHtml(option)}</strong></label>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  if (block.type === "choicesGrid") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <div class="editorial-choice-grid">
+          ${(block.options || []).slice(0, 4).map((option) => `
+            <label><i></i><span>${escapeHtml(option)}</span>${renderPictogramSvg(option)}</label>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  if (block.type === "bullets") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <ul class="editorial-bullets">${(block.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </section>
+    `;
+  }
+
+  if (block.type === "write") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <div class="editorial-write-lines">${Array.from({ length: block.lines || 1 }).map(() => "<span></span>").join("")}</div>
+      </section>
+    `;
+  }
+
+  if (block.type === "sequence") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <div class="editorial-sequence">${(block.items || []).map((item) => `<label><i></i><span>${escapeHtml(item)}</span></label>`).join("")}</div>
+      </section>
+    `;
+  }
+
+  if (block.type === "problemSolution") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <div class="editorial-fields">${(block.fields || []).map((field) => `<label><strong>${escapeHtml(field)}</strong><span></span></label>`).join("")}</div>
+      </section>
+    `;
+  }
+
+  if (block.type === "match") {
+    return `
+      <section class="editorial-activity">
+        ${head}
+        <div class="editorial-match">
+          <div>${(block.left || []).map((item) => `<p>${escapeHtml(item)} <b>•</b></p>`).join("")}</div>
+          <div>${(block.right || []).map((item) => `<p><b>•</b> ${escapeHtml(item)}</p>`).join("")}</div>
+        </div>
+      </section>
+    `;
+  }
+
+  if (block.type === "causeTable") {
+    return `
+      <section class="editorial-activity full">
+        ${head}
+        <table class="editorial-table">
+          <thead><tr><th>SITUACAO</th><th>CAUSA</th><th>CONSEQUENCIA</th></tr></thead>
+          <tbody>${(block.rows || []).map((row) => `<tr><td>${escapeHtml(row)}</td><td></td><td></td></tr>`).join("")}</tbody>
+        </table>
+      </section>
+    `;
+  }
+
+  if (block.type === "tech") {
+    return `
+      <section class="editorial-activity tech">
+        ${head}
+        <ol>${(block.steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+      </section>
+    `;
+  }
+
+  if (block.type === "goals") {
+    return `
+      <section class="editorial-activity goals">
+        ${head}
+        <ul>${(block.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </section>
+    `;
+  }
+
+  return "";
+}
+
+function renderEditorialCaa() {
+  const cards = ["ESTOU BEM", "GOSTEI", "PRECISO DE AJUDA", "NAO ENTENDI", "QUERO FALAR"];
+  return `
+    <section class="editorial-caa">
+      <strong>COMUNICACAO E ESCOLHA (CAA)</strong>
+      <div>${cards.map((card) => `<label>${renderPictogramSvg(card)}<span>${escapeHtml(card)}</span></label>`).join("")}</div>
+    </section>
+  `;
+}
+
 function renderA4AiMaterial(material = {}) {
+  if (state.aiLastPayload && shouldUseEditorialA4(state.aiLastPayload, material) && renderEditorialA4Sequence(material, state.aiLastPayload)) {
+    return;
+  }
+
   const configuracao = material.configuracao_folha || {};
   const cabecalho = material.cabecalho || {};
   const metadados = material.metadados || {};
@@ -2369,14 +3066,6 @@ function renderA4AiMaterial(material = {}) {
           <span>${escapeHtml(configuracao.tema_estilo || "Folha inclusiva")}</span>
         </div>
       </header>
-
-      <section class="ai-a4-student-line" aria-label="Identificacao do estudante">
-        <span>Nome: ____________________________________________</span>
-        <span>Turma: __________________</span>
-        <span>Data: ____ / ____ / ______</span>
-        <span>Disciplina: __________________</span>
-        <span>Professor(a): __________________</span>
-      </section>
 
       <section class="ai-a4-meta" aria-label="Dados pedagogicos">
         ${renderA4Meta("Objetivo", metadados.objetivo_pedagogico)}
@@ -2516,6 +3205,42 @@ function renderPictogramSvg(value) {
     return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M25 59 Q31 30 58 24 Q86 21 98 52 Q88 75 48 73 Q30 72 25 59 Z" fill="#cbd5e1" stroke="#08275f" stroke-width="4"/><path d="M43 42 H73 M50 55 H84" stroke="#64748b" stroke-width="4" stroke-linecap="round"/></svg>`;
   }
 
+  if (kind === "lampada") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><circle cx="60" cy="36" r="23" fill="#ffd83d" stroke="#08275f" stroke-width="5"/><path d="M48 58 H72 L68 75 H52 Z" fill="#60a5fa" stroke="#08275f" stroke-width="4"/><path d="M42 18 L32 8 M78 18 L88 8 M60 8 V0 M35 38 H22 M85 38 H98" stroke="#111827" stroke-width="4" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "quebra") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M34 20 H58 Q55 10 65 10 Q76 10 72 20 H92 V42 Q82 39 82 50 Q82 61 92 58 V75 H34 V58 Q44 61 44 50 Q44 39 34 42 Z" fill="#38bdf8" stroke="#08275f" stroke-width="4"/><circle cx="64" cy="48" r="4" fill="#08275f"/></svg>`;
+  }
+
+  if (kind === "raio") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M69 6 L30 52 H56 L48 84 L91 35 H64 Z" fill="#ffd43b" stroke="#08275f" stroke-width="5" stroke-linejoin="round"/></svg>`;
+  }
+
+  if (kind === "estrela") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M60 8 L72 33 L99 36 L79 55 L84 82 L60 69 L36 82 L41 55 L21 36 L48 33 Z" fill="#ffd43b" stroke="#08275f" stroke-width="4"/><circle cx="51" cy="45" r="4" fill="#08275f"/><circle cx="69" cy="45" r="4" fill="#08275f"/><path d="M49 56 Q60 65 72 56" fill="none" stroke="#08275f" stroke-width="4" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "music") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="6" y="72" width="148" height="30" rx="8" fill="#dcfce7"/><circle cx="58" cy="35" r="18" fill="#f2b37b" stroke="#08275f" stroke-width="4"/><path d="M35 93 Q48 55 70 93 Z" fill="#0a56c2" stroke="#08275f" stroke-width="4"/><ellipse cx="104" cy="66" rx="28" ry="20" fill="#c97825" stroke="#08275f" stroke-width="5"/><path d="M80 62 L132 42" stroke="#6b3b16" stroke-width="8" stroke-linecap="round"/><path d="M134 40 L148 34" stroke="#08275f" stroke-width="4"/><path d="M99 34 V12 H119 M119 12 V45" fill="none" stroke="#15a650" stroke-width="6" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "stage") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="16" y="72" width="128" height="24" rx="5" fill="#7c3aed" stroke="#08275f" stroke-width="4"/><path d="M24 72 L40 34 H120 L136 72 Z" fill="#e0f2fe" stroke="#08275f" stroke-width="4"/><circle cx="52" cy="53" r="9" fill="#f28a18"/><circle cx="80" cy="50" r="9" fill="#15a650"/><circle cx="108" cy="53" r="9" fill="#e83e73"/><path d="M42 21 Q80 5 118 21" fill="none" stroke="#ffd43b" stroke-width="6"/><path d="M49 84 H111" stroke="#fff" stroke-width="5"/></svg>`;
+  }
+
+  if (kind === "tablet") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="18" y="14" width="124" height="82" rx="12" fill="#111827" stroke="#08275f" stroke-width="4"/><rect x="30" y="25" width="100" height="60" rx="6" fill="#e0f2fe"/><path d="M45 43 H86 M45 58 H112" stroke="#0a56c2" stroke-width="6" stroke-linecap="round"/><circle cx="112" cy="43" r="9" fill="#15a650"/><path d="M71 75 H90" stroke="#111827" stroke-width="4" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "reading") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M25 24 Q55 12 80 34 Q105 12 135 24 V89 Q105 78 80 96 Q55 78 25 89 Z" fill="#fff" stroke="#08275f" stroke-width="5"/><path d="M80 34 V96 M40 39 H66 M40 52 H66 M94 39 H120 M94 52 H120" stroke="#0a56c2" stroke-width="4" stroke-linecap="round"/><circle cx="80" cy="17" r="10" fill="#ffd43b"/></svg>`;
+  }
+
+  if (kind === "study") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="22" y="72" width="116" height="18" rx="6" fill="#c08457" stroke="#08275f" stroke-width="4"/><circle cx="76" cy="31" r="16" fill="#f2b37b" stroke="#08275f" stroke-width="4"/><path d="M52 72 Q64 49 86 72 Z" fill="#0a56c2" stroke="#08275f" stroke-width="4"/><path d="M89 62 H123 V82 H89 Z" fill="#fff" stroke="#08275f" stroke-width="4"/><path d="M97 68 H115 M97 75 H111" stroke="#0a56c2" stroke-width="3"/><path d="M34 30 H53 V62 H34 Z" fill="#dcfce7" stroke="#08275f" stroke-width="4"/></svg>`;
+  }
+
   return `<div class="ai-picture-placeholder"><span>IMAGEM</span><strong>${escapeHtml(label)}</strong></div>`;
 }
 
@@ -2533,6 +3258,15 @@ function getVisualKind(value) {
   if (text.includes("cartaz") || text.includes("texto") || text.includes("informacao") || text.includes("informação")) return "cartaz";
   if (text.includes("bola")) return "bola";
   if (text.includes("pedra")) return "pedra";
+  if (text.includes("lampada") || text.includes("lâmpada") || text.includes("ideia")) return "lampada";
+  if (text.includes("quebra")) return "quebra";
+  if (text.includes("raio") || text.includes("causa") || text.includes("consequencia") || text.includes("consequência")) return "raio";
+  if (text.includes("estrela")) return "estrela";
+  if (text.includes("musica") || text.includes("música") || text.includes("violao") || text.includes("violão") || text.includes("instrumento")) return "music";
+  if (text.includes("palco") || text.includes("apresentacao") || text.includes("apresentação")) return "stage";
+  if (text.includes("tablet") || text.includes("wordwall") || text.includes("tecnologia")) return "tablet";
+  if (text.includes("leitura") || text.includes("ficha") || text.includes("livro")) return "reading";
+  if (text.includes("estudo") || text.includes("prova") || text.includes("caderno") || text.includes("ensaio")) return "study";
   return "generic";
 }
 
@@ -3043,6 +3777,97 @@ function printAiMaterial() {
   setTimeout(() => document.body.classList.remove("print-assistant"), 600);
 }
 
+async function exportAiImages() {
+  const pages = $$("#aiResultCards .ai-a4-sheet");
+  if (!pages.length) {
+    setAiStatus("Gere uma folha A4 antes de baixar a imagem.", true);
+    return;
+  }
+
+  setAiStatus(`Gerando ${pages.length} imagem(ns) A4...`);
+  for (const [index, page] of pages.entries()) {
+    await exportElementAsPng(page, safeFileName(`acessaplus-a4-pagina-${index + 1}.png`));
+  }
+  setAiStatus(pages.length > 1 ? "Imagens A4 baixadas por pagina." : "Imagem A4 baixada.");
+}
+
+function collectRuntimeCss() {
+  const chunks = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      chunks.push(Array.from(sheet.cssRules || []).map((rule) => rule.cssText).join("\n"));
+    } catch {
+      // Ignora folhas externas bloqueadas pelo navegador.
+    }
+  }
+  return chunks.join("\n");
+}
+
+function exportElementAsPng(element, filename) {
+  const width = 794;
+  const height = 1123;
+  const css = `
+    ${collectRuntimeCss()}
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; }
+    .export-image-root {
+      width: ${width}px;
+      height: ${height}px;
+      overflow: hidden;
+      background: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .export-image-root .ai-a4-sheet {
+      width: ${width}px !important;
+      max-width: ${width}px !important;
+      min-height: ${height}px !important;
+      height: ${height}px !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+    }
+  `;
+  const html = `
+    <div xmlns="http://www.w3.org/1999/xhtml" class="export-image-root">
+      <style>${css}</style>
+      ${element.outerHTML}
+    </div>
+  `;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <foreignObject width="100%" height="100%">${html}</foreignObject>
+    </svg>
+  `;
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        if (blob) downloadBlob(blob, filename);
+        resolve();
+      }, "image/png");
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      setAiStatus("Nao foi possivel transformar a folha em imagem neste navegador.", true);
+      resolve();
+    };
+
+    image.src = url;
+  });
+}
+
 function bindEvents() {
   $$(".nav-item").forEach((item) => item.addEventListener("click", () => showView(item.dataset.view)));
   $$("[data-go-view]").forEach((item) => item.addEventListener("click", () => showView(item.dataset.goView)));
@@ -3065,6 +3890,9 @@ function bindEvents() {
   $("#filterProfile")?.addEventListener("change", renderSaved);
   $("#signupBtn")?.addEventListener("click", signupUser);
   $("#loginBtn")?.addEventListener("click", loginUser);
+  $("#logoutBtn")?.addEventListener("click", logoutUser);
+  $("#uploadLibraryBtn")?.addEventListener("click", uploadLibraryMaterial);
+  $$("input[name='uploadProfiles']").forEach((field) => field.addEventListener("change", syncUploadProfileSelection));
   $("#saveSettingsBtn").addEventListener("click", saveSettings);
   $("#clearLibraryBtn").addEventListener("click", clearLibrary);
   $("#contrastBtn").addEventListener("click", toggleHighContrast);
@@ -3077,6 +3905,7 @@ function bindEvents() {
   $("#aiGenerateBtn").addEventListener("click", generateAeeMaterial);
   $("#aiCopyBtn").addEventListener("click", copyAiMaterial);
   $("#aiPrintBtn").addEventListener("click", printAiMaterial);
+  $("#aiImageBtn")?.addEventListener("click", exportAiImages);
   window.addEventListener("afterprint", () => document.body.classList.remove("print-assistant"));
 
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -3103,6 +3932,7 @@ function registerServiceWorker() {
 renderGuide();
 renderSaved();
 loadSettings();
+refreshAuthUi();
 applyAccessibilitySettings();
 bindEvents();
 registerServiceWorker();
