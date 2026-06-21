@@ -104,7 +104,12 @@ function validatePayload(payload) {
 
 function buildPrompt(payload) {
   const schema = {
-    schema_version: "acessamais.a4.v1",
+    layout_visual: {
+  modelo: "Investigador | Cientista | Arqueologo | Explorador | Matematica_em_Acao | Laboratorio | Jornalista | Missao_Historica | Oficina_de_Leitura | Desafio_Maker",
+  justificativa: "por que esse layout combina com o conteúdo",
+  elementos_visuais: ["icone 1", "icone 2", "icone 3"],
+  paleta_sugerida: "cores sugeridas para o tema"
+},
     configuracao_folha: {
       tamanho: "A4",
       layout_orientacao: "Retrato",
