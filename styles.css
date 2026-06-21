@@ -501,6 +501,43 @@ h3 {
   font-size: 16px;
 }
 
+.ai-profile-field {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  margin: 0;
+}
+
+.ai-profile-field legend {
+  color: var(--ink);
+  font-weight: 900;
+  padding: 0 6px;
+}
+
+.ai-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-profile-grid label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 8px;
+  font-weight: 900;
+}
+
+.ai-profile-grid input {
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+}
+
 .assistant-result {
   background: #fff;
   border: 1px solid var(--line);
@@ -721,6 +758,26 @@ h3 {
   font-size: 12px;
 }
 
+.ai-a4-student-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(140px, 0.8fr) minmax(150px, 0.8fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.ai-a4-student-line span:nth-child(4) {
+  grid-column: span 2;
+}
+
+.ai-a4-student-line span {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px;
+  font-weight: 800;
+}
+
 .ai-a4-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -790,6 +847,94 @@ h3 {
 .ai-a4-visuals {
   display: grid;
   gap: 10px;
+}
+
+.ai-visual-figure {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px;
+}
+
+.ai-visual-art {
+  min-height: 82px;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(21, 166, 80, 0.18), rgba(10, 86, 194, 0.14)),
+    #f8fbff;
+  display: grid;
+  place-items: center;
+  border: 2px solid #d7e2f6;
+}
+
+.ai-visual-art span {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.ai-visual-art svg {
+  width: 100%;
+  max-width: 104px;
+  height: 82px;
+  display: block;
+}
+
+.ai-picture-placeholder {
+  width: 100%;
+  min-height: 82px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  text-align: center;
+  color: var(--ink);
+}
+
+.ai-picture-placeholder span {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  padding: 5px 10px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.ai-picture-placeholder strong {
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.ai-visual-figure figcaption {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+.ai-visual-figure strong,
+.ai-visual-figure span {
+  display: block;
+}
+
+.ai-visual-figure strong {
+  color: var(--ink);
+}
+
+.ai-visual-figure span {
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .ai-a4-visual-card {
@@ -890,12 +1035,231 @@ h3 {
 
 .ai-a4-options em {
   border-radius: 999px;
-  background: #fff3d6;
-  color: #915600;
+  background: #fff;
+  color: var(--ink);
+  border: 2px solid var(--line);
   padding: 4px 8px;
   font-style: normal;
   font-weight: 900;
   font-size: 12px;
+}
+
+.ai-a4-drawing-space {
+  min-height: 132px;
+  border: 2px dashed #9fb1d4;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.ai-puzzle-wrap {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin: 10px 0;
+}
+
+.ai-word-search {
+  display: grid;
+  grid-template-columns: repeat(10, 28px);
+  gap: 3px;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+}
+
+.ai-word-search span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #f5f8ff;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.ai-puzzle-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+}
+
+.ai-puzzle-words strong {
+  width: 100%;
+  color: var(--blue);
+}
+
+.ai-puzzle-words span {
+  border-radius: 999px;
+  border: 1px solid var(--green);
+  color: var(--green);
+  background: var(--green-3);
+  padding: 6px 10px;
+  font-weight: 900;
+}
+
+.ai-crossword {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.ai-crossword-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.ai-crossword-row strong {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--purple);
+  color: #fff;
+}
+
+.ai-crossword-row span {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border: 2px solid var(--line);
+  background: #fff;
+}
+
+.ai-true-false {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.ai-true-false label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.ai-true-false label span {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--blue);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.ai-yes-no-grid,
+.ai-tactile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.ai-yes-no-grid label,
+.ai-tactile-grid div {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px;
+  color: var(--ink);
+  font-weight: 900;
+  text-align: center;
+}
+
+.ai-yes-no-grid label > span {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--blue);
+  border-radius: 7px;
+  background: #fff;
+  justify-self: start;
+}
+
+.ai-yes-no-grid svg,
+.ai-tactile-grid svg,
+.ai-caa-strip svg {
+  width: 74px;
+  height: 56px;
+}
+
+.ai-tactile-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.ai-resource-strip,
+.ai-caa-strip {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfdff;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.ai-resource-strip > strong,
+.ai-caa-strip > strong {
+  display: block;
+  color: var(--blue);
+  font-size: 13px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.ai-resource-strip div,
+.ai-caa-strip div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-resource-strip span {
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  background: var(--green-3);
+  color: var(--green);
+  padding: 7px 10px;
+  font-weight: 900;
+}
+
+.ai-caa-strip button {
+  min-width: 110px;
+  flex: 1 1 110px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  padding: 9px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-weight: 900;
+}
+
+.ai-caa-strip button span {
+  font-size: 12px;
+  line-height: 1.15;
 }
 
 .ai-a4-matching {
@@ -1043,6 +1407,16 @@ body.high-contrast .ai-a4-anchor > div:first-child,
 body.high-contrast .ai-a4-visual-card,
 body.high-contrast .ai-a4-challenge,
 body.high-contrast .ai-a4-teacher div,
+body.high-contrast .ai-visual-figure,
+body.high-contrast .ai-a4-student-line span,
+body.high-contrast .ai-word-search,
+body.high-contrast .ai-puzzle-words,
+body.high-contrast .ai-true-false label,
+body.high-contrast .ai-yes-no-grid label,
+body.high-contrast .ai-tactile-grid div,
+body.high-contrast .ai-resource-strip,
+body.high-contrast .ai-caa-strip,
+body.high-contrast .ai-caa-strip button,
 body.high-contrast .accessibility-bar,
 body.high-contrast .hero-panel {
   background: #050505;
@@ -1813,6 +2187,17 @@ textarea:focus {
   gap: 12px;
 }
 
+.library-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.library-filters label {
+  margin: 0;
+}
+
 .saved-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1832,6 +2217,28 @@ textarea:focus {
   margin: 0;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.saved-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.saved-tags span {
+  border-radius: 999px;
+  background: var(--green-3);
+  color: var(--green);
+  border: 1px solid rgba(21, 166, 80, 0.22);
+  padding: 4px 8px;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.status-error {
+  color: #b42318;
+  font-weight: 900;
 }
 
 .card-actions {
@@ -1876,7 +2283,8 @@ textarea:focus {
   .feature-grid,
   .dashboard-grid,
   .hub-grid,
-  .profile-grid {
+  .profile-grid,
+  .library-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1926,8 +2334,13 @@ textarea:focus {
 
   .ai-a4-header,
   .ai-a4-anchor,
-  .ai-a4-teacher {
+  .ai-a4-teacher,
+  .ai-a4-student-line {
     grid-template-columns: 1fr;
+  }
+
+  .ai-a4-student-line span:nth-child(4) {
+    grid-column: auto;
   }
 }
 
@@ -1948,13 +2361,34 @@ textarea:focus {
   .dashboard-grid,
   .hub-grid,
   .profile-grid,
+  .library-filters,
   .login-grid,
   .form-grid.two,
   .ai-a4-meta,
   .ai-a4-matching,
+  .ai-profile-grid,
+  .ai-puzzle-wrap,
+  .ai-true-false,
+  .ai-yes-no-grid,
+  .ai-tactile-grid,
   .nav-list,
   .saved-card {
     grid-template-columns: 1fr;
+  }
+
+  .ai-visual-figure {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-word-search {
+    grid-template-columns: repeat(10, 22px);
+  }
+
+  .ai-word-search span,
+  .ai-crossword-row span {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
   }
 
   .ai-a4-sheet {

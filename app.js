@@ -1,6 +1,8 @@
 const STORAGE_KEYS = {
   saved: "acessaplus.saved.v2",
-  settings: "acessaplus.settings.v2"
+  settings: "acessaplus.settings.v2",
+  users: "acessaplus.users.v1",
+  currentUser: "acessaplus.currentUser.v1"
 };
 
 const LEGACY_STORAGE_KEYS = {
@@ -23,11 +25,14 @@ const state = {
   currentMeta: null,
   aiLatestText: "",
   saved: readJson(STORAGE_KEYS.saved, readJson(LEGACY_STORAGE_KEYS.saved, [])),
+  users: readJson(STORAGE_KEYS.users, []),
+  currentUser: readJson(STORAGE_KEYS.currentUser, null),
   settings: normalizeSettings(readJson(STORAGE_KEYS.settings, readJson(LEGACY_STORAGE_KEYS.settings, DEFAULT_SETTINGS))),
   installPrompt: null
 };
 
 writeJson(STORAGE_KEYS.saved, state.saved);
+writeJson(STORAGE_KEYS.users, state.users);
 writeJson(STORAGE_KEYS.settings, state.settings);
 
 const adaptations = {
@@ -144,6 +149,113 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function setAuthStatus(selector, message, isError = false) {
+  const element = $(selector);
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle("status-error", isError);
+}
+
+async function hashPassword(password) {
+  const value = String(password || "");
+  if (window.crypto?.subtle) {
+    const bytes = new TextEncoder().encode(`acessamais:${value}`);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash) + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return `fallback-${Math.abs(hash)}`;
+}
+
+function buildUserProfile() {
+  return {
+    id: `user-${Date.now()}`,
+    name: $("#signupName").value.trim(),
+    contact: $("#signupContact").value.trim(),
+    email: normalizeEmail($("#signupEmail").value),
+    institution: $("#signupInstitution").value.trim(),
+    role: $("#signupRole").value,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString()
+  };
+}
+
+function validateSignup(user, password) {
+  if (!user.name) return "Informe o nome completo.";
+  if (!user.contact) return "Informe um contato ou WhatsApp.";
+  if (!user.email || !user.email.includes("@")) return "Informe um e-mail valido.";
+  if (!password || password.length < 6) return "Crie uma senha com pelo menos 6 caracteres.";
+  if (state.users.some((entry) => normalizeEmail(entry.email) === user.email)) return "Ja existe um cadastro com este e-mail.";
+  return "";
+}
+
+function persistUsers() {
+  writeJson(STORAGE_KEYS.users, state.users);
+  writeJson(STORAGE_KEYS.currentUser, state.currentUser);
+}
+
+async function signupUser() {
+  const password = $("#signupPassword").value;
+  const user = buildUserProfile();
+  const error = validateSignup(user, password);
+
+  if (error) {
+    setAuthStatus("#signupStatus", error, true);
+    return;
+  }
+
+  user.passwordHash = await hashPassword(password);
+  state.users.unshift(user);
+  state.currentUser = {
+    id: user.id,
+    name: user.name,
+    contact: user.contact,
+    email: user.email,
+    institution: user.institution,
+    role: user.role,
+    lastLoginAt: user.lastLoginAt
+  };
+  persistUsers();
+  setAuthStatus("#signupStatus", "Cadastro criado e perfil profissional ativado.");
+  showView("dashboard");
+}
+
+async function loginUser() {
+  const email = normalizeEmail($("#loginEmail").value);
+  const password = $("#loginPassword").value;
+  const passwordHash = await hashPassword(password);
+  const user = state.users.find((entry) => normalizeEmail(entry.email) === email);
+
+  if (!user || user.passwordHash !== passwordHash) {
+    setAuthStatus("#loginStatus", "E-mail ou senha nao encontrados neste dispositivo.", true);
+    return;
+  }
+
+  user.lastLoginAt = new Date().toISOString();
+  state.currentUser = {
+    id: user.id,
+    name: user.name,
+    contact: user.contact,
+    email: user.email,
+    institution: user.institution,
+    role: user.role,
+    lastLoginAt: user.lastLoginAt
+  };
+  persistUsers();
+  setAuthStatus("#loginStatus", `Bem-vindo(a), ${user.name}.`);
+  showView("dashboard");
+}
+
 function getNeeds() {
   return $$("input[name='needs']:checked").map((input) => input.value);
 }
@@ -167,6 +279,38 @@ function getFormData() {
     resourcesNeeded: $("#resourcesNeeded").value.trim() || "apoios visuais, mediação pedagógica, recurso concreto e forma alternativa de resposta",
     needs: needs.length ? needs : ["DI"]
   };
+}
+
+function normalizeDiscipline(value) {
+  const text = String(value || "").trim();
+  const lower = text.toLowerCase();
+  if (lower.includes("portugu")) return "Língua Portuguesa";
+  if (lower.includes("matem")) return "Matemática";
+  if (lower.includes("cien") || lower.includes("ciên")) return "Ciências";
+  if (lower.includes("hist")) return "História";
+  if (lower.includes("geo")) return "Geografia";
+  if (lower.includes("ingl")) return "Inglês";
+  if (lower.includes("arte")) return "Arte";
+  if (lower.includes("educa") && lower.includes("fis")) return "Educação Física";
+  if (lower.includes("relig")) return "Ensino Religioso";
+  return text || "Disciplina não informada";
+}
+
+function normalizeSchoolYear(value) {
+  const text = String(value || "").toLowerCase();
+  const fundamental = text.match(/\b(6|7|8|9)\s*[ºo]?\s*ano\b/);
+  if (fundamental) return `${fundamental[1]}º Ano`;
+  const medio = text.match(/\b(1|2|3)\s*[ªa]?\s*s[eé]rie\b/);
+  if (medio) return `${medio[1]}ª série EM`;
+  return value || "Ano não informado";
+}
+
+function classifySchoolStage(value) {
+  const text = String(value || "").toLowerCase();
+  if (/\b(6|7|8|9)\s*[ºo]?\s*ano\b/.test(text)) return "Ensino Fundamental II";
+  if (/\b(1|2|3)\s*[ªa]?\s*s[eé]rie\b/.test(text) || text.includes("ensino medio") || text.includes("ensino médio")) return "Ensino Médio";
+  if (text.includes("profissional")) return "Educação Profissional";
+  return "Etapa não informada";
 }
 
 function htmlList(items) {
@@ -1129,6 +1273,14 @@ function generateMaterial() {
     title: `${kindLabels[data.kind]} - ${data.subject}`,
     studentName: data.studentName,
     subject: data.subject,
+    discipline: normalizeDiscipline(data.subject),
+    schoolStage: classifySchoolStage(data.grade),
+    schoolYear: normalizeSchoolYear(data.grade),
+    skillCode: extractSkillCode(data.skill || ""),
+    profiles: data.needs,
+    primaryProfile: data.needs[0] || "Geral",
+    knowledgeObject: data.knowledgeObject,
+    createdBy: state.currentUser?.id || null,
     date: new Date().toISOString()
   };
   $("#resultPaper").innerHTML = html;
@@ -1152,9 +1304,19 @@ function saveCurrent() {
 
 function renderSaved() {
   const query = ($("#searchSaved")?.value || "").toLowerCase();
+  const stage = $("#filterStage")?.value || "";
+  const year = $("#filterYear")?.value || "";
+  const subject = $("#filterSubject")?.value || "";
+  const profile = $("#filterProfile")?.value || "";
   const filtered = state.saved.filter((item) => {
-    const haystack = `${item.title} ${item.studentName} ${item.subject} ${kindLabels[item.kind]}`.toLowerCase();
-    return haystack.includes(query);
+    const itemProfiles = Array.isArray(item.profiles) ? item.profiles : [item.primaryProfile].filter(Boolean);
+    const haystack = `${item.title} ${item.studentName} ${item.subject} ${item.discipline} ${item.skillCode} ${item.knowledgeObject} ${itemProfiles.join(" ")} ${kindLabels[item.kind]}`.toLowerCase();
+    const matchesQuery = haystack.includes(query);
+    const matchesStage = !stage || item.schoolStage === stage;
+    const matchesYear = !year || item.schoolYear === year;
+    const matchesSubject = !subject || item.discipline === subject || item.subject === subject;
+    const matchesProfile = !profile || itemProfiles.includes(profile);
+    return matchesQuery && matchesStage && matchesYear && matchesSubject && matchesProfile;
   });
 
   const list = $("#savedList");
@@ -1162,7 +1324,7 @@ function renderSaved() {
     list.innerHTML = `
       <div class="empty-state">
         <strong>Nenhum material encontrado.</strong>
-        <p>Gere um material no criador e clique em salvar. Ele ficará disponível neste navegador.</p>
+        <p>Gere um material no criador e clique em salvar. Ele ficara organizado por etapa, ano, disciplina, habilidade e perfil.</p>
       </div>
     `;
     return;
@@ -1172,7 +1334,10 @@ function renderSaved() {
     <article class="saved-card">
       <div>
         <h3>${escapeHtml(item.title)}</h3>
-        <p>${escapeHtml(kindLabels[item.kind] || "Material")} | ${escapeHtml(item.studentName || "Estudante")} | ${new Date(item.updatedAt).toLocaleString("pt-BR")}</p>
+        <p>${escapeHtml(kindLabels[item.kind] || "Material")} | ${escapeHtml(item.schoolStage || "Etapa")} | ${escapeHtml(item.schoolYear || "Ano")} | ${escapeHtml(item.discipline || item.subject || "Disciplina")} | ${escapeHtml(item.skillCode || "Habilidade")}</p>
+        <div class="saved-tags">
+          ${(item.profiles || [item.primaryProfile || "Geral"]).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+        </div>
       </div>
       <div class="card-actions">
         <button class="secondary-button" type="button" data-open="${item.id}">Abrir</button>
@@ -1182,17 +1347,16 @@ function renderSaved() {
     </article>
   `).join("");
 
-  $$("[data-open]").forEach((button) => {
+  $$('[data-open]').forEach((button) => {
     button.addEventListener("click", () => openSaved(Number(button.dataset.open)));
   });
-  $$("[data-duplicate]").forEach((button) => {
+  $$('[data-duplicate]').forEach((button) => {
     button.addEventListener("click", () => duplicateSaved(Number(button.dataset.duplicate)));
   });
-  $$("[data-delete]").forEach((button) => {
+  $$('[data-delete]').forEach((button) => {
     button.addEventListener("click", () => deleteSaved(Number(button.dataset.delete)));
   });
 }
-
 function openSaved(id) {
   const item = state.saved.find((entry) => entry.id === id);
   if (!item) return;
@@ -1897,21 +2061,29 @@ const METADATA_LABELS = {
 };
 
 function getAssistantPayload() {
+  const perfis = $$("input[name='aiPerfil']:checked").map((input) => input.value);
   return {
-    perfil: $("#aiPerfil").value,
+    perfil: perfis.join(", "),
+    perfis,
     serie: $("#aiSerie").value.trim(),
+    idade: $("#aiIdade")?.value.trim() || "",
+    idadeFuncional: $("#aiIdadeFuncional")?.value.trim() || "",
     disciplina: $("#aiDisciplina").value.trim(),
     habilidade: $("#aiHabilidade").value.trim(),
     objetoConhecimento: $("#aiObjeto").value.trim(),
     nivelAlfabetizacao: $("#aiNivelAlfabetizacao").value,
     nivelApoio: $("#aiNivelApoio").value,
+    comunicacao: $("#aiComunicacao")?.value.trim() || "",
+    autonomia: $("#aiAutonomia")?.value.trim() || "",
     areaInteresse: $("#aiAreaInteresse").value.trim(),
+    recursosDisponiveis: $("#aiRecursos")?.value.trim() || "",
     pedidoProfessor: $("#aiPedido").value.trim()
   };
 }
 
 function validateAssistantPayload(payload) {
   const required = [
+    ["perfil", "Perfil"],
     ["serie", "Ano/série"],
     ["disciplina", "Disciplina"],
     ["habilidade", "Habilidade"],
@@ -2014,9 +2186,11 @@ function renderA4AiMaterial(material = {}) {
   const metadados = material.metadados || {};
   const ancoras = material.ancoras_cognitivas || {};
   const secoes = Array.isArray(material.secoes_desafios) ? material.secoes_desafios : [];
-  const orientacoes = material.orientacoes_docente || {};
+  const recursos = material.recursos_multissensoriais || {};
+  const comunicacao = material.comunicacao_caa || {};
   const footerText = configuracao.rodape_autor || "@mozahintervieira";
   const isUppercase = Boolean(configuracao.caixa_alta);
+  const skillCode = extractSkillCode(metadados.habilidade_bncc_adaptada || "");
 
   $("#aiResultCards").innerHTML = `
     <article class="ai-a4-sheet ${isUppercase ? "uppercase-sheet" : ""}" aria-label="Folha A4 gerada pela IA">
@@ -2032,16 +2206,22 @@ function renderA4AiMaterial(material = {}) {
         </div>
       </header>
 
+      <section class="ai-a4-student-line" aria-label="Identificacao do estudante">
+        <span>Nome: ____________________________________________</span>
+        <span>Turma: __________________</span>
+        <span>Data: ____ / ____ / ______</span>
+        <span>Disciplina: __________________</span>
+        <span>Professor(a): __________________</span>
+      </section>
+
       <section class="ai-a4-meta" aria-label="Dados pedagogicos">
         ${renderA4Meta("Objetivo", metadados.objetivo_pedagogico)}
-        ${renderA4Meta("Habilidade", metadados.habilidade_bncc_adaptada)}
-        ${renderA4Meta("Publico-alvo", metadados.publico_alvo)}
-        ${renderA4Meta("Apoio", metadados.nivel_apoio)}
+        ${skillCode ? renderA4Meta("Habilidade", skillCode) : ""}
       </section>
 
       <section class="ai-a4-anchor">
         <div>
-          <h4>Ancora cognitiva</h4>
+          <h4>Para lembrar</h4>
           <p>${escapeHtml(ancoras.contextualizacao || material.conteudo_adaptado?.texto_simplificado || "Contextualizacao nao informada.")}</p>
         </div>
         <div class="ai-a4-visuals">
@@ -2049,17 +2229,13 @@ function renderA4AiMaterial(material = {}) {
         </div>
       </section>
 
+      ${renderMultisensoryResources(recursos)}
+
       <section class="ai-a4-challenges" aria-label="Secoes da atividade">
         ${secoes.length ? secoes.map(renderChallengeSection).join("") : "<p>Nenhuma secao foi informada pela IA.</p>"}
       </section>
 
-      <section class="ai-a4-teacher">
-        ${renderTeacherNote("Metodologia inclusiva", orientacoes.metodologia_inclusiva)}
-        ${renderTeacherNote("Recursos de acessibilidade", orientacoes.recursos_acessibilidade)}
-        ${renderTeacherNote("Estrategias do AEE", orientacoes.estrategias_aee)}
-        ${renderTeacherNote("Avaliacao", orientacoes.avaliacao)}
-        ${renderTeacherNote("Sugestoes ao professor", orientacoes.sugestoes_professor)}
-      </section>
+      ${renderCaaStrip(comunicacao.cartoes)}
 
       <footer class="ai-a4-footer">
         <span>${escapeHtml(footerText)}</span>
@@ -2078,55 +2254,347 @@ function renderA4Meta(label, value) {
   `;
 }
 
+function extractSkillCode(value) {
+  const text = String(value || "").toUpperCase();
+  const match = text.match(/\b[A-Z]{2,}\d{2,}[A-Z0-9]*(?:\/[A-Z]{2})?\b/);
+  return match ? match[0] : "";
+}
+
 function renderGraphicHint(hint = {}) {
-  return `
-    <div class="ai-a4-visual-card">
-      <strong>${escapeHtml(hint.elemento || hint.termo || "Pista visual")}</strong>
-      <span>${escapeHtml(hint.posicionamento || "Proximo ao conteudo")}</span>
-      <p>${escapeHtml(hint.descricao_prompt_imagem || hint.descricao_para_icone_ou_ia_generativa || "Descricao visual nao informada.")}</p>
-    </div>
-  `;
+  return renderVisualFigure(
+    hint.elemento || hint.termo || "Imagem de apoio",
+    hint.descricao_prompt_imagem || hint.descricao_para_icone_ou_ia_generativa || "Imagem simples relacionada ao tema."
+  );
 }
 
 function renderChallengeSection(section = {}) {
   const title = section.titulo_bloco || `Missao ${section.fase_id || ""}`;
+  const type = String(section.tipo_componente || "").toLowerCase();
+  const visualTitle = section.imagem_sugerida?.elemento || section.imagem_sugerida?.titulo || section.titulo_visual || title;
+  const visualDescription = section.imagem_sugerida?.descricao_prompt_imagem || section.imagem_sugerida?.descricao || section.suporte_especifico || "";
+  const customActivity = type.includes("caca") || type.includes("caça") || type.includes("cruzad") || type.includes("verdadeiro") || type.includes("falso") || type.includes("tatil") || type.includes("tátil") || type.includes("caa") || type.includes("sim") || type.includes("nao") || type.includes("não");
   return `
     <div class="ai-a4-challenge">
       <div class="ai-a4-challenge-title">
         <span>${escapeHtml(String(section.fase_id || ""))}</span>
         <h4>${escapeHtml(title)}</h4>
       </div>
+      ${visualDescription ? renderVisualFigure(visualTitle, visualDescription) : ""}
       <p class="ai-a4-enunciation">${escapeHtml(section.enunciado || "Enunciado nao informado.")}</p>
-      ${renderChallengeOptions(section)}
+      ${renderChallengeSpecific(section, type)}
+      ${customActivity ? "" : renderChallengeOptions(section)}
       ${renderChallengeMatching(section)}
       ${renderChallengeWordBank(section)}
       ${section.espaco_resposta ? `<div class="ai-a4-response-space">${escapeHtml(section.espaco_resposta)}</div>` : ""}
-      <div class="ai-a4-support">
-        <strong>Suporte:</strong>
-        <span>${escapeHtml(section.suporte_especifico || "Usar mediacao, apoio visual e forma alternativa de resposta.")}</span>
+    </div>
+  `;
+}
+
+function renderVisualFigure(title, description) {
+  return `
+    <figure class="ai-visual-figure" role="group" aria-label="${escapeHtml(description)}">
+      <div class="ai-visual-art" aria-hidden="true">
+        ${renderPictogramSvg(title)}
       </div>
-      <div class="ai-a4-feedback">
-        <strong>Evidencia:</strong>
-        <span>${escapeHtml(section.feedback_professor || "Registrar participacao, acerto, comunicacao e nivel de ajuda.")}</span>
+      <figcaption>
+        <strong>${escapeHtml(title)}</strong>
+        <span>IMAGEM DE APOIO</span>
+      </figcaption>
+    </figure>
+  `;
+}
+
+function renderPictogramSvg(value) {
+  const kind = getVisualKind(value);
+  const label = String(value || "IMAGEM").toUpperCase().slice(0, 18);
+
+  if (kind === "oca") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M18 76 L60 18 L102 76 Z" fill="#d98c24" stroke="#08275f" stroke-width="4"/><path d="M49 76 V52 Q60 42 71 52 V76 Z" fill="#5b3517"/><path d="M27 70 H93" stroke="#f7c46c" stroke-width="5"/></svg>`;
+  }
+
+  if (kind === "canoa") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M18 52 Q60 82 102 52 Q89 70 60 72 Q31 70 18 52 Z" fill="#9a5a19" stroke="#08275f" stroke-width="4"/><path d="M31 49 Q60 62 89 49" fill="none" stroke="#f7c46c" stroke-width="5"/><path d="M18 74 H102" stroke="#0a56c2" stroke-width="5"/></svg>`;
+  }
+
+  if (kind === "cocar" || kind === "pena") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M60 70 C35 45 32 22 42 14 C50 27 56 42 60 62 C64 42 70 27 78 14 C88 22 85 45 60 70 Z" fill="#f28a18" stroke="#08275f" stroke-width="3"/><path d="M60 70 C50 48 48 26 54 10" stroke="#15a650" stroke-width="5"/><path d="M60 70 C70 48 72 26 66 10" stroke="#e83e73" stroke-width="5"/></svg>`;
+  }
+
+  if (kind === "pessoa" || kind === "povos") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><circle cx="42" cy="27" r="13" fill="#d98c24" stroke="#08275f" stroke-width="3"/><circle cx="78" cy="27" r="13" fill="#d98c24" stroke="#08275f" stroke-width="3"/><path d="M25 74 Q42 44 59 74 Z" fill="#15a650" stroke="#08275f" stroke-width="3"/><path d="M61 74 Q78 44 95 74 Z" fill="#f28a18" stroke="#08275f" stroke-width="3"/></svg>`;
+  }
+
+  if (kind === "mapa" || kind === "brasil") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M46 14 L75 20 L92 43 L80 69 L50 78 L29 57 L34 29 Z" fill="#15a650" stroke="#08275f" stroke-width="4"/><circle cx="59" cy="45" r="10" fill="#f7c46c"/></svg>`;
+  }
+
+  if (kind === "sim" || kind === "gostei") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><circle cx="60" cy="45" r="32" fill="#dcfce7" stroke="#15a650" stroke-width="5"/><path d="M42 45 L55 58 L81 31" fill="none" stroke="#15a650" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
+  if (kind === "nao") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><circle cx="60" cy="45" r="32" fill="#fff1f2" stroke="#e83e73" stroke-width="5"/><path d="M42 28 L78 62 M78 28 L42 62" stroke="#e83e73" stroke-width="9" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "ajuda" || kind === "falar") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M24 22 H96 Q104 22 104 30 V56 Q104 64 96 64 H58 L40 78 V64 H24 Q16 64 16 56 V30 Q16 22 24 22 Z" fill="#eaf2ff" stroke="#0a56c2" stroke-width="5"/><circle cx="45" cy="44" r="5" fill="#0a56c2"/><circle cx="60" cy="44" r="5" fill="#0a56c2"/><circle cx="75" cy="44" r="5" fill="#0a56c2"/></svg>`;
+  }
+
+  return `<div class="ai-picture-placeholder"><span>IMAGEM</span><strong>${escapeHtml(label)}</strong></div>`;
+}
+
+function getVisualKind(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("oca")) return "oca";
+  if (text.includes("canoa")) return "canoa";
+  if (text.includes("cocar")) return "cocar";
+  if (text.includes("pena")) return "pena";
+  if (text.includes("povo") || text.includes("indig") || text.includes("pessoa")) return "povos";
+  if (text.includes("brasil") || text.includes("mapa")) return "brasil";
+  if (text.includes("sim") || text.includes("bem") || text.includes("gost") || text.includes("positivo")) return "sim";
+  if (text.includes("nao") || text.includes("não") || text.includes("negacao") || text.includes("negação")) return "nao";
+  if (text.includes("ajuda") || text.includes("falar") || text.includes("duvida") || text.includes("dúvida") || text.includes("fala")) return "ajuda";
+  return "generic";
+}
+
+function renderChallengeSpecific(section, type) {
+  if (type.includes("caca") || type.includes("caça")) {
+    return renderWordSearch(section);
+  }
+
+  if (type.includes("cruzad")) {
+    return renderCrossword(section);
+  }
+
+  if (type.includes("verdadeiro") || type.includes("falso")) {
+    return renderTrueFalse(section);
+  }
+
+  if (type.includes("tatil") || type.includes("tátil")) {
+    return renderTactileActivity(section);
+  }
+
+  if (type.includes("caa")) {
+    return renderCaaChoice(section.cartoes_caa || section.opcoes || []);
+  }
+
+  if (type.includes("sim") || type.includes("nao") || type.includes("não")) {
+    return renderYesNoChoice();
+  }
+
+  if (type.includes("desenho") || type.includes("produ") || type.includes("criar")) {
+    return `<div class="ai-a4-drawing-space">ESPAÇO PARA DESENHO, COLAGEM, MODELAGEM OU REGISTRO DO ESTUDANTE.</div>`;
+  }
+
+  return "";
+}
+function renderWordSearch(section) {
+  const words = getActivityWords(section).slice(0, 6);
+  const grid = buildWordSearchGrid(words);
+
+  return `
+    <div class="ai-puzzle-wrap">
+      <div class="ai-word-search" aria-label="Caca-palavras">
+        ${grid.map((row) => row.map((letter) => `<span>${escapeHtml(letter)}</span>`).join("")).join("")}
+      </div>
+      <div class="ai-puzzle-words">
+        <strong>Encontre:</strong>
+        ${words.map((word) => `<span>${escapeHtml(word)}</span>`).join("")}
       </div>
     </div>
   `;
 }
 
-function renderChallengeOptions(section) {
-  if (!Array.isArray(section.opcoes) || !section.opcoes.length) return "";
-
+function renderCrossword(section) {
+  const words = getActivityWords(section).slice(0, 5);
   return `
-    <div class="ai-a4-options">
-      ${section.opcoes.map((option) => `
-        <div>
-          <strong>${escapeHtml(option.letra || "")}</strong>
-          <span>${escapeHtml(option.texto || "")}</span>
-          ${(option.valido || option.correta) ? "<em>gabarito</em>" : ""}
+    <div class="ai-crossword">
+      ${words.map((word, index) => `
+        <div class="ai-crossword-row">
+          <strong>${index + 1}</strong>
+          ${word.split("").map(() => "<span></span>").join("")}
         </div>
       `).join("")}
     </div>
   `;
+}
+
+function renderTrueFalse(section) {
+  return `
+    <div class="ai-true-false">
+      <label><span></span> Verdadeiro</label>
+      <label><span></span> Falso</label>
+    </div>
+  `;
+}
+
+function renderYesNoChoice() {
+  return `
+    <div class="ai-yes-no-grid">
+      <label><span></span>${renderPictogramSvg("SIM")}<strong>SIM</strong></label>
+      <label><span></span>${renderPictogramSvg("NAO")}<strong>NAO</strong></label>
+      <label><span></span>${renderPictogramSvg("AJUDA")}<strong>PRECISO DE AJUDA</strong></label>
+    </div>
+  `;
+}
+
+function renderTactileActivity(section = {}) {
+  const items = [
+    section.recurso_tatil,
+    ...(section.banco_palavras || []),
+    ...(Array.isArray(section.opcoes) ? section.opcoes.map((option) => normalizeRenderOption(option, 0).texto) : [])
+  ].filter(Boolean).slice(0, 4);
+  const visibleItems = items.length ? items : ["OBJETO REAL", "MINIATURA", "TEXTURA", "IMAGEM AMPLIADA"];
+
+  return `
+    <div class="ai-tactile-grid">
+      ${visibleItems.map((item) => `
+        <div>
+          ${renderPictogramSvg(item)}
+          <strong>${escapeHtml(item)}</strong>
+          <span>TOQUE, OBSERVE E ESCOLHA.</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderCaaChoice(cards = []) {
+  const normalized = cards.map((card, index) => {
+    if (typeof card === "string") return { rotulo: card, simbolo_descritivo: card };
+    return {
+      rotulo: card?.rotulo || card?.texto || card?.label || `OPCAO ${index + 1}`,
+      simbolo_descritivo: card?.simbolo_descritivo || card?.descricao || card?.rotulo || card?.texto || ""
+    };
+  }).filter((card) => card.rotulo).slice(0, 6);
+
+  return renderCaaStrip(normalized.length ? normalized : [
+    { rotulo: "GOSTEI", simbolo_descritivo: "mao positiva" },
+    { rotulo: "PRECISO DE AJUDA", simbolo_descritivo: "mao levantada" },
+    { rotulo: "QUERO FALAR", simbolo_descritivo: "balao de fala" }
+  ]);
+}
+
+function renderMultisensoryResources(resources = {}) {
+  const items = [
+    ...(resources.objetos_concretos || []),
+    ...(resources.recursos_tateis || []),
+    ...(resources.tecnologia_assistiva || [])
+  ].filter(Boolean).slice(0, 6);
+
+  if (!items.length) return "";
+
+  return `
+    <section class="ai-resource-strip" aria-label="Materiais para a atividade">
+      <strong>Materiais para usar</strong>
+      <div>
+        ${items.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderCaaStrip(cards = []) {
+  const normalized = Array.isArray(cards) ? cards : [];
+  const defaultCards = [
+    { rotulo: "ESTOU BEM", simbolo_descritivo: "rosto feliz" },
+    { rotulo: "GOSTEI", simbolo_descritivo: "mao positiva" },
+    { rotulo: "PRECISO DE AJUDA", simbolo_descritivo: "mao levantada" },
+    { rotulo: "NAO ENTENDI", simbolo_descritivo: "balao com duvida" },
+    { rotulo: "QUERO FALAR", simbolo_descritivo: "balao de fala" }
+  ];
+  const source = normalized.length ? normalized : defaultCards;
+
+  return `
+    <section class="ai-caa-strip" aria-label="Comunicacao e escolha">
+      <strong>COMUNICACAO E ESCOLHA (CAA)</strong>
+      <div>
+        ${source.slice(0, 8).map((card, index) => {
+          const label = typeof card === "string" ? card : (card.rotulo || card.texto || card.label || `CARTAO ${index + 1}`);
+          const symbol = typeof card === "string" ? card : (card.simbolo_descritivo || card.descricao || label);
+          return `
+            <button type="button" aria-label="${escapeHtml(label)}">
+              ${renderPictogramSvg(symbol)}
+              <span>${escapeHtml(label)}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function getActivityWords(section) {
+  const bank = section.banco_palavras || section.banco_de_palavras || [];
+  const options = Array.isArray(section.opcoes)
+    ? section.opcoes.map((option) => typeof option === "string" ? option : option.texto)
+    : [];
+  const fallback = String(section.enunciado || section.titulo_bloco || "ATIVIDADE")
+    .split(/\s+/)
+    .filter((word) => word.length > 3);
+
+  return [...bank, ...options, ...fallback]
+    .map(cleanPuzzleWord)
+    .filter((word, index, list) => word.length >= 3 && list.indexOf(word) === index);
+}
+
+function cleanPuzzleWord(word) {
+  return String(word || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z]/g, "")
+    .toUpperCase()
+    .slice(0, 10);
+}
+
+function buildWordSearchGrid(words) {
+  const size = 10;
+  const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => ""));
+  const letters = "ACESSAMAISBNCDAEE";
+
+  words.forEach((word, index) => {
+    const row = index % size;
+    const start = Math.max(0, Math.min(size - word.length, index % 4));
+    word.split("").forEach((letter, offset) => {
+      grid[row][start + offset] = letter;
+    });
+  });
+
+  return grid.map((row, rowIndex) => row.map((letter, colIndex) => letter || letters[(rowIndex + colIndex) % letters.length]));
+}
+
+function renderChallengeOptions(section) {
+  if (!Array.isArray(section.opcoes) || !section.opcoes.length) return "";
+  const options = section.opcoes
+    .map((option, index) => normalizeRenderOption(option, index))
+    .filter((option) => option.texto)
+    .slice(0, 3);
+
+  return `
+    <div class="ai-a4-options">
+      ${options.map((option) => `
+        <div>
+          <strong>${escapeHtml(option.letra)}</strong>
+          <span>${escapeHtml(option.texto || "")}</span>
+          <em>Marque com X</em>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function normalizeRenderOption(option, index) {
+  if (typeof option === "string") {
+    return {
+      letra: String.fromCharCode(65 + index),
+      texto: option
+    };
+  }
+
+  return {
+    letra: option?.letra || String.fromCharCode(65 + index),
+    texto: option?.texto || option?.label || option?.resposta || ""
+  };
 }
 
 function renderChallengeMatching(section) {
@@ -2317,14 +2785,10 @@ function a4MaterialToText(material = {}) {
   const metadados = material.metadados || {};
   const ancoras = material.ancoras_cognitivas || {};
   const secoes = Array.isArray(material.secoes_desafios) ? material.secoes_desafios : [];
-  const orientacoes = material.orientacoes_docente || {};
 
   const metaText = [
     `Objetivo: ${metadados.objetivo_pedagogico || "Nao informado."}`,
-    `Habilidade: ${metadados.habilidade_bncc_adaptada || "Nao informado."}`,
-    `Publico-alvo: ${metadados.publico_alvo || "Nao informado."}`,
-    `Nivel de apoio: ${metadados.nivel_apoio || "Nao informado."}`,
-    `Acessibilidade: ${metadados.observacoes_acessibilidade || "Nao informado."}`
+    `Habilidade: ${extractSkillCode(metadados.habilidade_bncc_adaptada || "") || "Nao informado."}`
   ].join("\n");
 
   const visualText = (ancoras.pistas_graficas || [])
@@ -2337,7 +2801,7 @@ function a4MaterialToText(material = {}) {
 
   const challengeText = secoes.map((section) => {
     const options = (section.opcoes || [])
-      .map((option) => `${option.letra}) ${option.texto}${(option.valido || option.correta) ? " [gabarito]" : ""}`)
+      .map((option) => `${option.letra}) ${option.texto}`)
       .join("\n");
     const left = (section.coluna_esquerda || section.itens_esquerda || []).join(" | ");
     const right = (section.coluna_direita || section.itens_direita || []).join(" | ");
@@ -2349,28 +2813,30 @@ function a4MaterialToText(material = {}) {
       options,
       left ? `Coluna 1: ${left}` : "",
       right ? `Coluna 2: ${right}` : "",
-      bank ? `Banco de palavras: ${bank}` : "",
-      section.suporte_especifico ? `Suporte: ${section.suporte_especifico}` : "",
-      section.feedback_professor ? `Evidencia: ${section.feedback_professor}` : ""
+      bank ? `Banco de palavras: ${bank}` : ""
     ].filter(Boolean).join("\n");
   }).join("\n\n");
 
-  const teacherText = [
-    `Metodologia inclusiva: ${orientacoes.metodologia_inclusiva || "Nao informado."}`,
-    `Recursos de acessibilidade: ${orientacoes.recursos_acessibilidade || "Nao informado."}`,
-    `Estrategias do AEE: ${orientacoes.estrategias_aee || "Nao informado."}`,
-    `Avaliacao: ${orientacoes.avaliacao || "Nao informado."}`,
-    `Sugestoes ao professor: ${orientacoes.sugestoes_professor || "Nao informado."}`
-  ].join("\n");
+  const resourceText = [
+    ...(recursos.objetos_concretos || []),
+    ...(recursos.recursos_tateis || []),
+    ...(recursos.tecnologia_assistiva || [])
+  ].filter(Boolean).join(" | ");
+
+  const caaText = (comunicacao.cartoes || [])
+    .map((card) => typeof card === "string" ? card : (card.rotulo || card.texto || card.label))
+    .filter(Boolean)
+    .join(" | ");
 
   return [
     cabecalho.titulo_atividade || "Atividade adaptada A4",
     cabecalho.instrucoes_gerais || "",
     metaText,
     ancoras.contextualizacao || "",
+    resourceText ? `Materiais para usar: ${resourceText}` : "",
     visualText,
     challengeText,
-    teacherText,
+    caaText ? `Comunicacao e escolha (CAA): ${caaText}` : "",
     configuracao.rodape_autor || "@mozahintervieira"
   ].filter(Boolean).join("\n\n");
 }
@@ -2412,6 +2878,12 @@ function bindEvents() {
   $("#copyBtn").addEventListener("click", copyResult);
   $("#clearBtn").addEventListener("click", clearForm);
   $("#searchSaved").addEventListener("input", renderSaved);
+  $("#filterStage")?.addEventListener("change", renderSaved);
+  $("#filterYear")?.addEventListener("change", renderSaved);
+  $("#filterSubject")?.addEventListener("change", renderSaved);
+  $("#filterProfile")?.addEventListener("change", renderSaved);
+  $("#signupBtn")?.addEventListener("click", signupUser);
+  $("#loginBtn")?.addEventListener("click", loginUser);
   $("#saveSettingsBtn").addEventListener("click", saveSettings);
   $("#clearLibraryBtn").addEventListener("click", clearLibrary);
   $("#contrastBtn").addEventListener("click", toggleHighContrast);
