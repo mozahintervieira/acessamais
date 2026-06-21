@@ -2785,6 +2785,8 @@ function a4MaterialToText(material = {}) {
   const metadados = material.metadados || {};
   const ancoras = material.ancoras_cognitivas || {};
   const secoes = Array.isArray(material.secoes_desafios) ? material.secoes_desafios : [];
+  const recursos = material.recursos_multissensoriais || {};
+  const comunicacao = material.comunicacao_caa || {};
 
   const metaText = [
     `Objetivo: ${metadados.objetivo_pedagogico || "Nao informado."}`,
