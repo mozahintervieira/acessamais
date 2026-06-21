@@ -1772,6 +1772,46 @@ textarea:focus {
   flex: 0 0 auto;
 }
 
+.visual-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.visual-choice-card {
+  border: 2px solid #d4e4ff;
+  border-radius: 10px;
+  background: #fff;
+  min-height: 132px;
+  padding: 8px;
+  display: grid;
+  grid-template-rows: 68px auto auto;
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+  gap: 5px;
+}
+
+.visual-choice-art {
+  width: 76px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+}
+
+.visual-choice-art svg,
+.visual-choice-art .ai-picture-placeholder {
+  width: 76px;
+  height: 62px;
+}
+
+.visual-choice-card strong {
+  color: #08275f;
+  font-size: 12px;
+  line-height: 1.15;
+}
+
 .answer-area {
   min-height: 118px;
   margin-top: 10px;
@@ -1907,6 +1947,28 @@ textarea:focus {
   padding: 7px 9px;
   font-size: 13px;
   min-height: 34px;
+}
+
+.sheet-learning-meta {
+  display: grid;
+  grid-template-columns: 1.45fr 0.55fr;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.sheet-learning-meta span {
+  border: 1.8px solid #8fb2e7;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 9px 10px;
+  color: #08275f;
+  font-size: 13px;
+  line-height: 1.35;
+  min-height: 42px;
+}
+
+.sheet-learning-meta span:nth-child(n+3) {
+  display: none;
 }
 
 .intro-ribbon {

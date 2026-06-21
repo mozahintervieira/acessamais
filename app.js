@@ -699,8 +699,111 @@ function renderExercise(exercise) {
   `;
 }
 
+function getSkillCodeOnly(data) {
+  return extractSkillCode(data.skill || "") || "BNCC";
+}
+
+function isLanguageProductionContext(text) {
+  return text.includes("portugues")
+    || text.includes("lingua portuguesa")
+    || text.includes("contexto de producao")
+    || text.includes("contexto de produção")
+    || text.includes("genero")
+    || text.includes("gênero")
+    || text.includes("circulacao")
+    || text.includes("circulação")
+    || text.includes("interlocucao")
+    || text.includes("interlocução")
+    || text.includes("leitura")
+    || text.includes("escuta");
+}
+
+function buildLanguageProductionSheetContext(data) {
+  const skillCode = getSkillCodeOnly(data);
+  const topic = "CONTEXTO DE PRODUCAO DO TEXTO";
+  return {
+    theme: "language",
+    title: topic,
+    subtitle: "LER, ANALISAR E COMPREENDER",
+    intro: "OBSERVE AS PISTAS DO TEXTO. DESCUBRA QUEM PRODUZIU, PARA QUEM, ONDE CIRCULA E COM QUAL FINALIDADE.",
+    objective: "IDENTIFICAR ELEMENTOS DO CONTEXTO DE PRODUCAO, CIRCULACAO E RECEPCAO DE TEXTOS.",
+    remember: [
+      ["TEMA", "CONTEXTO DE PRODUCAO, CIRCULACAO E RECEPCAO DE TEXTOS"],
+      ["HABILIDADE", skillCode],
+      ["PISTAS", "AUTOR, PUBLICO, LUGAR DE CIRCULACAO, FINALIDADE E GENERO TEXTUAL"]
+    ],
+    sections: [
+      {
+        type: "visualChoice",
+        label: "1",
+        title: "MARQUE A IMAGEM QUE REPRESENTA UM TEXTO.",
+        prompt: "QUAL OPCAO PODE SER LIDA OU ESCUTADA PARA PASSAR UMA MENSAGEM?",
+        options: [
+          { text: "CARTAZ", visual: "cartaz texto" },
+          { text: "PEDRA", visual: "pedra" },
+          { text: "BOLA", visual: "bola" }
+        ]
+      },
+      {
+        type: "match",
+        label: "2",
+        title: "LIGUE CADA PALAVRA AO SIGNIFICADO.",
+        left: ["AUTOR", "PUBLICO", "FINALIDADE", "CIRCULACAO"],
+        right: ["QUEM PRODUZ O TEXTO", "QUEM RECEBE O TEXTO", "PARA QUE O TEXTO FOI FEITO", "ONDE O TEXTO APARECE"]
+      },
+      {
+        type: "trueFalse",
+        label: "3",
+        title: "MARQUE (V) OU (F).",
+        statements: [
+          "TODO TEXTO TEM UMA FINALIDADE.",
+          "O PUBLICO E QUEM RECEBE A MENSAGEM.",
+          "O CONTEXTO NAO AJUDA A ENTENDER O TEXTO."
+        ]
+      },
+      {
+        type: "fillText",
+        label: "4",
+        title: "COMPLETE COM AS PALAVRAS DO BANCO.",
+        bank: ["AUTOR", "PUBLICO", "FINALIDADE", "GENERO"],
+        text: "O ______ PRODUZ O TEXTO. O ______ RECEBE A MENSAGEM. A ______ MOSTRA PARA QUE O TEXTO FOI FEITO. O ______ INDICA O TIPO DE TEXTO."
+      },
+      {
+        type: "visualChoice",
+        label: "5",
+        title: "ESCOLHA A FINALIDADE DO TEXTO.",
+        prompt: "UM CARTAZ DE CAMPANHA SERVE PRINCIPALMENTE PARA:",
+        options: [
+          { text: "INFORMAR E ORIENTAR", visual: "cartaz informacao" },
+          { text: "ESCONDER IDEIAS", visual: "nao" },
+          { text: "IMPEDIR A LEITURA", visual: "negacao" }
+        ]
+      },
+      {
+        type: "production",
+        label: "6",
+        title: "PRODUZA SUA RESPOSTA.",
+        prompts: [
+          "DESENHE OU ESCREVA UM CARTAZ SOBRE RESPEITO.",
+          "MARQUE PARA QUEM ESSE CARTAZ FOI FEITO.",
+          "DIGA QUAL E A FINALIDADE DO CARTAZ."
+        ]
+      },
+      {
+        type: "challenge",
+        label: "DESAFIO",
+        prompt: "ESCOLHA UM TEXTO QUE VOCE JA VIU NA ESCOLA, NA RUA OU NA INTERNET. QUAL ERA A FINALIDADE DELE?"
+      }
+    ]
+  };
+}
+
 function getPremiumWorksheetContext(data) {
   const combined = normalizeText(`${data.subject} ${data.knowledgeObject} ${data.skill} ${data.baseActivity}`);
+
+  if (isLanguageProductionContext(combined)) {
+    return buildLanguageProductionSheetContext(data);
+  }
 
   if (combined.includes("fracao") || combined.includes("fracoes")) {
     return {
@@ -874,7 +977,7 @@ function getPremiumWorksheetContext(data) {
     title: `${String(data.knowledgeObject || "ATIVIDADE").toUpperCase()}`,
     subtitle: "PENSAR, REGISTRAR E PARTICIPAR",
     intro: "Leia as orientações, responda do seu jeito e peça ajuda quando precisar.",
-    remember: [["TEMA", data.knowledgeObject || "conteúdo estudado"], ["HABILIDADE", data.skill || "habilidade informada pelo professor"]],
+    remember: [["TEMA", data.knowledgeObject || "conteúdo estudado"], ["HABILIDADE", getSkillCodeOnly(data)]],
     sections: [
       {
         type: "classificationTable",
@@ -917,6 +1020,24 @@ function renderRemember(items) {
 
 function renderPremiumSection(section) {
   const label = `<span class="section-label">${escapeHtml(section.label)}</span>`;
+
+  if (section.type === "visualChoice") {
+    return `
+      <section class="activity-panel">
+        <h3>${label}${escapeHtml(section.title)}</h3>
+        <p>${escapeHtml(section.prompt || "MARQUE A RESPOSTA CORRETA.")}</p>
+        <div class="visual-choice-grid">
+          ${(section.options || []).slice(0, 3).map((option) => `
+            <div class="visual-choice-card">
+              <div class="visual-choice-art" aria-hidden="true">${renderPictogramSvg(option.visual || option.text)}</div>
+              <span class="choice-mark"></span>
+              <strong>${escapeHtml(option.text || "")}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
 
   if (section.type === "classificationTable") {
     return `
@@ -1042,7 +1163,7 @@ function renderPremiumSection(section) {
 
 function premiumWorksheet(data, title = "Atividade adaptada") {
   const context = getPremiumWorksheetContext(data);
-  const owner = state.settings.ownerName || "Prof. Mozahinter Vieira";
+  const skillCode = getSkillCodeOnly(data);
   return `
     <div class="premium-sheet theme-${context.theme}">
       <header class="sheet-hero">
@@ -1054,8 +1175,9 @@ function premiumWorksheet(data, title = "Atividade adaptada") {
         <div class="hero-badge right">A+</div>
       </header>
 
-      <div class="student-meta">
-        <span><strong>Nome:</strong> ${escapeHtml(data.studentName === "Estudante" ? "" : data.studentName)}</span>
+      <div class="sheet-learning-meta" aria-label="Dados pedagogicos da atividade">
+        <span><strong>OBJETIVO:</strong> ${escapeHtml(context.objective || `COMPREENDER ELEMENTOS ESSENCIAIS SOBRE ${data.knowledgeObject || "O CONTEUDO ESTUDADO"}.`)}</span>
+        <span><strong>HABILIDADE:</strong> ${escapeHtml(skillCode)}</span>
         <span><strong>Turma:</strong> ${escapeHtml(data.grade === "Série não informada" ? "" : data.grade)}</span>
         <span><strong>Disciplina:</strong> ${escapeHtml(data.subject === "Disciplina não informada" ? "" : data.subject)}</span>
         <span><strong>Data:</strong> ____ / ____ / ______</span>
@@ -1069,8 +1191,8 @@ function premiumWorksheet(data, title = "Atividade adaptada") {
       </div>
 
       <footer class="sheet-footer">
-        <span></span>
-        <strong>${escapeHtml(owner).toUpperCase()}</strong>
+        <span>@MOZAHINTERVIEIRA</span>
+        <strong>ACESSA+ • INCLUI • TRANSFORMA • CONECTA</strong>
         <span></span>
       </footer>
     </div>
@@ -1590,6 +1712,31 @@ function imageExportCss() {
       border-radius: 6px;
       flex: 0 0 auto;
     }
+    .visual-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .visual-choice-card {
+      border: 2px solid #d4e4ff;
+      border-radius: 10px;
+      min-height: 118px;
+      padding: 7px;
+      display: grid;
+      grid-template-rows: 58px auto auto;
+      align-items: center;
+      justify-items: center;
+      text-align: center;
+      gap: 4px;
+      font-size: 12px;
+    }
+    .visual-choice-art,
+    .visual-choice-art svg,
+    .visual-choice-art .ai-picture-placeholder {
+      width: 68px;
+      height: 54px;
+    }
     .answer-area {
       min-height: 92px;
       margin-top: 8px;
@@ -1713,6 +1860,23 @@ function imageExportCss() {
       padding: 6px 8px;
       font-size: 12px;
       min-height: 30px;
+    }
+    .sheet-learning-meta {
+      display: grid;
+      grid-template-columns: 1.45fr .55fr;
+      gap: 6px;
+      margin: 6px 0 8px;
+    }
+    .sheet-learning-meta span {
+      border: 1.8px solid #8fb2e7;
+      border-radius: 8px;
+      padding: 7px 8px;
+      font-size: 12px;
+      min-height: 34px;
+      background: #f8fbff;
+    }
+    .sheet-learning-meta span:nth-child(n+3) {
+      display: none;
     }
     .intro-ribbon {
       width: 76%;
@@ -2340,6 +2504,18 @@ function renderPictogramSvg(value) {
     return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M24 22 H96 Q104 22 104 30 V56 Q104 64 96 64 H58 L40 78 V64 H24 Q16 64 16 56 V30 Q16 22 24 22 Z" fill="#eaf2ff" stroke="#0a56c2" stroke-width="5"/><circle cx="45" cy="44" r="5" fill="#0a56c2"/><circle cx="60" cy="44" r="5" fill="#0a56c2"/><circle cx="75" cy="44" r="5" fill="#0a56c2"/></svg>`;
   }
 
+  if (kind === "cartaz") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><rect x="27" y="13" width="66" height="64" rx="6" fill="#fff7d6" stroke="#08275f" stroke-width="4"/><path d="M39 30 H81 M39 44 H75 M39 58 H66" stroke="#0a56c2" stroke-width="5" stroke-linecap="round"/><circle cx="82" cy="59" r="8" fill="#f28a18"/></svg>`;
+  }
+
+  if (kind === "bola") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><circle cx="60" cy="45" r="30" fill="#f8fafc" stroke="#08275f" stroke-width="4"/><path d="M60 16 V74 M31 45 H89 M39 25 Q60 40 81 25 M39 65 Q60 50 81 65" fill="none" stroke="#0a56c2" stroke-width="4"/></svg>`;
+  }
+
+  if (kind === "pedra") {
+    return `<svg viewBox="0 0 120 90" aria-hidden="true"><path d="M25 59 Q31 30 58 24 Q86 21 98 52 Q88 75 48 73 Q30 72 25 59 Z" fill="#cbd5e1" stroke="#08275f" stroke-width="4"/><path d="M43 42 H73 M50 55 H84" stroke="#64748b" stroke-width="4" stroke-linecap="round"/></svg>`;
+  }
+
   return `<div class="ai-picture-placeholder"><span>IMAGEM</span><strong>${escapeHtml(label)}</strong></div>`;
 }
 
@@ -2354,6 +2530,9 @@ function getVisualKind(value) {
   if (text.includes("sim") || text.includes("bem") || text.includes("gost") || text.includes("positivo")) return "sim";
   if (text.includes("nao") || text.includes("não") || text.includes("negacao") || text.includes("negação")) return "nao";
   if (text.includes("ajuda") || text.includes("falar") || text.includes("duvida") || text.includes("dúvida") || text.includes("fala")) return "ajuda";
+  if (text.includes("cartaz") || text.includes("texto") || text.includes("informacao") || text.includes("informação")) return "cartaz";
+  if (text.includes("bola")) return "bola";
+  if (text.includes("pedra")) return "pedra";
   return "generic";
 }
 
