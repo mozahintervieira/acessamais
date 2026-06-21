@@ -208,7 +208,7 @@ function buildPrompt(payload) {
         `Area de interesse ou hiperfoco: ${payload.areaInteresse || "nao informada"}`,
         `Pedido do professor: ${payload.pedidoProfessor}`,
         "",
-        "A folha deve ter organizacao espacial clara, estetica ludica, blocos como Missao, Desafio, Complete, Ligue ou Produza, e suporte visual por especificidade."
+        "A folha deve ter organização espacial de material profissional: título grande, subtítulo pedagógico, contextualização curta, blocos numerados, caixas coloridas, espaço para resposta, banco de palavras quando necessário, desafio final e rodapé. A identidade visual precisa mudar conforme o tema. Exemplos de estilos: Investigador, Cientista, Arqueólogo, Explorador, Matemática em Ação, Laboratório, Jornalista, Missão Histórica, Cartografia Tátil, Oficina de Leitura ou Desafio Maker."
       ].join("\n")
     }
   ];
