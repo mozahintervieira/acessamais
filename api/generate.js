@@ -273,6 +273,12 @@ function normalizeMaterial(parsed, fallback, payload) {
 
   return {
     schema_version: "acessamais.a4.v1",
+    layout_visual: material.layout_visual || {
+  modelo: "Padrao",
+  justificativa: "",
+  elementos_visuais: [],
+  paleta_sugerida: ""
+},
     configuracao_folha: {
       tamanho: textOr(configuracao.tamanho, "A4"),
       layout_orientacao: textOr(configuracao.layout_orientacao, "Retrato"),
