@@ -179,8 +179,6 @@ function buildPrompt(payload) {
     ]
   };
 
-  return [
-    {
     return [
     {
       role: "system",
@@ -196,6 +194,8 @@ function buildPrompt(payload) {
         `Use rigorosamente este schema como contrato de saída: ${JSON.stringify(schema)}`
       ].join(" ")
     },
+    {
+      role: "user",
       content: [
         "Dados curriculares e pedagogicos:",
         `Perfil do estudante: ${payload.perfil}`,
@@ -213,7 +213,6 @@ function buildPrompt(payload) {
     }
   ];
 }
-
 function extractResponseText(data) {
   if (data.output_text) {
     return data.output_text;
