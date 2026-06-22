@@ -30,7 +30,7 @@ export default async function handler(request, response) {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
         input: buildPrompt(payload),
-        temperature: 0.35,
+        temperature: 0.2,
         max_output_tokens: 4200,
         store: false
       })
