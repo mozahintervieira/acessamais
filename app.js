@@ -1414,30 +1414,45 @@ const generators = {
   report: generateReport
 };
 
-function generateMaterial() {
-  const data = getFormData();
-  const generator = generators[data.kind] || generateActivity;
-  const html = generator(data);
-  state.currentResult = html;
-  state.currentMeta = {
-    kind: data.kind,
-    title: `${kindLabels[data.kind]} - ${data.subject}`,
-    studentName: data.studentName,
-    subject: data.subject,
-    discipline: normalizeDiscipline(data.subject),
-    schoolStage: classifySchoolStage(data.grade),
-    schoolYear: normalizeSchoolYear(data.grade),
-    skillCode: extractSkillCode(data.skill || ""),
-    profiles: data.needs,
-    primaryProfile: data.needs[0] || "Geral",
-    knowledgeObject: data.knowledgeObject,
-    createdBy: state.currentUser?.id || null,
-    createdByName: state.currentUser?.name || "Professor não identificado",
-    date: new Date().toISOString()
-  };
-  $("#resultPaper").innerHTML = html;
-  $("#resultTitle").textContent = kindLabels[data.kind];
-  $("#engineStatus").textContent = "Gerado com IA online";
+async function generateMaterial() {
+  const payload = getAssistantPayload();
+  const validationError = validateAssistantPayload(payload);
+
+  if (validationError) {
+    setAiStatus(validationError, true);
+    return;
+  }
+
+  setAiStatus("Gerando material com IA online. Aguarde...");
+  $("#aiGenerateBtn").disabled = true;
+
+  try {
+    const apiResponse = await fetch("/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await apiResponse.json();
+
+    if (!apiResponse.ok) {
+      throw new Error(data.error || "Não foi possível gerar o material.");
+    }
+
+    renderAiMaterial(data.material);
+    state.aiLatestText = materialToText(data.material);
+    state.currentResult = $("#aiResultCards").innerHTML;
+
+    $("#engineStatus").textContent = "Gerado com IA online";
+    setAiStatus("Material gerado com IA online.");
+  } catch (error) {
+    renderAiError(error.message);
+    setAiStatus(error.message, true);
+  } finally {
+    $("#aiGenerateBtn").disabled = false;
+  }
 }
 
 function saveCurrent() {
