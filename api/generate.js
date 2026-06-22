@@ -105,10 +105,16 @@ function validatePayload(payload) {
 function buildPrompt(payload) {
   const schema = {
     layout_visual: {
-  modelo: "Investigador | Cientista | Arqueologo | Explorador | Matematica_em_Acao | Laboratorio | Jornalista | Missao_Historica | Oficina_de_Leitura | Desafio_Maker",
-  justificativa: "por que esse layout combina com o conteúdo",
-  elementos_visuais: ["icone 1", "icone 2", "icone 3"],
-  paleta_sugerida: "cores sugeridas para o tema"
+  modelo: "",
+  justificativa: "",
+  paleta_sugerida: "",
+  elementos_visuais: [],
+  icone_principal: "",
+  estilo_editorial: "",
+  nivel_ludicidade: "",
+  tema_narrativo: "",
+  mascote_sugerido: "",
+  cores_predominantes: []
 },
     configuracao_folha: {
       tamanho: "A4",
@@ -118,26 +124,27 @@ function buildPrompt(payload) {
       rodape_autor: AUTHOR_FOOTER
     },
     cabecalho: {
-      titulo_atividade: "titulo curto e motivador",
-      instrucoes_gerais: "instrucao simples para o estudante"
-    },
+  titulo_atividade: "",
+  subtitulo: "",
+  frase_motivacional: "",
+  instrucoes_gerais: ""
+},
     metadados: {
-      objetivo_pedagogico: "objetivo observavel",
-      habilidade_bncc_adaptada: "habilidade preservada e adaptada",
-      publico_alvo: "perfil, ano/serie e nivel de apoio",
-      nivel_apoio: "apoio necessario",
-      observacoes_acessibilidade: "principais barreiras e apoios"
-    },
+  objetivo_pedagogico: "",
+  habilidade_bncc_adaptada: "",
+  objeto_conhecimento: "",
+  publico_alvo: "",
+  nivel_apoio: "",
+  nivel_bloom_predominante: "",
+  observacoes_acessibilidade: ""
+},
     ancoras_cognitivas: {
-      contextualizacao: "texto curto de apoio ao tema",
-      pistas_graficas: [
-        {
-          elemento: "nome do elemento visual",
-          descricao_prompt_imagem: "descricao exata para icone, pictograma ou imagem",
-          posicionamento: "Topo_Central"
-        }
-      ]
-    },
+  contextualizacao: "",
+  situacao_problema: "",
+  conexao_com_cotidiano: "",
+  hiperfoco_utilizado: "",
+  pistas_graficas: []
+},
     secoes_desafios: [
       {
         fase_id: 1,
