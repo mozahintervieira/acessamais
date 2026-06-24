@@ -1,4 +1,4 @@
-const CACHE_NAME = "acessaplus-v10";
+const CACHE_NAME = "acessaplus-v14";
 const APP_FILES = [
   "./",
   "./index.html",

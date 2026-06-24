@@ -1414,20 +1414,83 @@ const generators = {
   report: generateReport
 };
 
-async function generateMaterial() {
-  const payload = getAssistantPayload();
-  const validationError = validateAssistantPayload(payload);
+function shouldUseAiGenerator(data) {
+  return data.kind === "activity";
+}
 
-  if (validationError) {
-    setAiStatus(validationError, true);
-    return;
-  }
+function setEngineStatus(message, isError = false) {
+  const status = $("#engineStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("status-error", isError);
+}
 
-  setAiStatus("Gerando material com IA online. Aguarde...");
-  $("#aiGenerateBtn").disabled = true;
+function setGenerateButtonsLoading(isLoading) {
+  ["#generateBtn", "#generateTopBtn"].forEach((selector) => {
+    const button = $(selector);
+    if (!button) return;
+    button.disabled = isLoading;
+    button.textContent = isLoading ? "Gerando com IA..." : "Gerar material";
+  });
+}
+
+function getMaterialAiPayload(data) {
+  const pedagogicalRequest = [
+    data.baseActivity ? `Atividade original, observacoes ou situacao de aprendizagem: ${data.baseActivity}` : "",
+    `Formato desejado: ${data.format}`,
+    "Gere uma atividade A4 pronta para uso com estudante.",
+    "A folha visivel nao deve conter nome do estudante, nome do professor, escola, turma ou data.",
+    "A atividade precisa ter imagens/pictogramas integrados no layout, comandos claros, alternativas objetivas e variacao de modelos de tarefa."
+  ].filter(Boolean).join("\n");
+
+  return {
+    perfil: data.needs.join(", "),
+    perfis: data.needs,
+    serie: data.grade,
+    idade: data.age,
+    idadeFuncional: "",
+    disciplina: data.subject,
+    habilidade: data.skill,
+    objetoConhecimento: data.knowledgeObject,
+    nivelAlfabetizacao: data.readingLevel,
+    nivelApoio: data.autonomy,
+    comunicacao: data.communication,
+    autonomia: data.autonomy,
+    areaInteresse: "",
+    recursosDisponiveis: data.resourcesNeeded,
+    pedidoProfessor: pedagogicalRequest
+  };
+}
+
+function renderResultError(title, message) {
+  state.currentResult = "";
+  state.currentMeta = null;
+  $("#resultTitle").textContent = "Não foi possível gerar";
+  $("#resultPaper").innerHTML = `
+    <div class="result-error">
+      <h2>${escapeHtml(title)}</h2>
+      <p>${escapeHtml(message)}</p>
+      <p>Verifique se o projeto está publicado na Vercel e se a variável OPENAI_API_KEY está configurada em Production.</p>
+    </div>
+  `;
+}
+
+async function generateAiMaterial(data) {
+  const payload = getMaterialAiPayload(data);
+  state.aiLastPayload = payload;
+  setEngineStatus("Gerando com IA real...");
+  setGenerateButtonsLoading(true);
+  $("#resultTitle").textContent = "Atividade adaptada";
+  $("#resultPaper").innerHTML = `
+    <div class="result-loading">
+      <h2>Gerando atividade com IA</h2>
+      <p>Aguarde enquanto o ACESSA+ cria uma folha A4 adaptada, visual e pronta para uso.</p>
+    </div>
+  `;
 
   try {
-    const apiResponse = await fetch("/api/generate", {
+    const endpoint = state.settings.aiEndpoint || "/api/generate";
+    const apiResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -1435,34 +1498,89 @@ async function generateMaterial() {
       body: JSON.stringify(payload)
     });
 
-    const data = await apiResponse.json();
+    const responseData = await apiResponse.json();
 
     if (!apiResponse.ok) {
-      throw new Error(data.error || "Não foi possível gerar o material.");
+      throw new Error(responseData.error || "A API de IA não conseguiu gerar o material.");
     }
 
-    renderAiMaterial(data.material);
-    state.aiLatestText = materialToText(data.material);
-    state.currentResult = $("#aiResultCards").innerHTML;
+    const material = responseData.material || {};
+    const html = buildA4AiMaterialHtml(material, payload);
+    state.currentResult = html;
+    state.aiLatestText = materialToText(material);
+    state.currentMeta = {
+      kind: data.kind,
+      title: material.cabecalho?.titulo_atividade || material.conteudo_adaptado?.titulo || `${kindLabels[data.kind]} - ${data.subject}`,
+      subject: data.subject,
+      discipline: normalizeDiscipline(data.subject),
+      schoolStage: classifySchoolStage(data.grade),
+      schoolYear: normalizeSchoolYear(data.grade),
+      skillCode: extractSkillCode(material.metadados?.habilidade_bncc_adaptada || data.skill || ""),
+      profiles: data.needs,
+      primaryProfile: data.needs[0] || "Geral",
+      knowledgeObject: data.knowledgeObject,
+      createdBy: state.currentUser?.id || null,
+      createdByName: state.currentUser?.name || "Professor não identificado",
+      source: "ia",
+      date: new Date().toISOString()
+    };
 
-    $("#engineStatus").textContent = "Gerado com IA online";
-    setAiStatus("Material gerado com IA online.");
+    $("#resultPaper").innerHTML = html;
+    $("#resultTitle").textContent = "Atividade adaptada pela IA";
+    setEngineStatus("Gerado com IA real");
   } catch (error) {
-    renderAiError(error.message);
-    setAiStatus(error.message, true);
+    renderResultError("IA não disponível", error.message);
+    setEngineStatus("Erro na IA", true);
   } finally {
-    $("#aiGenerateBtn").disabled = false;
+    setGenerateButtonsLoading(false);
   }
 }
 
-function saveCurrent() {
+function generateLocalMaterial(data) {
+  const generator = generators[data.kind] || generateActivity;
+  const html = generator(data);
+  state.currentResult = html;
+  state.currentMeta = {
+    kind: data.kind,
+    title: `${kindLabels[data.kind]} - ${data.subject}`,
+    studentName: data.studentName,
+    subject: data.subject,
+    discipline: normalizeDiscipline(data.subject),
+    schoolStage: classifySchoolStage(data.grade),
+    schoolYear: normalizeSchoolYear(data.grade),
+    skillCode: extractSkillCode(data.skill || ""),
+    profiles: data.needs,
+    primaryProfile: data.needs[0] || "Geral",
+    knowledgeObject: data.knowledgeObject,
+    createdBy: state.currentUser?.id || null,
+    createdByName: state.currentUser?.name || "Professor não identificado",
+    date: new Date().toISOString()
+  };
+  $("#resultPaper").innerHTML = html;
+  $("#resultTitle").textContent = kindLabels[data.kind];
+  setEngineStatus("Gerado em modo local");
+}
+
+async function generateMaterial() {
+  const data = getFormData();
+  if (shouldUseAiGenerator(data)) {
+    await generateAiMaterial(data);
+    return;
+  }
+
+  generateLocalMaterial(data);
+}
+
+async function saveCurrent() {
   if (!state.currentUser) {
     showView("login");
     setAuthStatus("#loginStatus", "Entre ou crie um perfil para salvar materiais na biblioteca.", true);
     return;
   }
 
-  if (!state.currentResult) generateMaterial();
+  if (!state.currentResult) await generateMaterial();
+  if (!state.currentResult) return;
+
   const item = {
     id: Date.now(),
     ...state.currentMeta,
@@ -1877,8 +1995,19 @@ function exportHtml() {
   downloadBlob(blob, safeFileName("acessaplus-material.html"));
 }
 
-function exportImage() {
-  if (!state.currentResult) generateMaterial();
+async function exportImage() {
+  if (!state.currentResult) await generateMaterial();
+  if (!state.currentResult) return;
+
+  const aiPages = $$("#resultPaper .ai-a4-sheet, #resultPaper .math-a4");
+  if (aiPages.length) {
+    setEngineStatus(`Gerando ${aiPages.length} imagem(ns) A4...`);
+    for (const [index, page] of aiPages.entries()) {
+      await exportElementAsPng(page, safeFileName(`acessaplus-atividade-ia-pagina-${index + 1}.png`));
+    }
+    setEngineStatus(aiPages.length > 1 ? "Imagens A4 baixadas por página" : "Imagem A4 baixada");
+    return;
+  }
 
   const width = 794;
   const height = 1123;
@@ -2576,8 +2705,7 @@ async function generateAeeMaterial() {
 
     renderAiMaterial(data.material);
     state.aiLatestText = materialToText(data.material);
-    setAiStatus("Material gerado com IA online.");
-$("#engineStatus").textContent = "Gerado com IA online";
+    setAiStatus("Material gerado com sucesso.");
   } catch (error) {
     renderAiError(error.message);
     setAiStatus(error.message, true);
@@ -2632,6 +2760,15 @@ function renderAiMaterial(material = {}) {
 }
 
 function shouldUseEditorialA4(payload = {}, material = {}) {
+  const discipline = normalizeText(payload.disciplina || "");
+  const skill = normalizeText(payload.habilidade || material.metadados?.habilidade_bncc_adaptada || "");
+  const isPortuguese = discipline.includes("portugues")
+    || discipline.includes("lingua portuguesa")
+    || skill.includes("em13lp")
+    || skill.includes("ef") && skill.includes("lp");
+
+  if (!isPortuguese) return false;
+
   const text = normalizeText([
     payload.disciplina,
     payload.habilidade,
@@ -2645,15 +2782,423 @@ function shouldUseEditorialA4(payload = {}, material = {}) {
   return text.includes("portugues")
     || text.includes("lingua portuguesa")
     || text.includes("em13lp")
-    || text.includes("contexto")
-    || text.includes("producao")
-    || text.includes("produção")
     || text.includes("genero textual")
-    || text.includes("gênero textual")
     || text.includes("leitura")
     || text.includes("escuta")
-    || text.includes("compreensao")
-    || text.includes("compreensão");
+    || text.includes("compreensao");
+}
+
+function shouldUseMathA4(payload = {}, material = {}) {
+  const text = normalizeText([
+    payload.disciplina,
+    payload.habilidade,
+    payload.objetoConhecimento,
+    payload.areaInteresse,
+    payload.recursosDisponiveis,
+    payload.pedidoProfessor,
+    material.cabecalho?.titulo_atividade,
+    material.conteudo_adaptado?.titulo
+  ].filter(Boolean).join(" "));
+
+  const isMath = text.includes("matematica")
+    || text.includes("matemat")
+    || text.includes("em13mat")
+    || /\bef\d+ma/i.test(String(payload.habilidade || ""));
+
+  if (!isMath) return false;
+
+  return text.includes("coordenada")
+    || text.includes("cartesiano")
+    || text.includes("funcao")
+    || text.includes("multiplicacao")
+    || text.includes("multiplic")
+    || text.includes("tabuada")
+    || text.includes("algebr");
+}
+
+function renderMathA4Sequence(material = {}, payload = {}) {
+  const pages = buildMathA4Pages(material, payload);
+  if (!pages.length) return false;
+
+  $("#aiResultCards").innerHTML = `
+    <div class="math-a4-sequence" aria-label="Sequencia de folhas A4 de Matematica">
+      ${pages.map(renderMathPage).join("")}
+    </div>
+  `;
+  return true;
+}
+
+function buildMathA4Pages(material = {}, payload = {}) {
+  const text = normalizeText(`${payload.habilidade || ""} ${payload.objetoConhecimento || ""} ${payload.pedidoProfessor || ""}`);
+  const skillCode = extractSkillCode(payload.habilidade || material.metadados?.habilidade_bncc_adaptada || "");
+  const object = String(payload.objetoConhecimento || "MATEMATICA").toUpperCase();
+  const resources = String(payload.recursosDisponiveis || "").toUpperCase();
+  const hasCoordinates = text.includes("coordenada") || text.includes("cartesiano") || text.includes("ponto") || text.includes("plano");
+  const hasFunction = text.includes("funcao") || text.includes("algebr") || text.includes("proporcional") || text.includes("1 grau");
+  const hasMultiplication = text.includes("multiplic") || normalizeText(resources).includes("domino");
+
+  const pages = [];
+
+  if (hasCoordinates || !hasFunction) {
+    pages.push({
+      number: "1",
+      accent: "blue",
+      title: "PLANO CARTESIANO",
+      subtitle: "LOCALIZAR PONTOS NA MALHA",
+      icon: "grid",
+      body: renderMathCoordinateIntro(skillCode, object)
+    });
+    pages.push({
+      number: "2",
+      accent: "green",
+      title: "COORDENADAS EM AÇÃO",
+      subtitle: "LER, MARCAR E COMPARAR PONTOS",
+      icon: "target",
+      body: renderMathCoordinatePractice()
+    });
+  }
+
+  if (hasFunction || hasMultiplication || pages.length < 3) {
+    pages.push({
+      number: String(pages.length + 1),
+      accent: "orange",
+      title: hasFunction ? "TABELA E GRÁFICO" : "MULTIPLICAÇÃO VISUAL",
+      subtitle: hasFunction ? "REPRESENTAR UMA REGRA" : "CALCULAR COM APOIO",
+      icon: "graph",
+      body: hasFunction ? renderMathFunctionPractice() : renderMathMultiplicationPractice()
+    });
+  }
+
+  pages.push({
+    number: String(pages.length + 1),
+    accent: "purple",
+    title: "ATIVIDADE LÚDICA",
+    subtitle: "MATERIAIS CONCRETOS E TECNOLOGIA",
+    icon: "materials",
+    body: renderMathLudicPractice(resources, hasCoordinates, hasFunction, hasMultiplication)
+  });
+
+  return pages;
+}
+
+function renderMathPage(page) {
+  return `
+    <article class="math-a4 math-${escapeHtml(page.accent)}">
+      <header class="math-header">
+        <div class="math-number">${escapeHtml(page.number)}</div>
+        <div>
+          <h3>${escapeHtml(page.title)}</h3>
+          <p>${escapeHtml(page.subtitle)}</p>
+        </div>
+        <div class="math-icon">${renderMathIcon(page.icon)}</div>
+      </header>
+      ${page.body}
+      <footer class="math-footer">
+        <span>@MOZAHINTERVIEIRA</span>
+        <strong>ACESSA+ • INCLUI • TRANSFORMA • CONECTA</strong>
+      </footer>
+    </article>
+  `;
+}
+
+function renderMathCoordinateIntro(skillCode, object) {
+  return `
+    <section class="math-reminder">
+      <div>
+        <strong>PARA LEMBRAR</strong>
+        <p>O PLANO CARTESIANO TEM DUAS LINHAS: EIXO X E EIXO Y. CADA PONTO TEM DOIS NÚMEROS: (X, Y).</p>
+        ${skillCode ? `<span>HABILIDADE: ${escapeHtml(skillCode)}</span>` : ""}
+      </div>
+      ${renderCartesianGrid([{ label: "A", x: 2, y: 3 }, { label: "B", x: 5, y: 1 }, { label: "C", x: 1, y: 4 }])}
+    </section>
+    <section class="math-activity">
+      <h4>1. OBSERVE A MALHA E MARQUE A RESPOSTA CERTA.</h4>
+      <p>QUAL É A COORDENADA DO PONTO A?</p>
+      ${renderMathOptions(["A (2, 3)", "A (3, 2)", "A (5, 1)"])}
+    </section>
+    <section class="math-activity two-columns">
+      <div>
+        <h4>2. LIGUE O PONTO À COORDENADA.</h4>
+        ${renderMathMatch(["PONTO A", "PONTO B", "PONTO C"], ["(2, 3)", "(5, 1)", "(1, 4)"])}
+      </div>
+      <div>
+        <h4>3. COMPLETE.</h4>
+        <p>O EIXO X MOSTRA O NÚMERO NA HORIZONTAL.</p>
+        <p>O EIXO Y MOSTRA O NÚMERO NA VERTICAL.</p>
+        <label>PONTO B: ( ____ , ____ )</label>
+        <label>PONTO C: ( ____ , ____ )</label>
+      </div>
+    </section>
+    <section class="math-object-note">
+      <strong>OBJETO DE CONHECIMENTO:</strong>
+      <span>${escapeHtml(object)}</span>
+    </section>
+  `;
+}
+
+function renderMathCoordinatePractice() {
+  return `
+    <section class="math-large-visual">
+      ${renderCartesianGrid([{ label: "D", x: 3, y: 4 }, { label: "E", x: 6, y: 2 }, { label: "F", x: 1, y: 1 }])}
+      <div class="math-coordinate-cards">
+        <strong>LEIA OS PONTOS</strong>
+        <span>D = (3, 4)</span>
+        <span>E = (6, 2)</span>
+        <span>F = (1, 1)</span>
+      </div>
+    </section>
+    <section class="math-activity">
+      <h4>1. MARQUE COM X.</h4>
+      <p>QUAL PONTO ESTÁ MAIS ALTO NA MALHA?</p>
+      ${renderMathOptions(["PONTO D", "PONTO E", "PONTO F"])}
+    </section>
+    <section class="math-activity">
+      <h4>2. ESCREVA O PAR ORDENADO.</h4>
+      <div class="math-write-grid">
+        <label>PONTO D: ( ____ , ____ )</label>
+        <label>PONTO E: ( ____ , ____ )</label>
+        <label>PONTO F: ( ____ , ____ )</label>
+      </div>
+    </section>
+    <section class="math-activity">
+      <h4>3. DESAFIO VISUAL.</h4>
+      <p>DESENHE UM PONTO NO LOCAL (4, 3).</p>
+      <div class="math-draw-grid">${renderMiniGrid()}</div>
+    </section>
+  `;
+}
+
+function renderMathFunctionPractice() {
+  return `
+    <section class="math-reminder">
+      <div>
+        <strong>PARA LEMBRAR</strong>
+        <p>UMA FUNÇÃO MOSTRA UMA REGRA. EXEMPLO: CADA NÚMERO ENTRA, A REGRA MULTIPLICA POR 2 E O RESULTADO SAI.</p>
+      </div>
+      ${renderFunctionMachine()}
+    </section>
+    <section class="math-activity two-columns">
+      <div>
+        <h4>1. COMPLETE A TABELA.</h4>
+        ${renderValueTable()}
+      </div>
+      <div>
+        <h4>2. OBSERVE O GRÁFICO.</h4>
+        ${renderBarChart()}
+      </div>
+    </section>
+    <section class="math-activity">
+      <h4>3. MARQUE A REGRA CORRETA.</h4>
+      <p>NA TABELA, O RESULTADO É:</p>
+      ${renderMathOptions(["O DOBRO DO NÚMERO.", "SEMPRE IGUAL A 1.", "MENOR QUE O NÚMERO."])}
+    </section>
+  `;
+}
+
+function renderMathMultiplicationPractice() {
+  return `
+    <section class="math-reminder">
+      <div>
+        <strong>PARA LEMBRAR</strong>
+        <p>MULTIPLICAR É SOMAR GRUPOS IGUAIS. USE DOMINÓ, TAMPINHAS OU MATERIAL DOURADO PARA CONTAR.</p>
+      </div>
+      ${renderDominoVisual()}
+    </section>
+    <section class="math-activity">
+      <h4>1. CALCULE COM APOIO VISUAL.</h4>
+      <div class="math-calc-grid">
+        <label>2 × 3 = ____</label>
+        <label>4 × 2 = ____</label>
+        <label>5 × 3 = ____</label>
+        <label>6 × 2 = ____</label>
+      </div>
+    </section>
+    <section class="math-activity">
+      <h4>2. MARQUE O RESULTADO.</h4>
+      <p>3 × 4 É IGUAL A:</p>
+      ${renderMathOptions(["12", "7", "34"])}
+    </section>
+  `;
+}
+
+function renderMathLudicPractice(resources, hasCoordinates, hasFunction, hasMultiplication) {
+  const selected = [
+    resources.includes("TABLET") ? "TABLET COM JOGO MATEMÁTICO" : "",
+    resources.includes("DOMIN") || hasMultiplication ? "DOMINÓ DA MULTIPLICAÇÃO" : "",
+    resources.includes("MATERIAL DOURADO") ? "MATERIAL DOURADO" : "",
+    hasCoordinates ? "MALHA QUADRICULADA IMPRESSA" : "",
+    hasFunction ? "CARTÕES DE TABELA E GRÁFICO" : "",
+    "TAMPINHAS NUMERADAS"
+  ].filter(Boolean);
+
+  return `
+    <section class="math-materials">
+      ${selected.slice(0, 6).map((item) => `
+        <div>
+          ${renderMathMaterialIcon(item)}
+          <strong>${escapeHtml(item)}</strong>
+        </div>
+      `).join("")}
+    </section>
+    <section class="math-activity">
+      <h4>COMO USAR?</h4>
+      <ol class="math-steps">
+        <li>ESCOLHA UM MATERIAL.</li>
+        <li>MONTE A CONTA, O PONTO OU A TABELA.</li>
+        <li>FALE OU MARQUE SUA RESPOSTA.</li>
+        <li>CONFIRA COM O PROFESSOR E TENTE OUTRA VEZ.</li>
+      </ol>
+    </section>
+    <section class="math-activity">
+      <h4>COMUNICAÇÃO E ESCOLHA (CAA)</h4>
+      <div class="math-caa">
+        <span>GOSTEI</span>
+        <span>PRECISO DE AJUDA</span>
+        <span>NÃO ENTENDI</span>
+        <span>QUERO TENTAR</span>
+      </div>
+    </section>
+  `;
+}
+
+function renderCartesianGrid(points = []) {
+  const scale = 32;
+  const offset = 34;
+  const max = 6;
+  const gridLines = [];
+
+  for (let i = 0; i <= max; i += 1) {
+    const pos = offset + i * scale;
+    gridLines.push(`<line x1="${offset}" y1="${pos}" x2="${offset + max * scale}" y2="${pos}" />`);
+    gridLines.push(`<line x1="${pos}" y1="${offset}" x2="${pos}" y2="${offset + max * scale}" />`);
+    gridLines.push(`<text x="${pos - 4}" y="${offset + max * scale + 22}">${i}</text>`);
+    if (i > 0) gridLines.push(`<text x="${offset - 22}" y="${offset + (max - i) * scale + 6}">${i}</text>`);
+  }
+
+  const pointNodes = points.map((point) => {
+    const x = offset + point.x * scale;
+    const y = offset + (max - point.y) * scale;
+    return `
+      <g class="cartesian-point">
+        <circle cx="${x}" cy="${y}" r="8" />
+        <text x="${x + 10}" y="${y - 10}">${escapeHtml(point.label)}</text>
+      </g>
+    `;
+  }).join("");
+
+  return `
+    <figure class="cartesian-figure" aria-label="Malha quadriculada com pontos no plano cartesiano">
+      <svg class="cartesian-svg" viewBox="0 0 260 270" role="img" aria-label="Plano cartesiano com eixo X, eixo Y e pontos marcados">
+        <rect x="1" y="1" width="258" height="268" rx="14" />
+        <g class="cartesian-grid">${gridLines.join("")}</g>
+        <line class="cartesian-axis" x1="${offset}" y1="${offset + max * scale}" x2="${offset + max * scale + 18}" y2="${offset + max * scale}" />
+        <line class="cartesian-axis" x1="${offset}" y1="${offset + max * scale}" x2="${offset}" y2="${offset - 18}" />
+        <text class="cartesian-label" x="${offset + max * scale + 20}" y="${offset + max * scale + 5}">X</text>
+        <text class="cartesian-label" x="${offset - 4}" y="${offset - 22}">Y</text>
+        ${pointNodes}
+      </svg>
+    </figure>
+  `;
+}
+
+function renderMiniGrid() {
+  const cells = Array.from({ length: 36 }).map(() => "<span></span>").join("");
+  return `<div class="mini-grid" aria-label="Malha para desenhar ponto">${cells}</div>`;
+}
+
+function renderMathOptions(options = []) {
+  return `
+    <div class="math-options">
+      ${options.slice(0, 3).map((option) => `
+        <label>
+          <i></i>
+          <span>${escapeHtml(option)}</span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMathMatch(left = [], right = []) {
+  return `
+    <div class="math-match">
+      <div>${left.map((item) => `<p><span>${escapeHtml(item)}</span><b></b></p>`).join("")}</div>
+      <div>${right.map((item) => `<p><b></b><span>${escapeHtml(item)}</span></p>`).join("")}</div>
+    </div>
+  `;
+}
+
+function renderFunctionMachine() {
+  return `
+    <figure class="function-machine" aria-label="Maquina de funcao dobro">
+      <div>ENTRA<br><strong>X</strong></div>
+      <span>REGRA<br><strong>x 2</strong></span>
+      <div>SAI<br><strong>Y</strong></div>
+    </figure>
+  `;
+}
+
+function renderValueTable() {
+  return `
+    <table class="math-table">
+      <thead><tr><th>X</th><th>REGRA</th><th>Y</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>1 x 2</td><td>____</td></tr>
+        <tr><td>2</td><td>2 x 2</td><td>____</td></tr>
+        <tr><td>3</td><td>3 x 2</td><td>____</td></tr>
+        <tr><td>4</td><td>4 x 2</td><td>____</td></tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function renderBarChart() {
+  return `
+    <figure class="math-bar-chart" aria-label="Grafico de barras simples">
+      <div style="--bar: 35%"><span>2</span><b></b></div>
+      <div style="--bar: 55%"><span>4</span><b></b></div>
+      <div style="--bar: 75%"><span>6</span><b></b></div>
+      <div style="--bar: 95%"><span>8</span><b></b></div>
+      <figcaption>RESULTADOS DA REGRA x 2</figcaption>
+    </figure>
+  `;
+}
+
+function renderDominoVisual() {
+  return `
+    <figure class="domino-visual" aria-label="Domino com pontos para multiplicacao">
+      <div><span></span><span></span><span></span></div>
+      <div><span></span><span></span><span></span></div>
+      <strong>2 GRUPOS DE 3</strong>
+    </figure>
+  `;
+}
+
+function renderMathIcon(type) {
+  const icons = {
+    grid: `<svg viewBox="0 0 80 80" aria-hidden="true"><rect x="10" y="10" width="60" height="60" rx="8"/><path d="M30 10v60M50 10v60M10 30h60M10 50h60"/><circle cx="50" cy="30" r="6"/></svg>`,
+    target: `<svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="28"/><circle cx="40" cy="40" r="16"/><circle cx="40" cy="40" r="5"/><path d="M40 5v14M40 61v14M5 40h14M61 40h14"/></svg>`,
+    graph: `<svg viewBox="0 0 80 80" aria-hidden="true"><path d="M14 66h52M18 62V18"/><rect x="25" y="42" width="9" height="20"/><rect x="39" y="32" width="9" height="30"/><rect x="53" y="22" width="9" height="40"/><path d="M22 48l16-12 15 4 13-18"/></svg>`,
+    materials: `<svg viewBox="0 0 80 80" aria-hidden="true"><rect x="10" y="18" width="24" height="24" rx="5"/><rect x="42" y="18" width="24" height="24" rx="5"/><rect x="26" y="48" width="28" height="18" rx="5"/><circle cx="22" cy="30" r="4"/><circle cx="54" cy="30" r="4"/></svg>`
+  };
+  return icons[type] || icons.materials;
+}
+
+function renderMathMaterialIcon(item = "") {
+  const text = normalizeText(item);
+  if (text.includes("tablet")) {
+    return `<svg viewBox="0 0 90 70" aria-hidden="true"><rect x="12" y="8" width="66" height="48" rx="8"/><path d="M28 24h24M28 36h15"/><circle cx="60" cy="28" r="7"/></svg>`;
+  }
+  if (text.includes("domino")) {
+    return `<svg viewBox="0 0 90 70" aria-hidden="true"><rect x="16" y="12" width="58" height="40" rx="8"/><path d="M45 12v40"/><circle cx="30" cy="26" r="4"/><circle cx="30" cy="39" r="4"/><circle cx="58" cy="33" r="4"/></svg>`;
+  }
+  if (text.includes("malha")) {
+    return `<svg viewBox="0 0 90 70" aria-hidden="true"><rect x="16" y="10" width="56" height="46" rx="5"/><path d="M30 10v46M44 10v46M58 10v46M16 24h56M16 38h56"/><circle cx="58" cy="24" r="5"/></svg>`;
+  }
+  if (text.includes("grafico") || text.includes("tabela")) {
+    return `<svg viewBox="0 0 90 70" aria-hidden="true"><path d="M18 54h54M22 50V14"/><rect x="30" y="36" width="8" height="18"/><rect x="44" y="28" width="8" height="26"/><rect x="58" y="18" width="8" height="36"/></svg>`;
+  }
+  return `<svg viewBox="0 0 90 70" aria-hidden="true"><circle cx="26" cy="28" r="10"/><circle cx="48" cy="28" r="10"/><circle cx="37" cy="46" r="10"/><circle cx="59" cy="46" r="10"/></svg>`;
 }
 
 function renderEditorialA4Sequence(material = {}, payload = {}) {
@@ -3054,17 +3599,19 @@ function renderEditorialCaa() {
 }
 
 function renderA4AiMaterial(material = {}) {
-  if (state.aiLastPayload && shouldUseEditorialA4(state.aiLastPayload, material) && renderEditorialA4Sequence(material, state.aiLastPayload)) {
+  if (state.aiLastPayload && shouldUseMathA4(state.aiLastPayload, material) && renderMathA4Sequence(material, state.aiLastPayload)) {
     return;
   }
 
-  const configuracao = material.configuracao_folha || {};
-  const cabecalho = material.cabecalho || {};
-  const metadados = material.metadados || {};
-  const ancoras = material.ancoras_cognitivas || {};
-  const secoes = Array.isArray(material.secoes_desafios) ? material.secoes_desafios : [];
-  const recursos = material.recursos_multissensoriais || {};
-  const comunicacao = material.comunicacao_caa || {};
+  const prepared = applyCurricularGuardrails(material, state.aiLastPayload);
+
+  const configuracao = prepared.configuracao_folha || {};
+  const cabecalho = prepared.cabecalho || {};
+  const metadados = prepared.metadados || {};
+  const ancoras = prepared.ancoras_cognitivas || {};
+  const secoes = Array.isArray(prepared.secoes_desafios) ? prepared.secoes_desafios : [];
+  const recursos = prepared.recursos_multissensoriais || {};
+  const comunicacao = prepared.comunicacao_caa || {};
   const footerText = configuracao.rodape_autor || "@mozahintervieira";
   const isUppercase = Boolean(configuracao.caixa_alta);
   const skillCode = extractSkillCode(metadados.habilidade_bncc_adaptada || "");
@@ -3074,7 +3621,7 @@ function renderA4AiMaterial(material = {}) {
       <header class="ai-a4-header">
         <div>
           <span class="ai-a4-badge">${escapeHtml(configuracao.tamanho || "A4")} · ${escapeHtml(configuracao.layout_orientacao || "Retrato")}</span>
-          <h3>${escapeHtml(cabecalho.titulo_atividade || material.conteudo_adaptado?.titulo || "Atividade adaptada")}</h3>
+          <h3>${escapeHtml(cabecalho.titulo_atividade || prepared.conteudo_adaptado?.titulo || "Atividade adaptada")}</h3>
           <p>${escapeHtml(cabecalho.instrucoes_gerais || "Realize uma etapa de cada vez com apoio do professor.")}</p>
         </div>
         <div class="ai-a4-stamp">
@@ -3091,7 +3638,7 @@ function renderA4AiMaterial(material = {}) {
       <section class="ai-a4-anchor">
         <div>
           <h4>Para lembrar</h4>
-          <p>${escapeHtml(ancoras.contextualizacao || material.conteudo_adaptado?.texto_simplificado || "Contextualizacao nao informada.")}</p>
+          <p>${escapeHtml(ancoras.contextualizacao || prepared.conteudo_adaptado?.texto_simplificado || "Contextualizacao nao informada.")}</p>
         </div>
         <div class="ai-a4-visuals">
           ${(ancoras.pistas_graficas || []).map(renderGraphicHint).join("")}
@@ -3112,6 +3659,430 @@ function renderA4AiMaterial(material = {}) {
       </footer>
     </article>
   `;
+}
+
+function buildA4AiMaterialHtml(material = {}, payload = state.aiLastPayload) {
+  const target = $("#aiResultCards");
+  if (!target) return "";
+
+  const previousHtml = target.innerHTML;
+  const previousPayload = state.aiLastPayload;
+  state.aiLastPayload = payload;
+  renderA4AiMaterial(material);
+  const generatedHtml = target.innerHTML;
+  target.innerHTML = previousHtml;
+  state.aiLastPayload = previousPayload;
+  return generatedHtml;
+}
+
+function applyCurricularGuardrails(material = {}, payload = {}) {
+  const prepared = clonePlain(material);
+  const profile = getCurricularProfile(payload);
+  const object = String(payload?.objetoConhecimento || prepared.cabecalho?.titulo_atividade || prepared.conteudo_adaptado?.titulo || "CONTEUDO CURRICULAR").trim();
+  const objectUpper = object.toUpperCase();
+  const skillCode = extractSkillCode(payload?.habilidade || prepared.metadados?.habilidade_bncc_adaptada || "");
+
+  prepared.configuracao_folha = {
+    tamanho: "A4",
+    layout_orientacao: "Retrato",
+    caixa_alta: true,
+    tema_estilo: `${profile.label} • ATIVIDADE VISUAL`,
+    rodape_autor: "@MOZAHINTERVIEIRA",
+    ...(prepared.configuracao_folha || {})
+  };
+
+  prepared.cabecalho = {
+    ...(prepared.cabecalho || {})
+  };
+  if (isWeakTitle(prepared.cabecalho.titulo_atividade)) {
+    prepared.cabecalho.titulo_atividade = `${profile.titlePrefix}: ${objectUpper}`;
+  }
+  if (!prepared.cabecalho.instrucoes_gerais) {
+    prepared.cabecalho.instrucoes_gerais = profile.instructions;
+  }
+
+  prepared.metadados = {
+    ...(prepared.metadados || {})
+  };
+  if (skillCode) prepared.metadados.habilidade_bncc_adaptada = skillCode;
+  if (!prepared.metadados.objetivo_pedagogico) {
+    prepared.metadados.objetivo_pedagogico = `COMPREENDER E APLICAR ${objectUpper} EM ATIVIDADES ACESSIVEIS.`;
+  }
+
+  prepared.ancoras_cognitivas = {
+    ...(prepared.ancoras_cognitivas || {})
+  };
+  if (!prepared.ancoras_cognitivas.contextualizacao) {
+    prepared.ancoras_cognitivas.contextualizacao = buildCurricularReminder(profile, objectUpper, skillCode);
+  }
+  const currentHints = Array.isArray(prepared.ancoras_cognitivas.pistas_graficas)
+    ? prepared.ancoras_cognitivas.pistas_graficas.filter((hint) => hint && (hint.elemento || hint.termo || hint.descricao_prompt_imagem || hint.descricao_para_icone_ou_ia_generativa))
+    : [];
+  prepared.ancoras_cognitivas.pistas_graficas = ensureVisualHints(currentHints, profile, objectUpper);
+
+  prepared.recursos_multissensoriais = {
+    ...(prepared.recursos_multissensoriais || {})
+  };
+  prepared.recursos_multissensoriais.objetos_concretos = ensureList(prepared.recursos_multissensoriais.objetos_concretos, profile.resources.concrete);
+  prepared.recursos_multissensoriais.tecnologia_assistiva = ensureList(prepared.recursos_multissensoriais.tecnologia_assistiva, profile.resources.tech);
+  prepared.recursos_multissensoriais.recursos_tateis = ensureList(prepared.recursos_multissensoriais.recursos_tateis, profile.resources.tactile);
+
+  const sections = Array.isArray(prepared.secoes_desafios) ? prepared.secoes_desafios : [];
+  prepared.secoes_desafios = shouldReplaceSections(sections, profile)
+    ? buildCurricularFallbackSections(profile, objectUpper, skillCode)
+    : sections.map((section, index) => enrichCurricularSection(section, index, profile, objectUpper));
+
+  prepared.comunicacao_caa = {
+    cartoes: [
+      { rotulo: "GOSTEI", simbolo_descritivo: "mao positiva" },
+      { rotulo: "PRECISO DE AJUDA", simbolo_descritivo: "mao levantada" },
+      { rotulo: "NAO ENTENDI", simbolo_descritivo: "balao de duvida" },
+      { rotulo: "QUERO TENTAR", simbolo_descritivo: "estrela" },
+      { rotulo: "QUERO FALAR", simbolo_descritivo: "balao de fala" }
+    ],
+    ...(prepared.comunicacao_caa || {})
+  };
+
+  return prepared;
+}
+
+function clonePlain(value) {
+  try {
+    return JSON.parse(JSON.stringify(value || {}));
+  } catch {
+    return { ...(value || {}) };
+  }
+}
+
+function isWeakTitle(title) {
+  const text = normalizeText(title || "");
+  return !text
+    || text.includes("atividade adaptada")
+    || text.includes("material gerado")
+    || text.includes("descubra")
+    || text.length < 8;
+}
+
+function ensureList(value, fallback = []) {
+  const current = Array.isArray(value) ? value.filter(Boolean) : [];
+  return current.length ? current : fallback;
+}
+
+function getCurricularProfile(payload = {}) {
+  const text = normalizeText([
+    payload.disciplina,
+    payload.habilidade,
+    payload.objetoConhecimento
+  ].filter(Boolean).join(" "));
+
+  if (text.includes("matemat") || text.includes("em13mat") || /\bef\d+ma/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.matematica;
+  }
+  if (text.includes("ciencia") || text.includes("ciencias") || text.includes("biologia") || text.includes("quimica") || text.includes("fisica")) {
+    return curricularProfileMap.ciencias;
+  }
+  if (text.includes("historia") || text.includes("em13chs") || /\bef\d+hi/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.historia;
+  }
+  if (text.includes("geografia") || /\bef\d+ge/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.geografia;
+  }
+  if (text.includes("portugues") || text.includes("lingua portuguesa") || text.includes("em13lp") || /\bef\d+lp/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.portugues;
+  }
+  if (text.includes("ingles") || text.includes("lingua inglesa") || /\bef\d+li/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.ingles;
+  }
+  if (text.includes("arte") || /\bef\d+ar/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.arte;
+  }
+  if (text.includes("educacao fisica") || text.includes("educacao fisica") || /\bef\d+ef/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.educacaoFisica;
+  }
+  if (text.includes("religioso") || /\bef\d+er/i.test(String(payload.habilidade || ""))) {
+    return curricularProfileMap.ensinoReligioso;
+  }
+  return curricularProfileMap.geral;
+}
+
+const curricularProfileMap = {
+  matematica: {
+    key: "matematica",
+    label: "MATEMATICA",
+    titlePrefix: "MATEMATICA EM ACAO",
+    instructions: "OBSERVE OS NUMEROS, AS REPRESENTACOES E RESOLVA UMA ETAPA POR VEZ.",
+    visuals: ["REPRESENTACAO MATEMATICA", "TABELA", "GRAFICO", "RETA NUMERICA", "MATERIAL CONCRETO"],
+    words: ["NUMERO", "TABELA", "GRAFICO", "REGRA", "RESULTADO"],
+    optionTerms: ["NUMERO", "GRAFICO", "TABELA"],
+    relations: [["TABELA", "ORGANIZA DADOS"], ["GRAFICO", "MOSTRA INFORMACOES"], ["REGRA", "AJUDA A CALCULAR"]],
+    resources: {
+      concrete: ["TAMPINHAS NUMERADAS", "DOMINO", "MATERIAL DOURADO", "MALHA IMPRESSA"],
+      tech: ["TABLET COM JOGO MATEMATICO", "CALCULADORA ACESSIVEL"],
+      tactile: ["NUMEROS EM RELEVO", "MALHA TATIL", "CARTOES DE PARES"]
+    }
+  },
+  ciencias: {
+    key: "ciencias",
+    label: "CIENCIAS",
+    titlePrefix: "CIENCIAS EM INVESTIGACAO",
+    instructions: "OBSERVE, COMPARE E REGISTRE O QUE VOCE DESCOBRIU.",
+    visuals: ["ESQUEMA CIENTIFICO", "EXPERIMENTO", "SER VIVO", "CORPO HUMANO", "CICLO DA NATUREZA"],
+    words: ["OBSERVAR", "COMPARAR", "EXPERIMENTO", "RESULTADO", "AMBIENTE"],
+    optionTerms: ["OBSERVAR", "COMPARAR", "EXPLICAR"],
+    relations: [["OBSERVACAO", "VER COM ATENCAO"], ["EXPERIMENTO", "TESTAR UMA IDEIA"], ["RESULTADO", "O QUE ACONTECEU"]],
+    resources: {
+      concrete: ["OBJETOS REAIS", "LUPA", "RECIPIENTES", "MODELOS 3D"],
+      tech: ["VIDEO CURTO COM AUDIODESCRICAO", "TABLET PARA REGISTRO"],
+      tactile: ["MAQUETE TATIL", "TEXTURAS", "MODELOS EM RELEVO"]
+    }
+  },
+  historia: {
+    key: "historia",
+    label: "HISTORIA",
+    titlePrefix: "HISTORIA EM FONTES",
+    instructions: "OBSERVE AS FONTES, MARQUE AS IDEIAS E ORGANIZE OS ACONTECIMENTOS.",
+    visuals: ["LINHA DO TEMPO", "MAPA HISTORICO", "FONTE HISTORICA", "PERSONAGEM HISTORICO", "OBJETO ANTIGO"],
+    words: ["TEMPO", "FONTE", "CULTURA", "POVO", "MUDANCA"],
+    optionTerms: ["FONTE", "TEMPO", "CULTURA"],
+    relations: [["FONTE", "AJUDA A CONHECER O PASSADO"], ["LINHA DO TEMPO", "ORGANIZA ACONTECIMENTOS"], ["CULTURA", "MODO DE VIVER"]],
+    resources: {
+      concrete: ["IMAGENS HISTORICAS", "MAPA IMPRESSO", "OBJETO SIMBOLICO"],
+      tech: ["AUDIO COM NARRACAO", "TABLET COM IMAGENS"],
+      tactile: ["LINHA DO TEMPO TATIL", "MAPA EM RELEVO", "MINIATURA"]
+    }
+  },
+  geografia: {
+    key: "geografia",
+    label: "GEOGRAFIA",
+    titlePrefix: "GEOGRAFIA EM MAPAS",
+    instructions: "OBSERVE O ESPACO, O MAPA, A PAISAGEM OU O GRAFICO.",
+    visuals: ["MAPA", "GLOBO", "PAISAGEM", "LEGENDA", "ROSA DOS VENTOS"],
+    words: ["MAPA", "LUGAR", "PAISAGEM", "LEGENDA", "TERRITORIO"],
+    optionTerms: ["MAPA", "PAISAGEM", "LEGENDA"],
+    relations: [["MAPA", "REPRESENTA LUGARES"], ["LEGENDA", "EXPLICA SIMBOLOS"], ["PAISAGEM", "MOSTRA ELEMENTOS DO ESPACO"]],
+    resources: {
+      concrete: ["MAPA IMPRESSO", "GLOBO", "FOTOS DE PAISAGENS"],
+      tech: ["MAPA DIGITAL", "TABLET COM IMAGENS"],
+      tactile: ["MAPA TATIL", "MAQUETE DO ESPACO", "TEXTURAS"]
+    }
+  },
+  portugues: {
+    key: "portugues",
+    label: "LINGUA PORTUGUESA",
+    titlePrefix: "LINGUA PORTUGUESA EM PRATICA",
+    instructions: "LEIA OU ESCUTE, OBSERVE AS PISTAS E RESPONDA DO SEU JEITO.",
+    visuals: ["TEXTO", "CARTAZ", "LIVRO", "FICHA DE LEITURA", "BALAO DE FALA"],
+    words: ["TEXTO", "PALAVRA", "FRASE", "IDEIA", "AUTOR"],
+    optionTerms: ["TEXTO", "PALAVRA", "FRASE"],
+    relations: [["AUTOR", "QUEM PRODUZ O TEXTO"], ["PUBLICO", "QUEM RECEBE A MENSAGEM"], ["FINALIDADE", "PARA QUE O TEXTO FOI FEITO"]],
+    resources: {
+      concrete: ["FICHAS DE LEITURA", "CARTOES DE PALAVRAS", "IMAGENS SEQUENCIAIS"],
+      tech: ["LEITOR DE TEXTO", "AUDIO DO TEXTO"],
+      tactile: ["PALAVRAS EM RELEVO", "LETRAS MOVEIS", "BRAILLE QUANDO PERTINENTE"]
+    }
+  },
+  ingles: {
+    key: "ingles",
+    label: "LINGUA INGLESA",
+    titlePrefix: "INGLES COM IMAGENS",
+    instructions: "OBSERVE A IMAGEM, LEIA A PALAVRA E MARQUE A RESPOSTA.",
+    visuals: ["CARTAO DE VOCABULARIO", "IMAGEM E PALAVRA", "DIALOGO CURTO", "OBJETO DO COTIDIANO"],
+    words: ["WORD", "IMAGE", "MATCH", "LISTEN", "SPEAK"],
+    optionTerms: ["WORD", "IMAGE", "MATCH"],
+    relations: [["WORD", "PALAVRA"], ["IMAGE", "IMAGEM"], ["MATCH", "LIGAR"]],
+    resources: {
+      concrete: ["FLASHCARDS", "OBJETOS REAIS", "CARTOES COM IMAGENS"],
+      tech: ["AUDIO CURTO", "TABLET COM PRONUNCIA"],
+      tactile: ["CARTOES EM RELEVO", "OBJETOS PARA PAREAMENTO"]
+    }
+  },
+  arte: {
+    key: "arte",
+    label: "ARTE",
+    titlePrefix: "ARTE EM CRIACAO",
+    instructions: "OBSERVE CORES, FORMAS E PRODUZA COM APOIO.",
+    visuals: ["PALETA DE CORES", "FORMAS", "OBRA DE ARTE", "TEXTURA", "MATERIAL ARTISTICO"],
+    words: ["COR", "FORMA", "LINHA", "TEXTURA", "CRIAR"],
+    optionTerms: ["COR", "FORMA", "TEXTURA"],
+    relations: [["COR", "ELEMENTO VISUAL"], ["TEXTURA", "SENSAÇÃO DA SUPERFICIE"], ["FORMA", "CONTORNO DO OBJETO"]],
+    resources: {
+      concrete: ["TINTA", "PAPEL COLORIDO", "MASSINHA", "COLAGEM"],
+      tech: ["APP DE DESENHO", "TABLET PARA CRIACAO"],
+      tactile: ["TEXTURAS", "LINHAS EM RELEVO", "MATERIAIS DE COLAGEM"]
+    }
+  },
+  educacaoFisica: {
+    key: "educacaoFisica",
+    label: "EDUCACAO FISICA",
+    titlePrefix: "MOVIMENTO E PARTICIPACAO",
+    instructions: "OBSERVE O MOVIMENTO, SIGA A SEQUENCIA E PARTICIPE COM SEGURANCA.",
+    visuals: ["SEQUENCIA DE MOVIMENTO", "BOLA", "JOGO", "REGRA VISUAL", "CORPO EM MOVIMENTO"],
+    words: ["MOVIMENTO", "JOGO", "REGRA", "CORPO", "COOPERAR"],
+    optionTerms: ["MOVIMENTO", "JOGO", "REGRA"],
+    relations: [["REGRA", "COMBINADO DO JOGO"], ["MOVIMENTO", "ACAO DO CORPO"], ["COOPERAR", "PARTICIPAR COM O GRUPO"]],
+    resources: {
+      concrete: ["BOLA", "CONE", "ARCO", "CARTOES DE MOVIMENTO"],
+      tech: ["VIDEO DE MOVIMENTO", "TIMER VISUAL"],
+      tactile: ["MARCADORES NO CHAO", "OBJETOS COM TEXTURA"]
+    }
+  },
+  ensinoReligioso: {
+    key: "ensinoReligioso",
+    label: "ENSINO RELIGIOSO",
+    titlePrefix: "CULTURA, RESPEITO E CONVIVENCIA",
+    instructions: "OBSERVE AS IMAGENS, CONVERSE COM RESPEITO E MARQUE SUA RESPOSTA.",
+    visuals: ["SIMBOLO CULTURAL", "GRUPO DE PESSOAS", "GESTO DE RESPEITO", "CARTAO DE CONVIVENCIA"],
+    words: ["RESPEITO", "CULTURA", "CONVIVENCIA", "DIFERENCA", "DIALOGO"],
+    optionTerms: ["RESPEITO", "CULTURA", "DIALOGO"],
+    relations: [["RESPEITO", "TRATAR BEM AS PESSOAS"], ["CULTURA", "MODO DE VIVER"], ["DIALOGO", "CONVERSA COM ESCUTA"]],
+    resources: {
+      concrete: ["CARTOES DE VALORES", "IMAGENS CULTURAIS", "RODA DE CONVERSA"],
+      tech: ["AUDIO COM HISTORIA CURTA", "VIDEO COM LEGENDA"],
+      tactile: ["CARTOES EM RELEVO", "OBJETOS SIMBOLICOS"]
+    }
+  },
+  geral: {
+    key: "geral",
+    label: "ATIVIDADE CURRICULAR",
+    titlePrefix: "APRENDER COM APOIO",
+    instructions: "OBSERVE, MARQUE, LIGUE E RESPONDA UMA ETAPA POR VEZ.",
+    visuals: ["IMAGEM DO CONTEUDO", "CARTAO VISUAL", "OBJETO CONCRETO", "REGISTRO DO ESTUDANTE"],
+    words: ["OBSERVAR", "MARCAR", "LIGAR", "RESPONDER", "CRIAR"],
+    optionTerms: ["OBSERVAR", "MARCAR", "RESPONDER"],
+    relations: [["IMAGEM", "AJUDA A ENTENDER"], ["PALAVRA", "NOMEIA O CONTEUDO"], ["REGISTRO", "MOSTRA A RESPOSTA"]],
+    resources: {
+      concrete: ["OBJETOS CONCRETOS", "CARTOES VISUAIS", "IMAGENS IMPRESSAS"],
+      tech: ["TABLET", "AUDIO", "LEITOR DE TELA"],
+      tactile: ["TEXTURAS", "MATERIAL EM RELEVO", "MINIATURA"]
+    }
+  }
+};
+
+function buildCurricularReminder(profile, objectUpper, skillCode) {
+  const skill = skillCode ? ` HABILIDADE: ${skillCode}.` : "";
+  return `${profile.label}: VAMOS ESTUDAR ${objectUpper} COM APOIO VISUAL, MATERIAL CONCRETO E RESPOSTAS ACESSIVEIS.${skill}`;
+}
+
+function ensureVisualHints(currentHints, profile, objectUpper) {
+  const normalized = currentHints.map((hint, index) => ({
+    elemento: hint.elemento || hint.termo || profile.visuals[index % profile.visuals.length],
+    descricao_prompt_imagem: hint.descricao_prompt_imagem || hint.descricao_para_icone_ou_ia_generativa || `${profile.visuals[index % profile.visuals.length]} RELACIONADO A ${objectUpper}`,
+    posicionamento: hint.posicionamento || "AREA VISUAL DA FOLHA"
+  }));
+
+  const needed = Math.max(0, 3 - normalized.length);
+  for (let index = 0; index < needed; index += 1) {
+    const visual = profile.visuals[(normalized.length + index) % profile.visuals.length];
+    normalized.push({
+      elemento: visual,
+      descricao_prompt_imagem: `${visual} RELACIONADO A ${objectUpper}, COM TRAÇO SIMPLES, ALTO CONTRASTE E FUNCAO PEDAGOGICA CLARA.`,
+      posicionamento: "PROXIMO AO ENUNCIADO"
+    });
+  }
+
+  return normalized.slice(0, 5);
+}
+
+function shouldReplaceSections(sections = [], profile) {
+  if (!Array.isArray(sections) || sections.length < 3) return true;
+  const text = normalizeText(sections.map((section) => [
+    section.titulo_bloco,
+    section.enunciado,
+    section.tipo_componente,
+    section.imagem_sugerida?.elemento
+  ].filter(Boolean).join(" ")).join(" "));
+
+  if (profile.key === "matematica") {
+    const hasMath = text.includes("numero") || text.includes("calcul") || text.includes("grafico") || text.includes("tabela") || text.includes("coordenada") || text.includes("medida") || text.includes("forma");
+    const hasPortugueseLeak = text.includes("ideia principal") || text.includes("informacao secundaria") || text.includes("contexto de producao") || text.includes("texto curto") || text.includes("lia gosta");
+    return hasPortugueseLeak || !hasMath;
+  }
+
+  return false;
+}
+
+function buildCurricularFallbackSections(profile, objectUpper, skillCode) {
+  return [
+    {
+      fase_id: 1,
+      titulo_bloco: "OBSERVE E IDENTIFIQUE",
+      tipo_componente: "Marque_com_X",
+      enunciado: `OBSERVE A IMAGEM SOBRE ${objectUpper}. MARQUE A PALAVRA QUE COMBINA COM O CONTEUDO.`,
+      imagem_sugerida: {
+        elemento: profile.visuals[0],
+        descricao_prompt_imagem: `${profile.visuals[0]} RELACIONADO A ${objectUpper}, COM ILUSTRACAO CLARA E ALTO CONTRASTE.`
+      },
+      opcoes: profile.optionTerms.slice(0, 3).map((term, index) => ({
+        letra: String.fromCharCode(65 + index),
+        texto: term
+      }))
+    },
+    {
+      fase_id: 2,
+      titulo_bloco: "LIGUE AS IDEIAS",
+      tipo_componente: "Ligue_Colunas",
+      enunciado: `LIGUE CADA PALAVRA AO SIGNIFICADO CORRETO SOBRE ${objectUpper}.`,
+      imagem_sugerida: {
+        elemento: profile.visuals[1],
+        descricao_prompt_imagem: `${profile.visuals[1]} COMO APOIO VISUAL PARA PAREAMENTO.`
+      },
+      coluna_esquerda: profile.relations.map(([left]) => left),
+      coluna_direita: profile.relations.map(([, right]) => right)
+    },
+    {
+      fase_id: 3,
+      titulo_bloco: "COMPLETE COM APOIO",
+      tipo_componente: "Complete_Com_Banco_De_Palavras",
+      enunciado: `COMPLETE AS FRASES USANDO O BANCO DE PALAVRAS SOBRE ${objectUpper}.`,
+      imagem_sugerida: {
+        elemento: profile.visuals[2],
+        descricao_prompt_imagem: `${profile.visuals[2]} COM ELEMENTOS DO OBJETO DE CONHECIMENTO.`
+      },
+      banco_palavras: profile.words.slice(0, 5),
+      espaco_resposta: "ESCREVA, MARQUE, APONTE OU RESPONDA COM APOIO."
+    },
+    {
+      fase_id: 4,
+      titulo_bloco: "DESAFIO PRATICO",
+      tipo_componente: "Producao_Com_Desenho",
+      enunciado: `REGISTRE UMA IDEIA SOBRE ${objectUpper}. VOCE PODE DESENHAR, COLAR, MODELAR, FALAR OU USAR CAA.`,
+      imagem_sugerida: {
+        elemento: profile.visuals[3],
+        descricao_prompt_imagem: `${profile.visuals[3]} PARA INSPIRAR PRODUCAO DO ESTUDANTE.`
+      },
+      espaco_resposta: "ESPACO PARA DESENHO, COLAGEM, MODELAGEM, ESCRITA OU REGISTRO DO PROFESSOR."
+    }
+  ];
+}
+
+function enrichCurricularSection(section = {}, index, profile, objectUpper) {
+  const enriched = {
+    ...section
+  };
+
+  enriched.fase_id = enriched.fase_id || index + 1;
+  enriched.titulo_bloco = enriched.titulo_bloco || `ATIVIDADE ${index + 1}`;
+  enriched.enunciado = enriched.enunciado || `REALIZE A ETAPA SOBRE ${objectUpper}.`;
+  enriched.imagem_sugerida = {
+    elemento: enriched.imagem_sugerida?.elemento || enriched.imagem_sugerida?.titulo || profile.visuals[index % profile.visuals.length],
+    descricao_prompt_imagem: enriched.imagem_sugerida?.descricao_prompt_imagem
+      || enriched.imagem_sugerida?.descricao
+      || `${profile.visuals[index % profile.visuals.length]} RELACIONADO A ${objectUpper}.`
+  };
+
+  const type = normalizeText(enriched.tipo_componente || "");
+  if ((!Array.isArray(enriched.opcoes) || !enriched.opcoes.length) && (type.includes("marque") || type.includes("multipla") || type.includes("visual"))) {
+    enriched.opcoes = profile.optionTerms.slice(0, 3).map((term, optionIndex) => ({
+      letra: String.fromCharCode(65 + optionIndex),
+      texto: term
+    }));
+  }
+
+  if ((!Array.isArray(enriched.banco_palavras) || !enriched.banco_palavras.length) && type.includes("complete")) {
+    enriched.banco_palavras = profile.words.slice(0, 5);
+  }
+
+  return enriched;
 }
 
 function renderA4Meta(label, value) {
@@ -3257,11 +4228,56 @@ function renderPictogramSvg(value) {
     return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="22" y="72" width="116" height="18" rx="6" fill="#c08457" stroke="#08275f" stroke-width="4"/><circle cx="76" cy="31" r="16" fill="#f2b37b" stroke="#08275f" stroke-width="4"/><path d="M52 72 Q64 49 86 72 Z" fill="#0a56c2" stroke="#08275f" stroke-width="4"/><path d="M89 62 H123 V82 H89 Z" fill="#fff" stroke="#08275f" stroke-width="4"/><path d="M97 68 H115 M97 75 H111" stroke="#0a56c2" stroke-width="3"/><path d="M34 30 H53 V62 H34 Z" fill="#dcfce7" stroke="#08275f" stroke-width="4"/></svg>`;
   }
 
+  if (kind === "graph") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M26 86 H136 M31 82 V18" stroke="#08275f" stroke-width="5" stroke-linecap="round"/><rect x="43" y="57" width="15" height="25" rx="3" fill="#15a650"/><rect x="70" y="42" width="15" height="40" rx="3" fill="#0a56c2"/><rect x="97" y="27" width="15" height="55" rx="3" fill="#f28a18"/><path d="M39 60 L72 45 L104 31 L130 22" fill="none" stroke="#e83e73" stroke-width="5" stroke-linecap="round"/><circle cx="39" cy="60" r="5" fill="#e83e73"/><circle cx="72" cy="45" r="5" fill="#e83e73"/><circle cx="104" cy="31" r="5" fill="#e83e73"/></svg>`;
+  }
+
+  if (kind === "table") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="24" y="18" width="112" height="74" rx="8" fill="#fff" stroke="#08275f" stroke-width="5"/><path d="M24 42 H136 M24 67 H136 M61 18 V92 M99 18 V92" stroke="#0a56c2" stroke-width="4"/><circle cx="43" cy="55" r="6" fill="#15a650"/><circle cx="80" cy="55" r="6" fill="#f28a18"/><circle cx="118" cy="55" r="6" fill="#e83e73"/></svg>`;
+  }
+
+  if (kind === "grid") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="28" y="14" width="104" height="82" rx="7" fill="#fff" stroke="#08275f" stroke-width="5"/><path d="M28 34 H132 M28 54 H132 M28 74 H132 M48 14 V96 M68 14 V96 M88 14 V96 M108 14 V96" stroke="#93c5fd" stroke-width="3"/><path d="M48 86 H132 M48 86 V14" stroke="#08275f" stroke-width="5"/><circle cx="88" cy="54" r="8" fill="#f28a18" stroke="#08275f" stroke-width="3"/></svg>`;
+  }
+
+  if (kind === "science") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M68 18 H92 M80 18 V48 L53 87 Q49 94 58 94 H102 Q111 94 107 87 L80 48" fill="#dcfce7" stroke="#08275f" stroke-width="5" stroke-linejoin="round"/><path d="M61 78 H99" stroke="#15a650" stroke-width="7"/><circle cx="72" cy="72" r="5" fill="#0a56c2"/><circle cx="90" cy="64" r="5" fill="#f28a18"/><circle cx="84" cy="81" r="4" fill="#e83e73"/></svg>`;
+  }
+
+  if (kind === "timeline") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M25 58 H135" stroke="#08275f" stroke-width="6" stroke-linecap="round"/><circle cx="42" cy="58" r="10" fill="#0a56c2"/><circle cx="80" cy="58" r="10" fill="#15a650"/><circle cx="118" cy="58" r="10" fill="#f28a18"/><path d="M42 30 V48 M80 68 V88 M118 30 V48" stroke="#08275f" stroke-width="4"/><rect x="22" y="12" width="40" height="20" rx="5" fill="#e0f2fe" stroke="#08275f" stroke-width="3"/><rect x="60" y="82" width="40" height="20" rx="5" fill="#dcfce7" stroke="#08275f" stroke-width="3"/><rect x="98" y="12" width="40" height="20" rx="5" fill="#fff7ed" stroke="#08275f" stroke-width="3"/></svg>`;
+  }
+
+  if (kind === "globe") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><circle cx="80" cy="45" r="34" fill="#dcfce7" stroke="#08275f" stroke-width="5"/><path d="M50 34 Q80 48 110 34 M50 56 Q80 43 110 56 M80 11 Q64 45 80 79 M80 11 Q96 45 80 79" fill="none" stroke="#0a56c2" stroke-width="4"/><path d="M60 87 H100 M70 79 L61 96 H99 L90 79" stroke="#08275f" stroke-width="5" fill="#fff"/></svg>`;
+  }
+
+  if (kind === "art") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M74 17 Q34 18 25 52 Q18 82 49 88 H68 Q79 88 74 76 Q69 64 85 64 H100 Q132 64 132 41 Q132 17 74 17 Z" fill="#fff7ed" stroke="#08275f" stroke-width="5"/><circle cx="52" cy="43" r="8" fill="#e83e73"/><circle cx="78" cy="34" r="8" fill="#0a56c2"/><circle cx="102" cy="43" r="8" fill="#15a650"/><circle cx="61" cy="66" r="8" fill="#f28a18"/><path d="M107 78 L136 49" stroke="#6b3b16" stroke-width="8" stroke-linecap="round"/><path d="M136 49 L145 38" stroke="#08275f" stroke-width="5"/></svg>`;
+  }
+
+  if (kind === "movement") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><circle cx="75" cy="23" r="13" fill="#f2b37b" stroke="#08275f" stroke-width="4"/><path d="M72 38 L60 66 L44 87 M72 40 L96 58 L121 53 M62 66 L88 86 M68 50 L46 49" fill="none" stroke="#0a56c2" stroke-width="8" stroke-linecap="round"/><circle cx="125" cy="74" r="15" fill="#fff" stroke="#08275f" stroke-width="4"/><path d="M114 74 H136 M125 63 V85" stroke="#15a650" stroke-width="3"/></svg>`;
+  }
+
+  if (kind === "cards") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="26" y="24" width="48" height="62" rx="8" fill="#e0f2fe" stroke="#08275f" stroke-width="4"/><rect x="86" y="24" width="48" height="62" rx="8" fill="#fff7ed" stroke="#08275f" stroke-width="4"/><path d="M37 45 H62 M37 58 H56 M98 45 H122 M98 58 H116" stroke="#0a56c2" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="72" r="7" fill="#15a650"/><circle cx="110" cy="72" r="7" fill="#f28a18"/></svg>`;
+  }
+
   return `<div class="ai-picture-placeholder"><span>IMAGEM</span><strong>${escapeHtml(label)}</strong></div>`;
 }
 
 function getVisualKind(value) {
-  const text = String(value || "").toLowerCase();
+  const text = normalizeText(value);
+  if (text.includes("grafico") || text.includes("barra") || text.includes("linha")) return "graph";
+  if (text.includes("tabela") || text.includes("quadro")) return "table";
+  if (text.includes("malha") || text.includes("coordenada") || text.includes("plano cartesiano") || text.includes("reta numerica")) return "grid";
+  if (text.includes("experimento") || text.includes("celula") || text.includes("ser vivo") || text.includes("corpo humano") || text.includes("ciclo") || text.includes("esquema cientifico")) return "science";
+  if (text.includes("linha do tempo") || text.includes("fonte historica") || text.includes("objeto antigo") || text.includes("tempo historico")) return "timeline";
+  if (text.includes("globo") || text.includes("paisagem") || text.includes("legenda") || text.includes("territorio") || text.includes("rosa dos ventos")) return "globe";
+  if (text.includes("paleta") || text.includes("obra de arte") || text.includes("textura") || text.includes("material artistico") || text.includes("forma")) return "art";
+  if (text.includes("movimento") || text.includes("jogo") || text.includes("regra visual") || text.includes("corpo em movimento")) return "movement";
+  if (text.includes("flashcard") || text.includes("vocabulario") || text.includes("word") || text.includes("dialogo") || text.includes("imagem e palavra")) return "cards";
   if (text.includes("oca")) return "oca";
   if (text.includes("canoa")) return "canoa";
   if (text.includes("cocar")) return "cocar";
@@ -3794,7 +4810,7 @@ function printAiMaterial() {
 }
 
 async function exportAiImages() {
-  const pages = $$("#aiResultCards .ai-a4-sheet");
+  const pages = $$("#aiResultCards .ai-a4-sheet, #aiResultCards .math-a4");
   if (!pages.length) {
     setAiStatus("Gere uma folha A4 antes de baixar a imagem.", true);
     return;
@@ -3833,7 +4849,8 @@ function exportElementAsPng(element, filename) {
       background: #fff;
       font-family: Arial, Helvetica, sans-serif;
     }
-    .export-image-root .ai-a4-sheet {
+    .export-image-root .ai-a4-sheet,
+    .export-image-root .math-a4 {
       width: ${width}px !important;
       max-width: ${width}px !important;
       min-height: ${height}px !important;
