@@ -108,6 +108,13 @@ function validatePayload(payload) {
 }
 
 function buildPrompt(payload) {
+  const sectionTypes = [
+    "Multipla_Escolha_Visual",
+    "Complete_Com_Banco_De_Palavras",
+    "Ligue_Colunas",
+    "Desafio_Visual",
+    "Producao_Com_Desenho"
+  ];
   const schema = {
     schema_version: "acessamais.a4.v1",
     configuracao_folha: {
@@ -154,11 +161,11 @@ function buildPrompt(payload) {
         }
       ]
     },
-    secoes_desafios: [
+    secoes_desafios: sectionTypes.map((tipo, index) => (
       {
-        fase_id: 1,
-        titulo_bloco: "MISSAO 1: titulo curto",
-        tipo_componente: "Multipla_Escolha_Visual",
+        fase_id: index + 1,
+        titulo_bloco: `MISSAO ${index + 1}: titulo curto e curricular`,
+        tipo_componente: tipo,
         enunciado: "comando curto",
         opcoes: [
           { letra: "A", texto: "opcao", valido: true },
@@ -175,32 +182,14 @@ function buildPrompt(payload) {
         suporte_especifico: "pista visual, recurso de CAA, Libras, Braille, tato ou tecnologia assistiva",
         feedback_professor: "evidencia que deve ser observada"
       }
-    ],
+    )),
     orientacoes_docente: {
       metodologia_inclusiva: "como aplicar com DUA",
       recursos_acessibilidade: "TA, CAA, Libras, Braille, alto contraste ou apoio visual",
       estrategias_aee: "mediacao, pistas, rotina, reforco e retirada gradual de ajuda",
       avaliacao: "criterios observaveis",
       sugestoes_professor: "cuidados e variacoes"
-    },
-    conteudo_adaptado: {
-      titulo: "compatibilidade com versoes anteriores",
-      texto_simplificado: "texto curto adaptado",
-      pistas_visuais_sugeridas: [
-        {
-          termo: "termo",
-          descricao_para_icone_ou_ia_generativa: "descricao visual"
-        }
-      ]
-    },
-    atividades: [
-      {
-        id: 1,
-        tipo: "Multipla_Escolha_Visual",
-        enunciado: "comando curto",
-        feedback_professor: "observacao avaliativa"
-      }
-    ]
+    }
   };
 
   return [
