@@ -30,8 +30,13 @@ export default async function handler(request, response) {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
         input: buildPrompt(payload),
+        text: {
+          format: {
+            type: "json_object"
+          }
+        },
         temperature: 0.28,
-        max_output_tokens: 6500,
+        max_output_tokens: 9000,
         store: false
       })
     });
@@ -236,6 +241,9 @@ function buildPrompt(payload) {
         "Quando pertinente, incorpore CAA diretamente ao material por meio de cartoes de escolha, comunicacao por sim/nao, gostei/nao gostei, preciso de ajuda, nao entendi e quero falar. Nao apenas sugira CAA.",
         "Varie os modelos de atividade. Use uma combinacao de: Exploracao_Tatil, Pareamento_Tatil, Marque_com_X, Sim_Nao_Visual, Verdadeiro_Falso, Complete_Com_Banco_De_Palavras, Ligue_Colunas, Caca_Palavras, Cruzadinha, Desafio_Visual, Escolha_CAA, Expressao_Oral, Producao_Com_Desenho.",
         "Quando usar Caca_Palavras ou Cruzadinha, inclua banco_palavras com termos curtos e adequados ao nivel e serie do estudante.",
+        "Gere entre cinco e sete secoes em secoes_desafios. Cada secao deve conter uma atividade completa, com comando, dados, numeros, palavras, alternativas, colunas, banco de palavras ou espaco de resposta suficientes para aplicacao imediata.",
+        "Nao entregue apenas orientacoes sobre o que o professor deve criar. Preencha integralmente as questoes, tabelas, valores, alternativas, pares, frases, problemas, desafios e descricoes visuais.",
+        "Distribua a sequencia em progressao cognitiva: reconhecer, compreender, aplicar, analisar e produzir, respeitando o nivel funcional do estudante.",
         `O campo configuracao_folha.rodape_autor deve ser exatamente "${AUTHOR_FOOTER}". Nao altere esse texto.`,
         "Para estudante pre-silabico, pre-leitor, silabico ou com baixa fluencia leitora, use caixa alta, banco de palavras, pareamento, selecao visual, pictogramas, exploracao concreta e menor exigencia de escrita.",
         "Se o perfil incluir TEA, use rotina visual, previsibilidade, comandos explicitos, linguagem literal, baixa ambiguidade, uma etapa por vez e regulacao por escolha.",
