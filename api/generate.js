@@ -1,5 +1,185 @@
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
 const AUTHOR_FOOTER = "@mozahintervieira";
+const STRING_ARRAY_SCHEMA = {
+  type: "array",
+  items: { type: "string" }
+};
+const VISUAL_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["elemento", "descricao_prompt_imagem", "posicionamento"],
+  properties: {
+    elemento: { type: "string" },
+    descricao_prompt_imagem: { type: "string" },
+    posicionamento: { type: "string" }
+  }
+};
+const OPTION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["letra", "texto", "valido"],
+  properties: {
+    letra: { type: "string" },
+    texto: { type: "string" },
+    valido: { type: "boolean" }
+  }
+};
+const MATERIAL_OUTPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "schema_version",
+    "configuracao_folha",
+    "cabecalho",
+    "metadados",
+    "ancoras_cognitivas",
+    "recursos_multissensoriais",
+    "comunicacao_caa",
+    "secoes_desafios",
+    "orientacoes_docente"
+  ],
+  properties: {
+    schema_version: { type: "string" },
+    configuracao_folha: {
+      type: "object",
+      additionalProperties: false,
+      required: ["tamanho", "layout_orientacao", "tema_estilo", "caixa_alta", "fonte_recomendada", "alto_contraste", "rodape_autor"],
+      properties: {
+        tamanho: { type: "string" },
+        layout_orientacao: { type: "string" },
+        tema_estilo: { type: "string" },
+        caixa_alta: { type: "boolean" },
+        fonte_recomendada: { type: "string" },
+        alto_contraste: { type: "boolean" },
+        rodape_autor: { type: "string" }
+      }
+    },
+    cabecalho: {
+      type: "object",
+      additionalProperties: false,
+      required: ["titulo_atividade", "instrucoes_gerais"],
+      properties: {
+        titulo_atividade: { type: "string" },
+        instrucoes_gerais: { type: "string" }
+      }
+    },
+    metadados: {
+      type: "object",
+      additionalProperties: false,
+      required: ["objetivo_pedagogico", "habilidade_bncc_adaptada", "observacoes_acessibilidade"],
+      properties: {
+        objetivo_pedagogico: { type: "string" },
+        habilidade_bncc_adaptada: { type: "string" },
+        observacoes_acessibilidade: { type: "string" }
+      }
+    },
+    ancoras_cognitivas: {
+      type: "object",
+      additionalProperties: false,
+      required: ["contextualizacao", "pistas_graficas"],
+      properties: {
+        contextualizacao: { type: "string" },
+        pistas_graficas: {
+          type: "array",
+          minItems: 1,
+          maxItems: 3,
+          items: VISUAL_SCHEMA
+        }
+      }
+    },
+    recursos_multissensoriais: {
+      type: "object",
+      additionalProperties: false,
+      required: ["objetos_concretos", "recursos_tateis", "tecnologia_assistiva", "apoio_auditivo", "apoio_libras_braille"],
+      properties: {
+        objetos_concretos: STRING_ARRAY_SCHEMA,
+        recursos_tateis: STRING_ARRAY_SCHEMA,
+        tecnologia_assistiva: STRING_ARRAY_SCHEMA,
+        apoio_auditivo: STRING_ARRAY_SCHEMA,
+        apoio_libras_braille: STRING_ARRAY_SCHEMA
+      }
+    },
+    comunicacao_caa: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cartoes"],
+      properties: {
+        cartoes: {
+          type: "array",
+          minItems: 3,
+          maxItems: 6,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["rotulo", "tipo", "simbolo_descritivo"],
+            properties: {
+              rotulo: { type: "string" },
+              tipo: { type: "string" },
+              simbolo_descritivo: { type: "string" }
+            }
+          }
+        }
+      }
+    },
+    secoes_desafios: {
+      type: "array",
+      minItems: 5,
+      maxItems: 7,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "fase_id",
+          "titulo_bloco",
+          "tipo_componente",
+          "enunciado",
+          "opcoes",
+          "coluna_esquerda",
+          "coluna_direita",
+          "banco_palavras",
+          "cartoes_caa",
+          "recurso_tatil",
+          "imagem_sugerida",
+          "suporte_especifico",
+          "espaco_resposta",
+          "feedback_professor"
+        ],
+        properties: {
+          fase_id: { type: "integer" },
+          titulo_bloco: { type: "string" },
+          tipo_componente: { type: "string" },
+          enunciado: { type: "string" },
+          opcoes: {
+            type: "array",
+            maxItems: 3,
+            items: OPTION_SCHEMA
+          },
+          coluna_esquerda: STRING_ARRAY_SCHEMA,
+          coluna_direita: STRING_ARRAY_SCHEMA,
+          banco_palavras: STRING_ARRAY_SCHEMA,
+          cartoes_caa: STRING_ARRAY_SCHEMA,
+          recurso_tatil: { type: "string" },
+          imagem_sugerida: VISUAL_SCHEMA,
+          suporte_especifico: { type: "string" },
+          espaco_resposta: { type: "string" },
+          feedback_professor: { type: "string" }
+        }
+      }
+    },
+    orientacoes_docente: {
+      type: "object",
+      additionalProperties: false,
+      required: ["metodologia_inclusiva", "recursos_acessibilidade", "estrategias_aee", "avaliacao", "sugestoes_professor"],
+      properties: {
+        metodologia_inclusiva: { type: "string" },
+        recursos_acessibilidade: { type: "string" },
+        estrategias_aee: { type: "string" },
+        avaliacao: { type: "string" },
+        sugestoes_professor: { type: "string" }
+      }
+    }
+  }
+};
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
@@ -32,7 +212,10 @@ export default async function handler(request, response) {
         input: buildPrompt(payload),
         text: {
           format: {
-            type: "json_object"
+            type: "json_schema",
+            name: "acessamais_material_a4",
+            strict: true,
+            schema: MATERIAL_OUTPUT_SCHEMA
           }
         },
         temperature: 0.28,
@@ -174,12 +357,16 @@ function buildPrompt(payload) {
         ],
         imagem_sugerida: {
           elemento: "imagem objetiva da questao",
-          descricao_prompt_imagem: "descricao visual simples, educativa e sem personagem protegido"
+          descricao_prompt_imagem: "descricao visual simples, educativa e sem personagem protegido",
+          posicionamento: "Proximo_ao_enunciado"
         },
+        coluna_esquerda: ["item completo para ligar quando pertinente"],
+        coluna_direita: ["resposta completa correspondente quando pertinente"],
         banco_palavras: ["palavra curta quando houver complete, caca-palavras ou cruzadinha"],
         cartoes_caa: ["opcao de comunicacao quando houver escolha por CAA"],
         recurso_tatil: "objeto concreto, textura ou miniatura quando houver DV ou baixa visao",
         suporte_especifico: "pista visual, recurso de CAA, Libras, Braille, tato ou tecnologia assistiva",
+        espaco_resposta: "linhas, quadro, malha ou area de producao quando pertinente",
         feedback_professor: "evidencia que deve ser observada"
       }
     )),
@@ -210,6 +397,7 @@ function buildPrompt(payload) {
         "Se a disciplina nao for reconhecida, use literalmente o objeto de conhecimento e a habilidade como tema central da atividade, criando imagens, tarefas e vocabulario coerentes com esses campos.",
         "Se a disciplina for MATEMATICA, a atividade deve conter numeros, operacoes, tabelas, graficos, malhas quadriculadas, reta numerica, plano cartesiano, figuras geometricas, problemas matematicos, calculos, comparacoes, representacoes algebricas ou manipulaveis de acordo com a habilidade e o objeto de conhecimento. Nunca use texto narrativo como eixo principal em Matematica, salvo se for um problema matematico curto.",
         "Se houver area de interesse ou hiperfoco em Matematica, use esse interesse apenas como contexto visual ou motivador. Nao transforme a atividade em interpretacao textual. Exemplo: se o hiperfoco for musica, use notas musicais, instrumentos, contagem, coordenadas, tabelas, graficos ou padroes numericos.",
+        "Se Matematica envolver fracoes, numeros racionais, parte/todo, quociente, equivalencia, comparacao ou ordenacao, inclua pizzas ou barras de fracao divididas em partes iguais, fracoes como 1/2, 2/4, 4/8, comparacoes com >, < ou =, pareamento de fracoes equivalentes, desenho de partes pintadas e problemas curtos de cotidiano. Nao use palavras genericas como NUMERO, TABELA e GRAFICO como atividade principal quando o objeto for fracoes.",
         "Se Matematica envolver coordenadas, plano cartesiano, localizacao de pontos ou representacao geometrica, inclua uma malha quadriculada com eixos X e Y, pares ordenados, pontos nomeados, tabela de coordenadas e questoes de localizar, marcar e comparar pontos.",
         "Se Matematica envolver funcao, proporcionalidade, funcao polinomial de 1 grau ou representacoes algebricas/graficas, inclua tabela de valores, regra simples, grafico, setas de crescimento, leitura de coordenadas e uma atividade com material ludico como domino da multiplicacao, tampinhas numeradas, cartas de pares ordenados, geoplano, malha impressa, tablet ou calculadora quando informado pelo professor.",
         "As imagens sugeridas para Matematica devem ser matematicas e concretas: malha quadriculada, eixo X e eixo Y, ponto A no plano cartesiano, tabela de valores, grafico de barras, grafico de linha, reta numerica, dado, domino, tampinhas numeradas, regua, bloco logico, material dourado, calculadora ou tablet com grafico.",
@@ -244,7 +432,7 @@ function buildPrompt(payload) {
         "Crie conteudo original, sem copiar textos, imagens, atividades ou personagens protegidos de terceiros.",
         "Ao finalizar, revise internamente: se eu fosse o professor aplicando este material amanha, ele estaria pronto para uso imediato? Se nao estiver, refaca antes de responder.",
         "O output deve ser estritamente um objeto JSON valido. Nao use markdown. Nao escreva texto introdutorio. Nao coloque blocos de codigo.",
-        `Use rigorosamente este schema como contrato de saida: ${JSON.stringify(schema)}`
+        `Use este exemplo apenas como referencia pedagogica dos campos, respeitando obrigatoriamente o JSON Schema configurado na API: ${JSON.stringify(schema)}`
       ].join(" ")
     },
     {
@@ -375,7 +563,7 @@ function normalizeChallenges(secoes, atividades, fallback) {
     ? secoes
     : atividades.map(activityToChallenge);
 
-  const normalized = source.map((section, index) => {
+  const normalized = source.filter((section) => section && typeof section === "object").map((section, index) => {
     const tipo = textOr(section.tipo_componente, section.tipo || "Atividade_Adaptada");
     const enunciado = textOr(section.enunciado, "REALIZE A ATIVIDADE COM APOIO DO PROFESSOR.");
     const options = normalizeOptions(section.opcoes);
@@ -397,9 +585,30 @@ function normalizeChallenges(secoes, atividades, fallback) {
       espaco_resposta: textOr(section.espaco_resposta, ""),
       feedback_professor: textOr(section.feedback_professor, "Registrar nivel de ajuda, participacao e evidencia de aprendizagem.")
     };
-  });
+  }).filter(isUsableChallenge).slice(0, 7);
 
-  return normalized.length ? normalized : fallback.secoes_desafios;
+  return normalized.length >= 5 ? normalized : fallback.secoes_desafios;
+}
+
+function isUsableChallenge(section = {}) {
+  const instruction = String(section.enunciado || "").trim();
+  const normalizedInstruction = instruction.toLowerCase();
+  if (!instruction || normalizedInstruction.includes("realize a atividade com apoio")) return false;
+
+  const hasStructuredContent = [
+    section.opcoes,
+    section.coluna_esquerda,
+    section.coluna_direita,
+    section.banco_palavras,
+    section.cartoes_caa
+  ].some((value) => Array.isArray(value) && value.length);
+  const hasResponseArea = Boolean(String(section.espaco_resposta || "").trim());
+  const hasRelevantImage = Boolean(
+    section.imagem_sugerida
+    && !String(section.imagem_sugerida.elemento || "").toLowerCase().includes("imagem da atividade")
+  );
+
+  return hasStructuredContent || hasResponseArea || (instruction.length >= 24 && hasRelevantImage);
 }
 
 function activityToChallenge(activity = {}) {
@@ -424,13 +633,15 @@ function normalizeSectionImage(image, section = {}) {
   if (image && typeof image === "object") {
     return {
       elemento: textOr(image.elemento || image.titulo, section.titulo_bloco || "Imagem da atividade"),
-      descricao_prompt_imagem: textOr(image.descricao_prompt_imagem || image.descricao, section.suporte_especifico || "Imagem simples relacionada ao conteudo.")
+      descricao_prompt_imagem: textOr(image.descricao_prompt_imagem || image.descricao, section.suporte_especifico || "Imagem simples relacionada ao conteudo."),
+      posicionamento: textOr(image.posicionamento, "Proximo_ao_enunciado")
     };
   }
 
   return {
     elemento: textOr(section.titulo_visual, section.titulo_bloco || "Imagem da atividade"),
-    descricao_prompt_imagem: textOr(section.suporte_especifico, "Imagem simples relacionada ao conteudo.")
+    descricao_prompt_imagem: textOr(section.suporte_especifico, "Imagem simples relacionada ao conteudo."),
+    posicionamento: "Proximo_ao_enunciado"
   };
 }
 
@@ -623,6 +834,7 @@ function defaultCaaSymbol(label, index = 0) {
 function buildFallbackMaterial(payload, text = "") {
   const title = `ATIVIDADE ADAPTADA: ${String(payload.objetoConhecimento || "TEMA").toUpperCase()}`;
   const uppercase = shouldUseUppercase(payload);
+  const fallbackSections = buildEmergencySections(payload);
 
   return {
     schema_version: "acessamais.a4.v1",
@@ -672,27 +884,7 @@ function buildFallbackMaterial(payload, text = "") {
         { rotulo: "QUERO FALAR", tipo: "comunicacao", simbolo_descritivo: "balao de fala" }
       ]
     },
-    secoes_desafios: [
-      {
-        fase_id: 1,
-        titulo_bloco: "MISSAO 1: OBSERVE E MARQUE",
-        tipo_componente: "Multipla_Escolha_Visual",
-        enunciado: uppercase ? "MARQUE A OPCAO QUE COMBINA COM O TEMA." : "Marque a opcao que combina com o tema.",
-        opcoes: [
-          { letra: "A", texto: payload.objetoConhecimento || "Tema da aula", valido: true },
-          { letra: "B", texto: "Outro tema", valido: false },
-          { letra: "C", texto: "Preciso de ajuda", valido: false }
-        ],
-        imagem_sugerida: {
-          elemento: payload.objetoConhecimento || "Tema da aula",
-          descricao_prompt_imagem: "Quadro visual com imagem simples do tema, alto contraste e poucos elementos."
-        },
-        cartoes_caa: ["GOSTEI", "PRECISO DE AJUDA", "NAO ENTENDI"],
-        recurso_tatil: includesProfile(payload, "DV") ? "Apresentar objeto real, miniatura ou relevo antes da resposta." : "",
-        suporte_especifico: "Usar imagem do tema, leitura em voz alta e possibilidade de apontar a resposta.",
-        feedback_professor: "Observar se o estudante reconhece o tema com apoio visual."
-      }
-    ],
+    secoes_desafios: fallbackSections,
     orientacoes_docente: {
       metodologia_inclusiva: "Apresente o objetivo, modele uma resposta, ofereca pistas graduais e registre a participacao.",
       recursos_acessibilidade: "Apoio visual, CAA, fonte ampliada, alto contraste, Libras, Braille ou recurso tatil conforme necessidade.",
@@ -710,20 +902,273 @@ function buildFallbackMaterial(payload, text = "") {
         }
       ]
     },
-    atividades: [
-      {
-        id: 1,
-        tipo: "Multipla_Escolha_Visual",
-        enunciado: uppercase ? "MARQUE A OPCAO QUE COMBINA COM O TEMA." : "Marque a opcao que combina com o tema.",
-        opcoes: [
-          { letra: "A", texto: payload.objetoConhecimento || "Tema da aula", correta: true },
-          { letra: "B", texto: "Outro tema", correta: false },
-          { letra: "C", texto: "Preciso de ajuda", correta: false }
-        ],
-        feedback_professor: "Observe se o estudante compreendeu o vocabulario principal com apoio visual."
-      }
-    ]
+    atividades: fallbackSections.map((section) => ({
+      id: section.fase_id,
+      tipo: section.tipo_componente,
+      enunciado: section.enunciado,
+      opcoes: section.opcoes.map((option) => ({
+        letra: option.letra,
+        texto: option.texto,
+        correta: option.valido
+      })),
+      itens_esquerda: section.coluna_esquerda,
+      itens_direita: section.coluna_direita,
+      banco_palavras: section.banco_palavras,
+      feedback_professor: section.feedback_professor
+    }))
   };
+}
+
+function buildEmergencySections(payload) {
+  if (isFractionRequest(payload)) {
+    return buildEmergencyFractionSections(payload);
+  }
+
+  const object = String(payload.objetoConhecimento || "CONTEUDO").trim().toUpperCase();
+  const terms = object.split(/\s+/).filter((word) => word.length >= 4).slice(0, 5);
+  const wordBank = terms.length >= 3 ? terms : ["TEMA", "EXEMPLO", "APRENDER"];
+  const visual = {
+    elemento: object,
+    descricao_prompt_imagem: `ILUSTRACAO EDUCATIVA CLARA E COLORIDA SOBRE ${object}, COM POUCOS ELEMENTOS E ALTO CONTRASTE.`,
+    posicionamento: "PROXIMO AO ENUNCIADO"
+  };
+
+  return [
+    {
+      fase_id: 1,
+      titulo_bloco: "MISSAO 1: OBSERVE E MARQUE",
+      tipo_componente: "Multipla_Escolha_Visual",
+      enunciado: `MARQUE A OPCAO RELACIONADA A ${object}.`,
+      opcoes: [
+        { letra: "A", texto: object, valido: true },
+        { letra: "B", texto: "OUTRO CONTEUDO", valido: false },
+        { letra: "C", texto: "NAO SE RELACIONA", valido: false }
+      ],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: [],
+      cartoes_caa: ["GOSTEI", "PRECISO DE AJUDA"],
+      recurso_tatil: "",
+      imagem_sugerida: visual,
+      suporte_especifico: "LEITURA EM VOZ ALTA E RESPOSTA POR APONTAR OU MARCAR.",
+      espaco_resposta: "",
+      feedback_professor: "OBSERVAR SE O ESTUDANTE RECONHECE O TEMA."
+    },
+    {
+      fase_id: 2,
+      titulo_bloco: "MISSAO 2: ENCONTRE AS PALAVRAS",
+      tipo_componente: "Caca_Palavras",
+      enunciado: "ENCONTRE NO QUADRO AS PALAVRAS DO BANCO.",
+      opcoes: [],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: wordBank,
+      cartoes_caa: [],
+      recurso_tatil: "",
+      imagem_sugerida: visual,
+      suporte_especifico: "DESTACAR UMA PALAVRA POR VEZ.",
+      espaco_resposta: "",
+      feedback_professor: "REGISTRAR AS PALAVRAS LOCALIZADAS."
+    },
+    {
+      fase_id: 3,
+      titulo_bloco: "MISSAO 3: COMPLETE",
+      tipo_componente: "Complete_Com_Banco_De_Palavras",
+      enunciado: `COMPLETE A FRASE SOBRE ${object} USANDO O BANCO DE PALAVRAS.`,
+      opcoes: [],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: wordBank,
+      cartoes_caa: [],
+      recurso_tatil: "",
+      imagem_sugerida: visual,
+      suporte_especifico: "PERMITIR COPIA, RECORTE, COLAGEM OU RESPOSTA ORAL.",
+      espaco_resposta: "____________________________________________________________",
+      feedback_professor: "OBSERVAR O USO DO VOCABULARIO PRINCIPAL."
+    },
+    {
+      fase_id: 4,
+      titulo_bloco: "MISSAO 4: ORGANIZE AS IDEIAS",
+      tipo_componente: "Ligue_Colunas",
+      enunciado: "LIGUE CADA PALAVRA AO CARTAO CORRESPONDENTE.",
+      opcoes: [],
+      coluna_esquerda: wordBank.slice(0, 3),
+      coluna_direita: ["PALAVRA 1", "PALAVRA 2", "PALAVRA 3"],
+      banco_palavras: [],
+      cartoes_caa: [],
+      recurso_tatil: "",
+      imagem_sugerida: visual,
+      suporte_especifico: "USAR CARTOES MOVEIS PARA PAREAMENTO.",
+      espaco_resposta: "",
+      feedback_professor: "OBSERVAR A ORGANIZACAO E O PAREAMENTO."
+    },
+    {
+      fase_id: 5,
+      titulo_bloco: "MISSAO 5: MOSTRE O QUE APRENDEU",
+      tipo_componente: "Producao_Com_Desenho",
+      enunciado: `DESENHE, ESCREVA OU EXPLIQUE UMA IDEIA SOBRE ${object}.`,
+      opcoes: [],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: wordBank,
+      cartoes_caa: ["GOSTEI", "PRECISO DE AJUDA", "QUERO FALAR"],
+      recurso_tatil: "",
+      imagem_sugerida: visual,
+      suporte_especifico: "ACEITAR DESENHO, ESCRITA, FALA, LIBRAS, BRAILLE OU CAA.",
+      espaco_resposta: "ESPACO PARA DESENHO, ESCRITA, COLAGEM OU REGISTRO.",
+      feedback_professor: "REGISTRAR A EVIDENCIA DE APRENDIZAGEM."
+    }
+  ];
+}
+
+function isFractionRequest(payload = {}) {
+  const text = [
+    payload.disciplina,
+    payload.habilidade,
+    payload.objetoConhecimento,
+    payload.pedidoProfessor,
+    payload.recursosDisponiveis
+  ].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return text.includes("fracao")
+    || text.includes("fracoes")
+    || text.includes("racional")
+    || text.includes("equival")
+    || text.includes("parte/todo")
+    || text.includes("parte todo")
+    || text.includes("pizza");
+}
+
+function buildEmergencyFractionSections() {
+  return [
+    {
+      fase_id: 1,
+      titulo_bloco: "ATIVIDADE 1: METADE DA PIZZA",
+      tipo_componente: "Marque_com_X",
+      enunciado: "UMA PIZZA FOI DIVIDIDA EM 2 PARTES IGUAIS. 1 PARTE PINTADA REPRESENTA QUAL FRACAO?",
+      opcoes: [
+        { letra: "A", texto: "1/2", valido: true },
+        { letra: "B", texto: "1/3", valido: false },
+        { letra: "C", texto: "1/4", valido: false }
+      ],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: [],
+      cartoes_caa: ["GOSTEI", "PRECISO DE AJUDA"],
+      recurso_tatil: "PIZZA DE PAPELAO OU EVA DIVIDIDA EM 2 PARTES COM TEXTURA DIFERENTE.",
+      imagem_sugerida: {
+        elemento: "PIZZA DIVIDIDA EM 2 PARTES COM 1 PARTE PINTADA",
+        descricao_prompt_imagem: "PIZZA CIRCULAR DIVIDIDA EM 2 PARTES IGUAIS, COM UMA METADE COLORIDA E OUTRA EM BRANCO.",
+        posicionamento: "Proximo_ao_enunciado"
+      },
+      suporte_especifico: "USAR PECA CONCRETA DE PIZZA E RESPOSTA POR APONTAR OU MARCAR.",
+      espaco_resposta: "",
+      feedback_professor: "OBSERVAR SE O ESTUDANTE RELACIONA METADE A 1/2."
+    },
+    {
+      fase_id: 2,
+      titulo_bloco: "ATIVIDADE 2: PARTES DO TODO",
+      tipo_componente: "Complete_Com_Banco_De_Palavras",
+      enunciado: "COMPLETE: A FRACAO 2/4 MOSTRA ____ PARTES DE UM TODO DIVIDIDO EM ____ PARTES.",
+      opcoes: [],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: ["2", "4", "METADE"],
+      cartoes_caa: [],
+      recurso_tatil: "BARRA DE FRACAO EM EVA COM 4 PARTES E 2 PARTES DESTACADAS.",
+      imagem_sugerida: {
+        elemento: "BARRA DE FRACAO 2/4",
+        descricao_prompt_imagem: "BARRA RETANGULAR DIVIDIDA EM 4 PARTES IGUAIS COM 2 PARTES COLORIDAS.",
+        posicionamento: "Proximo_ao_enunciado"
+      },
+      suporte_especifico: "PERMITIR COLAR OS NUMEROS 2 E 4 NO ESPACO CORRETO.",
+      espaco_resposta: "2/4 REPRESENTA A METADE? ________",
+      feedback_professor: "OBSERVAR SE O ESTUDANTE IDENTIFICA NUMERADOR E DENOMINADOR."
+    },
+    {
+      fase_id: 3,
+      titulo_bloco: "ATIVIDADE 3: FRACOES EQUIVALENTES",
+      tipo_componente: "Ligue_Colunas",
+      enunciado: "LIGUE CADA FRACAO A UMA FRACAO EQUIVALENTE.",
+      opcoes: [],
+      coluna_esquerda: ["1/2", "2/3", "3/4"],
+      coluna_direita: ["2/4", "4/6", "6/8"],
+      banco_palavras: [],
+      cartoes_caa: [],
+      recurso_tatil: "CARTOES DE FRACOES COM CORES OU TEXTURAS IGUAIS PARA EQUIVALENCIAS.",
+      imagem_sugerida: {
+        elemento: "CARTOES DE FRACOES EQUIVALENTES",
+        descricao_prompt_imagem: "CARTOES COM BARRAS DE FRACOES MOSTRANDO 1/2, 2/4 E 4/8 COM A MESMA AREA COLORIDA.",
+        posicionamento: "Proximo_ao_enunciado"
+      },
+      suporte_especifico: "USAR CARTOES MOVEIS PARA O PAREAMENTO.",
+      espaco_resposta: "",
+      feedback_professor: "OBSERVAR SE O ESTUDANTE PERCEBE FRACOES COM O MESMO VALOR."
+    },
+    {
+      fase_id: 4,
+      titulo_bloco: "ATIVIDADE 4: COMPARE",
+      tipo_componente: "Marque_com_X",
+      enunciado: "COMPARE AS FRACOES 1/3 E 1/2. QUAL FRACAO E MAIOR?",
+      opcoes: [
+        { letra: "A", texto: "1/2", valido: true },
+        { letra: "B", texto: "1/3", valido: false },
+        { letra: "C", texto: "SAO IGUAIS", valido: false }
+      ],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: [],
+      cartoes_caa: [],
+      recurso_tatil: "DUAS BARRAS DE FRACOES DO MESMO TAMANHO PARA COMPARACAO.",
+      imagem_sugerida: {
+        elemento: "DUAS BARRAS DE FRACAO 1/3 E 1/2",
+        descricao_prompt_imagem: "DUAS BARRAS RETANGULARES DO MESMO TAMANHO, UMA COM 1/3 COLORIDO E OUTRA COM 1/2 COLORIDO.",
+        posicionamento: "Proximo_ao_enunciado"
+      },
+      suporte_especifico: "COMPARAR VISUALMENTE A PARTE COLORIDA.",
+      espaco_resposta: "",
+      feedback_professor: "OBSERVAR SE O ESTUDANTE COMPARA QUANTIDADES COM APOIO VISUAL."
+    },
+    {
+      fase_id: 5,
+      titulo_bloco: "ATIVIDADE 5: VERDADEIRO OU FALSO",
+      tipo_componente: "Verdadeiro_Falso",
+      enunciado: "1/2 E 2/4 REPRESENTAM A MESMA QUANTIDADE.",
+      opcoes: [],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: ["1/2", "2/4", "EQUIVALENTE"],
+      cartoes_caa: [],
+      recurso_tatil: "PIZZAS SOBREPOSTAS OU BARRAS DE FRACAO PARA COMPARAR.",
+      imagem_sugerida: {
+        elemento: "COMPARACAO ENTRE 1/2 E 2/4",
+        descricao_prompt_imagem: "DUAS PIZZAS DO MESMO TAMANHO, UMA DIVIDIDA EM 2 COM 1 PARTE COLORIDA E OUTRA DIVIDIDA EM 4 COM 2 PARTES COLORIDAS.",
+        posicionamento: "Proximo_ao_enunciado"
+      },
+      suporte_especifico: "LER A FRASE EM VOZ ALTA E PEDIR QUE O ESTUDANTE APONTE V OU F.",
+      espaco_resposta: "",
+      feedback_professor: "OBSERVAR SE O ESTUDANTE RECONHECE EQUIVALENCIA."
+    },
+    {
+      fase_id: 6,
+      titulo_bloco: "ATIVIDADE 6: PRODUZA",
+      tipo_componente: "Producao_Com_Desenho",
+      enunciado: "DESENHE UMA PIZZA DIVIDIDA EM 4 PARTES. PINTE 2 PARTES. ESCREVA A FRACAO.",
+      opcoes: [],
+      coluna_esquerda: [],
+      coluna_direita: [],
+      banco_palavras: ["1/2", "2/4", "METADE"],
+      cartoes_caa: ["GOSTEI", "PRECISO DE AJUDA", "QUERO FALAR"],
+      recurso_tatil: "MOLDE CIRCULAR PARA DIVIDIR E PINTAR.",
+      imagem_sugerida: {
+        elemento: "PIZZA PARA DESENHO DE FRACAO",
+        descricao_prompt_imagem: "PIZZA SIMPLES COM LINHAS GUIA PARA DIVIDIR EM PARTES IGUAIS.",
+        posicionamento: "Proximo_ao_enunciado"
+      },
+      suporte_especifico: "ACEITAR DESENHO, COLAGEM, PECA CONCRETA, FALA OU CAA.",
+      espaco_resposta: "FRACAO: __________",
+      feedback_professor: "REGISTRAR SE O ESTUDANTE REPRESENTA 2/4 COMO METADE."
+    }
+  ];
 }
 
 function shouldUseUppercase(payload) {

@@ -3610,55 +3610,74 @@ function renderA4AiMaterial(material = {}) {
   const metadados = prepared.metadados || {};
   const ancoras = prepared.ancoras_cognitivas || {};
   const secoes = Array.isArray(prepared.secoes_desafios) ? prepared.secoes_desafios : [];
-  const recursos = prepared.recursos_multissensoriais || {};
   const comunicacao = prepared.comunicacao_caa || {};
   const footerText = configuracao.rodape_autor || "@mozahintervieira";
   const isUppercase = Boolean(configuracao.caixa_alta);
   const skillCode = extractSkillCode(metadados.habilidade_bncc_adaptada || "");
+  const pageGroups = splitA4Sections(secoes, 2);
 
   $("#aiResultCards").innerHTML = `
-    <article class="ai-a4-sheet ${isUppercase ? "uppercase-sheet" : ""}" aria-label="Folha A4 gerada pela IA">
-      <header class="ai-a4-header">
-        <div>
-          <span class="ai-a4-badge">${escapeHtml(configuracao.tamanho || "A4")} · ${escapeHtml(configuracao.layout_orientacao || "Retrato")}</span>
-          <h3>${escapeHtml(cabecalho.titulo_atividade || prepared.conteudo_adaptado?.titulo || "Atividade adaptada")}</h3>
-          <p>${escapeHtml(cabecalho.instrucoes_gerais || "Realize uma etapa de cada vez com apoio do professor.")}</p>
-        </div>
-        <div class="ai-a4-stamp">
-          <strong>ACESSA+</strong>
-          <span>${escapeHtml(configuracao.tema_estilo || "Folha inclusiva")}</span>
-        </div>
-      </header>
+    <div class="ai-a4-sequence">
+      ${pageGroups.map((pageSections, pageIndex) => {
+        const firstPage = pageIndex === 0;
+        const lastPage = pageIndex === pageGroups.length - 1;
+        return `
+          <article class="ai-a4-sheet ${isUppercase ? "uppercase-sheet" : ""}" aria-label="Folha A4 ${pageIndex + 1} de ${pageGroups.length}">
+            <header class="ai-a4-header">
+              <div>
+                <span class="ai-a4-badge">${escapeHtml(configuracao.tamanho || "A4")} - ${escapeHtml(configuracao.layout_orientacao || "Retrato")} - PAGINA ${pageIndex + 1}</span>
+                <h3>${escapeHtml(cabecalho.titulo_atividade || prepared.conteudo_adaptado?.titulo || "Atividade adaptada")}</h3>
+                <p>${escapeHtml(firstPage
+                  ? (cabecalho.instrucoes_gerais || "Realize uma etapa de cada vez.")
+                  : "CONTINUE AS ATIVIDADES. LEIA O COMANDO E RESPONDA UMA ETAPA DE CADA VEZ.")}</p>
+              </div>
+              <div class="ai-a4-stamp">
+                <strong>ACESSA+</strong>
+                <span>ATIVIDADE PRONTA PARA O ESTUDANTE</span>
+              </div>
+            </header>
 
-      <section class="ai-a4-meta" aria-label="Dados pedagogicos">
-        ${renderA4Meta("Objetivo", metadados.objetivo_pedagogico)}
-        ${skillCode ? renderA4Meta("Habilidade", skillCode) : ""}
-      </section>
+            ${firstPage ? `
+              <section class="ai-a4-meta" aria-label="Dados pedagogicos">
+                ${renderA4Meta("Objetivo", metadados.objetivo_pedagogico)}
+                ${skillCode ? renderA4Meta("Habilidade", skillCode) : ""}
+              </section>
 
-      <section class="ai-a4-anchor">
-        <div>
-          <h4>Para lembrar</h4>
-          <p>${escapeHtml(ancoras.contextualizacao || prepared.conteudo_adaptado?.texto_simplificado || "Contextualizacao nao informada.")}</p>
-        </div>
-        <div class="ai-a4-visuals">
-          ${(ancoras.pistas_graficas || []).map(renderGraphicHint).join("")}
-        </div>
-      </section>
+              <section class="ai-a4-anchor">
+                <div>
+                  <h4>Para lembrar</h4>
+                  <p>${escapeHtml(ancoras.contextualizacao || prepared.conteudo_adaptado?.texto_simplificado || "Contextualizacao nao informada.")}</p>
+                </div>
+                <div class="ai-a4-visuals">
+                  ${(ancoras.pistas_graficas || []).slice(0, 2).map(renderGraphicHint).join("")}
+                </div>
+              </section>
+            ` : ""}
 
-      ${renderMultisensoryResources(recursos)}
+            <section class="ai-a4-challenges" aria-label="Secoes da atividade">
+              ${pageSections.length ? pageSections.map(renderChallengeSection).join("") : "<p>Nenhuma secao foi informada pela IA.</p>"}
+            </section>
 
-      <section class="ai-a4-challenges" aria-label="Secoes da atividade">
-        ${secoes.length ? secoes.map(renderChallengeSection).join("") : "<p>Nenhuma secao foi informada pela IA.</p>"}
-      </section>
+            ${lastPage ? renderCaaStrip(comunicacao.cartoes) : ""}
 
-      ${renderCaaStrip(comunicacao.cartoes)}
-
-      <footer class="ai-a4-footer">
-        <span>${escapeHtml(footerText)}</span>
-        <span>ACESSA+ · Inclui · Transforma · Conecta</span>
-      </footer>
-    </article>
+            <footer class="ai-a4-footer">
+              <span>${escapeHtml(footerText)}</span>
+              <span>ACESSA+ - INCLUI - TRANSFORMA - CONECTA</span>
+            </footer>
+          </article>
+        `;
+      }).join("")}
+    </div>
   `;
+}
+
+function splitA4Sections(sections = [], size = 2) {
+  const source = Array.isArray(sections) && sections.length ? sections : [];
+  const pages = [];
+  for (let index = 0; index < source.length; index += size) {
+    pages.push(source.slice(index, index + size));
+  }
+  return pages.length ? pages : [[]];
 }
 
 function buildA4AiMaterialHtml(material = {}, payload = state.aiLastPayload) {
@@ -3728,8 +3747,8 @@ function applyCurricularGuardrails(material = {}, payload = {}) {
   prepared.recursos_multissensoriais.recursos_tateis = ensureList(prepared.recursos_multissensoriais.recursos_tateis, profile.resources.tactile);
 
   const sections = Array.isArray(prepared.secoes_desafios) ? prepared.secoes_desafios : [];
-  prepared.secoes_desafios = shouldReplaceSections(sections, profile)
-    ? buildCurricularFallbackSections(profile, objectUpper, skillCode)
+  prepared.secoes_desafios = shouldReplaceSections(sections, profile, objectUpper)
+    ? buildCurricularFallbackSections(profile, objectUpper, skillCode, payload)
     : sections.map((section, index) => enrichCurricularSection(section, index, profile, objectUpper));
 
   prepared.comunicacao_caa = {
@@ -3983,36 +4002,68 @@ function ensureVisualHints(currentHints, profile, objectUpper) {
   return normalized.slice(0, 5);
 }
 
-function shouldReplaceSections(sections = [], profile) {
-  if (!Array.isArray(sections) || sections.length < 3) return true;
+function shouldReplaceSections(sections = [], profile, objectUpper = "") {
+  if (!Array.isArray(sections) || sections.length < 5) return true;
   const text = normalizeText(sections.map((section) => [
     section.titulo_bloco,
     section.enunciado,
     section.tipo_componente,
     section.imagem_sugerida?.elemento
   ].filter(Boolean).join(" ")).join(" "));
+  const objectText = normalizeText(objectUpper);
+  const weakLocalFallback = text.includes("marque a palavra que combina com o conteudo")
+    || text.includes("complete as frases usando o banco de palavras sobre")
+    || text.includes("registre uma ideia sobre")
+    || text.includes("realize a atividade com apoio");
 
   if (profile.key === "matematica") {
-    const hasMath = text.includes("numero") || text.includes("calcul") || text.includes("grafico") || text.includes("tabela") || text.includes("coordenada") || text.includes("medida") || text.includes("forma");
+    const hasMath = text.includes("numero")
+      || text.includes("calcul")
+      || text.includes("grafico")
+      || text.includes("tabela")
+      || text.includes("coordenada")
+      || text.includes("medida")
+      || text.includes("forma")
+      || text.includes("fracao")
+      || text.includes("fracoes")
+      || text.includes("equival")
+      || text.includes("compar")
+      || text.includes("pizza")
+      || text.includes("parte")
+      || text.includes("todo")
+      || text.includes("metade");
     const hasPortugueseLeak = text.includes("ideia principal") || text.includes("informacao secundaria") || text.includes("contexto de producao") || text.includes("texto curto") || text.includes("lia gosta");
-    return hasPortugueseLeak || !hasMath;
+    return hasPortugueseLeak || weakLocalFallback || !hasMath;
   }
 
-  return false;
+  return weakLocalFallback && objectText && !text.includes(objectText.slice(0, 18));
 }
 
-function buildCurricularFallbackSections(profile, objectUpper, skillCode) {
+function buildCurricularFallbackSections(profile, objectUpper, skillCode, payload = {}) {
+  const focus = getCurricularFocus(profile, objectUpper, skillCode, payload);
+  if (profile.key === "matematica" && focus === "fractions") {
+    return buildFractionFallbackSections(objectUpper);
+  }
+  if (profile.key === "matematica" && focus === "coordinates") {
+    return buildCoordinateFallbackSections(objectUpper);
+  }
+  if (profile.key === "matematica" && focus === "functions") {
+    return buildFunctionFallbackSections(objectUpper);
+  }
+
+  const terms = extractCurricularTerms(objectUpper, profile.words);
+  const optionTerms = terms.slice(0, 3);
   return [
     {
       fase_id: 1,
       titulo_bloco: "OBSERVE E IDENTIFIQUE",
       tipo_componente: "Marque_com_X",
-      enunciado: `OBSERVE A IMAGEM SOBRE ${objectUpper}. MARQUE A PALAVRA QUE COMBINA COM O CONTEUDO.`,
+      enunciado: `MARQUE COM X A IDEIA PRINCIPAL SOBRE ${objectUpper}.`,
       imagem_sugerida: {
         elemento: profile.visuals[0],
         descricao_prompt_imagem: `${profile.visuals[0]} RELACIONADO A ${objectUpper}, COM ILUSTRACAO CLARA E ALTO CONTRASTE.`
       },
-      opcoes: profile.optionTerms.slice(0, 3).map((term, index) => ({
+      opcoes: optionTerms.map((term, index) => ({
         letra: String.fromCharCode(65 + index),
         texto: term
       }))
@@ -4026,8 +4077,8 @@ function buildCurricularFallbackSections(profile, objectUpper, skillCode) {
         elemento: profile.visuals[1],
         descricao_prompt_imagem: `${profile.visuals[1]} COMO APOIO VISUAL PARA PAREAMENTO.`
       },
-      coluna_esquerda: profile.relations.map(([left]) => left),
-      coluna_direita: profile.relations.map(([, right]) => right)
+      coluna_esquerda: optionTerms,
+      coluna_direita: optionTerms.map((term) => `EXEMPLO OU IDEIA SOBRE ${term}`)
     },
     {
       fase_id: 3,
@@ -4038,11 +4089,23 @@ function buildCurricularFallbackSections(profile, objectUpper, skillCode) {
         elemento: profile.visuals[2],
         descricao_prompt_imagem: `${profile.visuals[2]} COM ELEMENTOS DO OBJETO DE CONHECIMENTO.`
       },
-      banco_palavras: profile.words.slice(0, 5),
+      banco_palavras: terms.slice(0, 5),
       espaco_resposta: "ESCREVA, MARQUE, APONTE OU RESPONDA COM APOIO."
     },
     {
       fase_id: 4,
+      titulo_bloco: "ENCONTRE AS PALAVRAS",
+      tipo_componente: "Caca_Palavras",
+      enunciado: `ENCONTRE PALAVRAS IMPORTANTES SOBRE ${objectUpper}.`,
+      imagem_sugerida: {
+        elemento: profile.visuals[3],
+        descricao_prompt_imagem: `${profile.visuals[3]} PARA APOIAR A BUSCA DE PALAVRAS.`
+      },
+      banco_palavras: terms.slice(0, 6),
+      espaco_resposta: ""
+    },
+    {
+      fase_id: 5,
       titulo_bloco: "DESAFIO PRATICO",
       tipo_componente: "Producao_Com_Desenho",
       enunciado: `REGISTRE UMA IDEIA SOBRE ${objectUpper}. VOCE PODE DESENHAR, COLAR, MODELAR, FALAR OU USAR CAA.`,
@@ -4051,6 +4114,254 @@ function buildCurricularFallbackSections(profile, objectUpper, skillCode) {
         descricao_prompt_imagem: `${profile.visuals[3]} PARA INSPIRAR PRODUCAO DO ESTUDANTE.`
       },
       espaco_resposta: "ESPACO PARA DESENHO, COLAGEM, MODELAGEM, ESCRITA OU REGISTRO DO PROFESSOR."
+    }
+  ];
+}
+
+function getCurricularFocus(profile, objectUpper, skillCode, payload = {}) {
+  const text = normalizeText([
+    profile.key,
+    objectUpper,
+    skillCode,
+    payload.habilidade,
+    payload.pedidoProfessor,
+    payload.baseActivity,
+    payload.recursosDisponiveis
+  ].filter(Boolean).join(" "));
+
+  if (text.includes("fracao") || text.includes("fracoes") || text.includes("racional") || text.includes("equival") || text.includes("parte todo") || text.includes("pizza")) {
+    return "fractions";
+  }
+  if (text.includes("coordenada") || text.includes("plano cartesiano") || text.includes("quadrante") || text.includes("par ordenado")) {
+    return "coordinates";
+  }
+  if (text.includes("funcao") || text.includes("funcao polinomial") || text.includes("proporcional") || text.includes("algebr") || text.includes("variavel")) {
+    return "functions";
+  }
+  return "general";
+}
+
+function extractCurricularTerms(objectUpper, fallbackWords = []) {
+  const terms = String(objectUpper || "")
+    .split(/[^A-Z0-9/]+/i)
+    .map((term) => term.trim().toUpperCase())
+    .filter((term) => term.length >= 3 && !["DOS", "DAS", "COM", "PARA", "SOBRE", "TODO", "TODOS", "SIGNIFICADOS"].includes(term));
+  const combined = [...terms, ...fallbackWords.map((word) => String(word).toUpperCase())];
+  return combined.filter((term, index, list) => list.indexOf(term) === index).slice(0, 8);
+}
+
+function buildFractionFallbackSections(objectUpper) {
+  return [
+    {
+      fase_id: 1,
+      titulo_bloco: "ATIVIDADE 1: METADE DA PIZZA",
+      tipo_componente: "Marque_com_X",
+      enunciado: "UMA PIZZA FOI DIVIDIDA EM 2 PARTES IGUAIS. 1 PARTE PINTADA REPRESENTA QUAL FRACAO?",
+      imagem_sugerida: {
+        elemento: "PIZZA DIVIDIDA EM 2 PARTES COM 1 PARTE PINTADA",
+        descricao_prompt_imagem: "PIZZA CIRCULAR DIVIDIDA EM 2 PARTES IGUAIS, COM UMA METADE COLORIDA E OUTRA EM BRANCO."
+      },
+      opcoes: [
+        { letra: "A", texto: "1/2" },
+        { letra: "B", texto: "1/3" },
+        { letra: "C", texto: "1/4" }
+      ]
+    },
+    {
+      fase_id: 2,
+      titulo_bloco: "ATIVIDADE 2: PARTES DO TODO",
+      tipo_componente: "Complete_Com_Banco_De_Palavras",
+      enunciado: "COMPLETE: A FRACAO 2/4 MOSTRA ____ PARTES DE UM TODO DIVIDIDO EM ____ PARTES.",
+      imagem_sugerida: {
+        elemento: "BARRA DE FRACAO 2/4",
+        descricao_prompt_imagem: "BARRA RETANGULAR DIVIDIDA EM 4 PARTES IGUAIS COM 2 PARTES COLORIDAS."
+      },
+      banco_palavras: ["2", "4", "METADE"],
+      espaco_resposta: "2/4 REPRESENTA A METADE? ________"
+    },
+    {
+      fase_id: 3,
+      titulo_bloco: "ATIVIDADE 3: FRACOES EQUIVALENTES",
+      tipo_componente: "Ligue_Colunas",
+      enunciado: "LIGUE CADA FRACAO A UMA FRACAO EQUIVALENTE.",
+      imagem_sugerida: {
+        elemento: "CARTOES DE FRACOES EQUIVALENTES",
+        descricao_prompt_imagem: "CARTOES COM BARRAS DE FRACOES MOSTRANDO 1/2, 2/4 E 4/8 COM A MESMA AREA COLORIDA."
+      },
+      coluna_esquerda: ["1/2", "2/3", "3/4"],
+      coluna_direita: ["2/4", "4/6", "6/8"]
+    },
+    {
+      fase_id: 4,
+      titulo_bloco: "ATIVIDADE 4: COMPARE",
+      tipo_componente: "Marque_com_X",
+      enunciado: "COMPARE AS FRACOES 1/3 E 1/2. QUAL FRACAO E MAIOR?",
+      imagem_sugerida: {
+        elemento: "DUAS BARRAS DE FRACAO 1/3 E 1/2",
+        descricao_prompt_imagem: "DUAS BARRAS RETANGULARES DO MESMO TAMANHO, UMA COM 1/3 COLORIDO E OUTRA COM 1/2 COLORIDO."
+      },
+      opcoes: [
+        { letra: "A", texto: "1/2" },
+        { letra: "B", texto: "1/3" },
+        { letra: "C", texto: "SAO IGUAIS" }
+      ]
+    },
+    {
+      fase_id: 5,
+      titulo_bloco: "ATIVIDADE 5: VERDADEIRO OU FALSO",
+      tipo_componente: "Verdadeiro_Falso",
+      enunciado: "1/2 E 2/4 REPRESENTAM A MESMA QUANTIDADE.",
+      imagem_sugerida: {
+        elemento: "COMPARACAO ENTRE 1/2 E 2/4",
+        descricao_prompt_imagem: "DUAS PIZZAS DO MESMO TAMANHO, UMA DIVIDIDA EM 2 COM 1 PARTE COLORIDA E OUTRA DIVIDIDA EM 4 COM 2 PARTES COLORIDAS."
+      }
+    },
+    {
+      fase_id: 6,
+      titulo_bloco: "ATIVIDADE 6: PRODUZA",
+      tipo_componente: "Producao_Com_Desenho",
+      enunciado: "DESENHE UMA PIZZA DIVIDIDA EM 4 PARTES. PINTE 2 PARTES. ESCREVA A FRACAO.",
+      imagem_sugerida: {
+        elemento: "PIZZA PARA DESENHO DE FRACAO",
+        descricao_prompt_imagem: "PIZZA SIMPLES COM LINHAS GUIA PARA DIVIDIR EM PARTES IGUAIS."
+      },
+      banco_palavras: ["1/2", "2/4", "METADE"],
+      espaco_resposta: "FRACAO: __________"
+    }
+  ];
+}
+
+function buildCoordinateFallbackSections(objectUpper) {
+  return [
+    {
+      fase_id: 1,
+      titulo_bloco: "ATIVIDADE 1: LOCALIZE O PONTO",
+      tipo_componente: "Marque_com_X",
+      enunciado: "NO PLANO CARTESIANO, O PONTO A ESTA EM (2, 3). MARQUE A RESPOSTA CORRETA.",
+      imagem_sugerida: {
+        elemento: "MALHA QUADRICULADA COM PONTO A EM 2,3",
+        descricao_prompt_imagem: "PLANO CARTESIANO SIMPLES COM EIXO X, EIXO Y E PONTO A MARCADO NA COORDENADA (2,3)."
+      },
+      opcoes: [
+        { letra: "A", texto: "(2, 3)" },
+        { letra: "B", texto: "(3, 2)" },
+        { letra: "C", texto: "(0, 3)" }
+      ]
+    },
+    {
+      fase_id: 2,
+      titulo_bloco: "ATIVIDADE 2: LIGUE OS PONTOS",
+      tipo_componente: "Ligue_Colunas",
+      enunciado: "LIGUE CADA PONTO A SUA COORDENADA.",
+      imagem_sugerida: {
+        elemento: "CARTOES COM PONTOS E COORDENADAS",
+        descricao_prompt_imagem: "CARTOES COM LETRAS A, B, C E PARES ORDENADOS EM CORES DIFERENTES."
+      },
+      coluna_esquerda: ["PONTO A", "PONTO B", "PONTO C"],
+      coluna_direita: ["(1, 2)", "(3, 1)", "(4, 4)"]
+    },
+    {
+      fase_id: 3,
+      titulo_bloco: "ATIVIDADE 3: COMPLETE A TABELA",
+      tipo_componente: "Complete_Com_Banco_De_Palavras",
+      enunciado: "COMPLETE A TABELA COM X E Y.",
+      imagem_sugerida: {
+        elemento: "TABELA DE COORDENADAS",
+        descricao_prompt_imagem: "TABELA SIMPLES COM COLUNAS PONTO, X E Y."
+      },
+      banco_palavras: ["X", "Y", "PONTO", "(2,3)"],
+      espaco_resposta: "PONTO A: X = ____  Y = ____"
+    },
+    {
+      fase_id: 4,
+      titulo_bloco: "ATIVIDADE 4: MARQUE NA MALHA",
+      tipo_componente: "Producao_Com_Desenho",
+      enunciado: "MARQUE O PONTO B EM (4, 2) NA MALHA.",
+      imagem_sugerida: {
+        elemento: "MALHA QUADRICULADA VAZIA",
+        descricao_prompt_imagem: "MALHA QUADRICULADA COM EIXOS X E Y, PRONTA PARA MARCAR UM PONTO."
+      },
+      espaco_resposta: "USE A MALHA PARA MARCAR O PONTO."
+    },
+    {
+      fase_id: 5,
+      titulo_bloco: "ATIVIDADE 5: DESAFIO",
+      tipo_componente: "Marque_com_X",
+      enunciado: "QUAL PONTO ESTA MAIS ALTO NO PLANO?",
+      imagem_sugerida: {
+        elemento: "PONTOS A B C NO PLANO CARTESIANO",
+        descricao_prompt_imagem: "PLANO CARTESIANO COM TRES PONTOS EM ALTURAS DIFERENTES."
+      },
+      opcoes: [
+        { letra: "A", texto: "PONTO A (1,1)" },
+        { letra: "B", texto: "PONTO B (2,4)" },
+        { letra: "C", texto: "PONTO C (4,2)" }
+      ]
+    }
+  ];
+}
+
+function buildFunctionFallbackSections(objectUpper) {
+  return [
+    {
+      fase_id: 1,
+      titulo_bloco: "ATIVIDADE 1: COMPLETE A TABELA",
+      tipo_componente: "Complete_Com_Banco_De_Palavras",
+      enunciado: "USE A REGRA Y = X + 2. COMPLETE OS VALORES.",
+      imagem_sugerida: {
+        elemento: "TABELA X Y DA FUNCAO Y IGUAL X MAIS 2",
+        descricao_prompt_imagem: "TABELA COM COLUNAS X E Y E SETA MOSTRANDO A REGRA Y = X + 2."
+      },
+      banco_palavras: ["2", "3", "4", "5"],
+      espaco_resposta: "X=1 Y=____ | X=2 Y=____ | X=3 Y=____"
+    },
+    {
+      fase_id: 2,
+      titulo_bloco: "ATIVIDADE 2: LIGUE",
+      tipo_componente: "Ligue_Colunas",
+      enunciado: "LIGUE CADA VALOR DE X AO VALOR DE Y.",
+      imagem_sugerida: {
+        elemento: "CARTOES NUMERICOS X E Y",
+        descricao_prompt_imagem: "CARTOES COM NUMEROS E SETAS MOSTRANDO ENTRADA X E SAIDA Y."
+      },
+      coluna_esquerda: ["X = 1", "X = 2", "X = 3"],
+      coluna_direita: ["Y = 3", "Y = 4", "Y = 5"]
+    },
+    {
+      fase_id: 3,
+      titulo_bloco: "ATIVIDADE 3: MARQUE O GRAFICO",
+      tipo_componente: "Marque_com_X",
+      enunciado: "QUAL PONTO PERTENCE A REGRA Y = X + 2?",
+      imagem_sugerida: {
+        elemento: "GRAFICO SIMPLES COM PONTOS",
+        descricao_prompt_imagem: "PLANO CARTESIANO COM PONTOS COLORIDOS E EIXOS X E Y."
+      },
+      opcoes: [
+        { letra: "A", texto: "(1, 3)" },
+        { letra: "B", texto: "(1, 1)" },
+        { letra: "C", texto: "(3, 1)" }
+      ]
+    },
+    {
+      fase_id: 4,
+      titulo_bloco: "ATIVIDADE 4: CRESCE OU DIMINUI",
+      tipo_componente: "Verdadeiro_Falso",
+      enunciado: "NA REGRA Y = X + 2, QUANDO X AUMENTA, Y TAMBEM AUMENTA.",
+      imagem_sugerida: {
+        elemento: "SETA DE CRESCIMENTO NO GRAFICO",
+        descricao_prompt_imagem: "SETA SUBINDO EM UM GRAFICO SIMPLES COM FUNDO CLARO."
+      }
+    },
+    {
+      fase_id: 5,
+      titulo_bloco: "ATIVIDADE 5: CRIE",
+      tipo_componente: "Producao_Com_Desenho",
+      enunciado: "CRIE UMA TABELA COM 3 VALORES PARA A REGRA Y = X + 2.",
+      imagem_sugerida: {
+        elemento: "TABELA VAZIA PARA FUNCAO",
+        descricao_prompt_imagem: "TABELA VAZIA COM COLUNAS X E Y PARA PREENCHIMENTO."
+      },
+      espaco_resposta: "X=____ Y=____ | X=____ Y=____ | X=____ Y=____"
     }
   ];
 }
@@ -4134,11 +4445,10 @@ function renderVisualFigure(title, description) {
   return `
     <figure class="ai-visual-figure" role="group" aria-label="${escapeHtml(description)}">
       <div class="ai-visual-art" aria-hidden="true">
-        ${renderPictogramSvg(title)}
+        ${renderPictogramSvg(`${title} ${description}`)}
       </div>
       <figcaption>
         <strong>${escapeHtml(title)}</strong>
-        <span>IMAGEM DE APOIO</span>
       </figcaption>
     </figure>
   `;
@@ -4264,11 +4574,47 @@ function renderPictogramSvg(value) {
     return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="26" y="24" width="48" height="62" rx="8" fill="#e0f2fe" stroke="#08275f" stroke-width="4"/><rect x="86" y="24" width="48" height="62" rx="8" fill="#fff7ed" stroke="#08275f" stroke-width="4"/><path d="M37 45 H62 M37 58 H56 M98 45 H122 M98 58 H116" stroke="#0a56c2" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="72" r="7" fill="#15a650"/><circle cx="110" cy="72" r="7" fill="#f28a18"/></svg>`;
   }
 
-  return `<div class="ai-picture-placeholder"><span>IMAGEM</span><strong>${escapeHtml(label)}</strong></div>`;
+  if (kind === "pizza" || kind === "fraction") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><circle cx="54" cy="54" r="37" fill="#ffd166" stroke="#08275f" stroke-width="5"/><path d="M54 54 L54 17 A37 37 0 0 1 91 54 Z" fill="#f97316" stroke="#08275f" stroke-width="4"/><path d="M54 54 L91 54 M54 54 L54 91 M54 54 L17 54" stroke="#08275f" stroke-width="4"/><circle cx="43" cy="39" r="4" fill="#dc2626"/><circle cx="66" cy="69" r="4" fill="#dc2626"/><rect x="103" y="25" width="38" height="22" rx="5" fill="#fff" stroke="#08275f" stroke-width="4"/><rect x="103" y="64" width="38" height="22" rx="5" fill="#fff" stroke="#08275f" stroke-width="4"/><path d="M108 54 H137" stroke="#08275f" stroke-width="5"/><text x="122" y="42" text-anchor="middle" font-size="20" font-weight="800" fill="#08275f">1</text><text x="122" y="81" text-anchor="middle" font-size="20" font-weight="800" fill="#08275f">2</text></svg>`;
+  }
+
+  if (kind === "barfraction") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="18" y="30" width="124" height="38" rx="8" fill="#fff" stroke="#08275f" stroke-width="5"/><rect x="18" y="30" width="62" height="38" rx="8" fill="#60a5fa"/><path d="M49 30 V68 M80 30 V68 M111 30 V68" stroke="#08275f" stroke-width="4"/><text x="80" y="96" text-anchor="middle" font-size="21" font-weight="900" fill="#08275f">2/4 = 1/2</text></svg>`;
+  }
+
+  if (kind === "city") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="17" y="43" width="34" height="51" rx="3" fill="#60a5fa" stroke="#08275f" stroke-width="4"/><rect x="58" y="23" width="42" height="71" rx="3" fill="#f7c46c" stroke="#08275f" stroke-width="4"/><rect x="108" y="37" width="34" height="57" rx="3" fill="#86efac" stroke="#08275f" stroke-width="4"/><path d="M29 56 H39 M29 69 H39 M71 38 H87 M71 52 H87 M71 66 H87 M119 51 H131 M119 65 H131" stroke="#08275f" stroke-width="4"/><path d="M8 94 H151" stroke="#15a650" stroke-width="6"/></svg>`;
+  }
+
+  if (kind === "person") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><circle cx="80" cy="32" r="20" fill="#f2b37b" stroke="#08275f" stroke-width="4"/><path d="M44 96 Q50 57 80 57 Q110 57 116 96 Z" fill="#0a56c2" stroke="#08275f" stroke-width="5"/><circle cx="73" cy="30" r="3" fill="#08275f"/><circle cx="87" cy="30" r="3" fill="#08275f"/><path d="M72 41 Q80 47 88 41" fill="none" stroke="#08275f" stroke-width="3" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "flower") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M80 62 V98" stroke="#15803d" stroke-width="7" stroke-linecap="round"/><path d="M80 82 Q57 71 47 91 M80 78 Q103 67 114 88" fill="none" stroke="#15803d" stroke-width="5" stroke-linecap="round"/><circle cx="80" cy="47" r="13" fill="#ffd43b" stroke="#08275f" stroke-width="4"/><circle cx="80" cy="24" r="16" fill="#f472b6" stroke="#08275f" stroke-width="3"/><circle cx="103" cy="47" r="16" fill="#f472b6" stroke="#08275f" stroke-width="3"/><circle cx="80" cy="70" r="16" fill="#f472b6" stroke="#08275f" stroke-width="3"/><circle cx="57" cy="47" r="16" fill="#f472b6" stroke="#08275f" stroke-width="3"/></svg>`;
+  }
+
+  if (kind === "school") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M24 92 V47 L80 18 L136 47 V92 Z" fill="#fff7ed" stroke="#08275f" stroke-width="5"/><rect x="63" y="64" width="34" height="28" fill="#60a5fa" stroke="#08275f" stroke-width="4"/><path d="M42 58 H57 M103 58 H118 M42 74 H57 M103 74 H118" stroke="#0a56c2" stroke-width="5"/><path d="M80 18 V7 H108" stroke="#08275f" stroke-width="5" stroke-linecap="round"/></svg>`;
+  }
+
+  if (kind === "pencil") {
+    return `<svg viewBox="0 0 160 110" aria-hidden="true"><path d="M38 78 L106 10 L132 36 L64 104 L31 111 Z" fill="#ffd43b" stroke="#08275f" stroke-width="5" stroke-linejoin="round"/><path d="M106 10 L132 36 L141 20 L122 1 Z" fill="#f97316" stroke="#08275f" stroke-width="5"/><path d="M38 78 L64 104" stroke="#08275f" stroke-width="5"/><path d="M31 111 L45 92 L50 106 Z" fill="#111827"/></svg>`;
+  }
+
+  return `<svg viewBox="0 0 160 110" aria-hidden="true"><rect x="22" y="20" width="116" height="70" rx="14" fill="#eef6ff" stroke="#08275f" stroke-width="5"/><path d="M42 43 H96 M42 59 H118 M42 75 H83" stroke="#0a56c2" stroke-width="6" stroke-linecap="round"/><circle cx="119" cy="43" r="10" fill="#f28a18"/><path d="M28 94 L45 80 M132 94 L115 80" stroke="#15a650" stroke-width="5" stroke-linecap="round"/><text x="80" y="105" text-anchor="middle" font-size="12" font-weight="800" fill="#08275f">${escapeHtml(label)}</text></svg>`;
 }
 
 function getVisualKind(value) {
   const text = normalizeText(value);
+  if (text.includes("pizza")) return "pizza";
+  if (text.includes("fracao") || text.includes("fracoes") || text.includes("equival") || text.includes("metade") || text.includes("parte pintada")) return text.includes("barra") ? "barfraction" : "fraction";
+  if (text.includes("barra de fracao")) return "barfraction";
+  if (text.includes("cidade") || text.includes("rio de janeiro") || text.includes("sao paulo") || text.includes("praca")) return "city";
+  if (text.includes("maria") || text.includes("joao") || text.includes("ana") || text.includes("nome proprio") || text.includes("nome de pessoa")) return "person";
+  if (text.includes("flor") || text.includes("planta")) return "flower";
+  if (text.includes("escola") || text.includes("colegio")) return "school";
+  if (text.includes("lapis") || text.includes("escrever") || text.includes("escrita")) return "pencil";
   if (text.includes("grafico") || text.includes("barra") || text.includes("linha")) return "graph";
   if (text.includes("tabela") || text.includes("quadro")) return "table";
   if (text.includes("malha") || text.includes("coordenada") || text.includes("plano cartesiano") || text.includes("reta numerica")) return "grid";
