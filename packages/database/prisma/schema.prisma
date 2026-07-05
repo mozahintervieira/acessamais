@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationType {
+  SCHOOL
+  UNIVERSITY
+  MUSEUM
+  GOVERNMENT
+  INDEPENDENT
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  REVIEWER
+}
+
+enum MissionType {
+  CREATE_LESSON_PLAN
+  ADAPT_ACTIVITY
+}
+
+enum MissionStatus {
+  DRAFT
+  READY_FOR_ORCHESTRATION
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ResourceType {
+  LESSON_PLAN
+  ADAPTED_ACTIVITY
+}
+
+enum ResourceStatus {
+  DRAFT
+  VALIDATED
+  ARCHIVED
+}
+
+enum ValidationStatus {
+  PENDING
+  PASSED
+  WARNING
+  FAILED
+}
+
+enum KnowledgeSourceType {
+  LAW
+  CURRICULUM
+  GUIDELINE
+  INTERNAL_RESOURCE
+  TEACHER_STRATEGY
+}
+
+enum ReliabilityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  OFFICIAL
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  type      OrganizationType
+  region    String?
+  users     User[]
+  missions  Mission[]
+  resources Resource[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  email          String       @unique
+  passwordHash   String?
+  role           UserRole
+  missions       Mission[]
+  resources      Resource[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([role])
+}
+
+model Mission {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUserId String
+  createdBy       User          @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  type            MissionType
+  status          MissionStatus @default(DRAFT)
+  input           Json
+  profileContext  Json?
+  resources       Resource[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([organizationId, status])
+  @@index([createdByUserId])
+  @@index([type])
+}
+
+model Resource {
+  id              String            @id @default(cuid())
+  organizationId  String
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUserId String
+  createdBy       User              @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  missionId       String?
+  mission         Mission?          @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  type            ResourceType
+  title           String
+  status          ResourceStatus    @default(DRAFT)
+  metadata        Json
+  versions        ResourceVersion[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+  @@index([createdByUserId])
+  @@index([missionId])
+}
+
+model ResourceVersion {
+  id               String           @id @default(cuid())
+  resourceId        String
+  resource          Resource         @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  versionNumber     Int
+  contentJson       Json
+  contentText       String
+  validationStatus  ValidationStatus @default(PENDING)
+  validationReports ValidationReport[]
+  createdAt         DateTime         @default(now())
+
+  @@unique([resourceId, versionNumber])
+  @@index([resourceId])
+}
+
+model ValidationReport {
+  id                    String          @id @default(cuid())
+  resourceVersionId      String
+  resourceVersion        ResourceVersion @relation(fields: [resourceVersionId], references: [id], onDelete: Cascade)
+  pedagogicalScore       Int?
+  accessibilityScore     Int?
+  lgpdRiskScore          Int?
+  hallucinationRiskScore Int?
+  recommendations        Json?
+  createdAt              DateTime        @default(now())
+
+  @@index([resourceVersionId])
+}
+
+model KnowledgeSource {
+  id               String              @id @default(cuid())
+  type             KnowledgeSourceType
+  title            String
+  sourceUrl         String?
+  citation          String?
+  reliabilityLevel  ReliabilityLevel
+  license           String?
+  metadata          Json?
+  chunks            KnowledgeChunk[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([type, reliabilityLevel])
+}
+
+model KnowledgeChunk {
+  id                String          @id @default(cuid())
+  knowledgeSourceId String
+  knowledgeSource   KnowledgeSource @relation(fields: [knowledgeSourceId], references: [id], onDelete: Cascade)
+  chunkText          String
+  metadata           Json?
+  embedding          Unsupported("vector")?
+  createdAt          DateTime        @default(now())
+
+  @@index([knowledgeSourceId])
+}
+
+model AiProvider {
+  id              String   @id @default(cuid())
+  name            String
+  type            String
+  enabled         Boolean  @default(false)
+  configReference String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AiCallLog {
+  id               String   @id @default(cuid())
+  providerId        String?
+  model             String?
+  purpose           String
+  tokenUsage        Json?
+  latencyMs         Int?
+  costEstimate      Decimal?
+  redactedInputHash String?
+  createdAt         DateTime @default(now())
+
+  @@index([providerId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipHash      String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
