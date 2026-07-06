@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
 
 type TaskKey = "lesson" | "activity" | "report";
@@ -126,6 +126,14 @@ export function LessonPlanMissionForm(): React.ReactElement {
 
   const task =
     taskOptions.find((option) => option.key === selectedTask) ?? taskOptions[0]!;
+
+  useEffect(() => {
+    const taskParam = new URLSearchParams(window.location.search).get("task");
+
+    if (taskParam === "activity" || taskParam === "report") {
+      selectTask(taskParam);
+    }
+  }, []);
 
   async function submitMission(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
