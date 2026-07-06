@@ -327,6 +327,7 @@ async function generatePedagogicalPlan(
   decision: DecisionResult
 ): Promise<PedagogicalPlan & Record<string, unknown>> {
   const generated = await callOpenAI(request, context, decision);
+  const fallback = buildGeneratedFallbacks(request);
 
   return {
     intent: request.missionType,
@@ -347,12 +348,21 @@ async function generatePedagogicalPlan(
       "Evitar dados sensiveis ou diagnosticos alem do necessario pedagogicamente."
     ]),
     warnings: normalizeStringArray(generated.warnings, []),
-    lessonFlow: normalizeStringArray(generated.lessonFlow, []),
-    adaptedActivities: normalizeStringArray(generated.adaptedActivities, []),
-    accessibilitySupports: normalizeStringArray(generated.accessibilitySupports, []),
-    assessment: normalizeStringArray(generated.assessment, []),
-    teacherReport: normalizeStringArray(generated.teacherReport, []),
-    reuseSuggestions: normalizeStringArray(generated.reuseSuggestions, [])
+    lessonFlow: normalizeStringArray(generated.lessonFlow, fallback.lessonFlow),
+    adaptedActivities: normalizeStringArray(
+      generated.adaptedActivities,
+      fallback.adaptedActivities
+    ),
+    accessibilitySupports: normalizeStringArray(
+      generated.accessibilitySupports,
+      fallback.accessibilitySupports
+    ),
+    assessment: normalizeStringArray(generated.assessment, fallback.assessment),
+    teacherReport: normalizeStringArray(generated.teacherReport, fallback.teacherReport),
+    reuseSuggestions: normalizeStringArray(
+      generated.reuseSuggestions,
+      fallback.reuseSuggestions
+    )
   };
 }
 
@@ -587,6 +597,60 @@ function validateMission(request: CreateMissionRequest): void {
   if (!request.input || typeof request.input !== "object") {
     throw new Error("input da missao e obrigatorio.");
   }
+}
+
+function buildGeneratedFallbacks(request: CreateMissionRequest): {
+  lessonFlow: string[];
+  adaptedActivities: string[];
+  accessibilitySupports: string[];
+  assessment: string[];
+  teacherReport: string[];
+  reuseSuggestions: string[];
+} {
+  const input = request.input;
+  const theme = input.theme ?? input.knowledgeObject ?? "tema informado";
+  const need = input.specificNeed ?? "necessidade pedagogica informada";
+  const resources = input.availableResources?.join(", ") || "recursos disponiveis";
+
+  return {
+    lessonFlow: [
+      `Acolhida e ativacao de conhecimentos previos sobre ${theme} com apoio visual ou concreto.`,
+      "Apresentacao do objetivo da aula em linguagem simples, com exemplo modelado pelo professor.",
+      "Exploracao guiada do conteudo com participacao oral, visual e pratica.",
+      "Atividade adaptada individual ou em dupla, com mediacao e pistas graduadas.",
+      "Fechamento com socializacao da aprendizagem e registro de evidencias observaveis."
+    ],
+    adaptedActivities: [
+      `Selecionar imagens, palavras-chave ou exemplos concretos relacionados a ${theme}.`,
+      "Parear informacoes, imagens e comandos curtos para reduzir carga de leitura sem reduzir o objetivo pedagogico.",
+      "Responder oralmente, apontando, marcando alternativas ou organizando cartoes, conforme a forma de expressao mais acessivel.",
+      `Produzir um pequeno registro final usando ${resources}.`
+    ],
+    accessibilitySupports: [
+      `Adequar comandos, tempo, mediacao e recursos considerando ${need}.`,
+      "Usar fonte legivel, bom contraste, pistas visuais e organizacao por etapas.",
+      "Oferecer exemplo pronto antes da producao independente.",
+      "Permitir resposta oral, visual, escrita, manipulativa ou digital."
+    ],
+    assessment: [
+      "Observar participacao, compreensao dos comandos e necessidade de apoio durante a atividade.",
+      "Registrar evidencias de aprendizagem por checklist simples.",
+      "Comparar o desempenho com o objetivo da aula, nao com padrao unico da turma.",
+      "Usar feedback imediato, objetivo e formativo."
+    ],
+    teacherReport: [
+      `O material foi organizado para favorecer acesso ao tema ${theme} com foco pedagogico e acessibilidade.`,
+      `As adaptacoes consideram ${need} sem transformar a proposta em perfil medico.`,
+      "A avaliacao prioriza evidencias de aprendizagem, participacao e autonomia progressiva.",
+      "O recurso pode ser revisado e reutilizado em novas turmas ou contextos."
+    ],
+    reuseSuggestions: [
+      "Salvar o recurso como modelo para aulas com objetivos semelhantes.",
+      "Alterar disciplina, habilidade ou tema mantendo a estrutura de acessibilidade.",
+      "Registrar quais apoios funcionaram melhor para qualificar futuras versoes.",
+      "Reutilizar as tags pedagogicas e de acessibilidade no Banco Inteligente."
+    ]
+  };
 }
 
 async function readStore(): Promise<DemoDatabase> {
