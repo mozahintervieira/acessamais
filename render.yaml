@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: acessa-plus-api
+    runtime: node
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    buildCommand: corepack enable && corepack prepare pnpm@11.7.0 --activate && pnpm install --frozen-lockfile && pnpm db:generate && pnpm turbo build --filter=@acessa-plus/api...
+    preDeployCommand: pnpm --filter @acessa-plus/database exec prisma migrate deploy --schema prisma/schema.prisma
+    startCommand: pnpm --filter @acessa-plus/api start
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: WEB_ORIGIN
+        value: https://acessamais.vercel.app
+      - key: NODE_ENV
+        value: production
