@@ -22,7 +22,7 @@ export function MissionsList(): React.ReactElement {
     async function loadMissions(): Promise<void> {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333"}/missions?organizationId=${organizationId}`
+          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions?organizationId=${organizationId}`
         );
 
         if (!response.ok) {

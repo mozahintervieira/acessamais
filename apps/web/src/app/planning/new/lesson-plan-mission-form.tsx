@@ -86,7 +86,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333"}/missions`,
+        `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions`,
         {
           method: "POST",
           headers: {

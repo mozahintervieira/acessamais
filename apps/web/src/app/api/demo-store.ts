@@ -1,0 +1,785 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import type {
+  CreateMissionRequest,
+  DecisionResult,
+  KnowledgeApplicationResult,
+  MissionType,
+  PedagogicalPlan,
+  ResolvedContext
+} from "@acessa-plus/types";
+
+type MissionStatus = "COMPLETED" | "NEEDS_REVIEW";
+
+type ResourceMetadata = {
+  missionType?: string;
+  discipline?: string;
+  gradeYear?: string;
+  skill?: string;
+  knowledgeObject?: string;
+  theme?: string;
+  specificNeed?: string;
+  learningPreference?: string;
+  readingWritingLevel?: string;
+  expectedProductType?: string;
+  accessibilityTags: string[];
+  pedagogicalTags: string[];
+  [key: string]: unknown;
+};
+
+type ResourceVersion = {
+  id: string;
+  resourceId: string;
+  versionNumber: number;
+  contentJson: Record<string, unknown>;
+  contentText: string;
+  validationStatus: "PENDING";
+  createdAt: string;
+};
+
+type Resource = {
+  id: string;
+  missionId?: string;
+  organizationId: string;
+  createdByUserId: string;
+  type: "LESSON_PLAN" | "ADAPTED_ACTIVITY";
+  title: string;
+  status: "DRAFT";
+  metadata: ResourceMetadata;
+  versions: ResourceVersion[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Mission = {
+  id: string;
+  organizationId: string;
+  createdByUserId: string;
+  missionType: MissionType;
+  status: MissionStatus;
+  input: CreateMissionRequest["input"];
+  context: ResolvedContext;
+  decision: DecisionResult;
+  createdAt: string;
+  resources: Resource[];
+};
+
+type DemoDatabase = {
+  missions: Mission[];
+  resources: Resource[];
+};
+
+type MissionExecutionResult = {
+  missionId: string;
+  resourceId: string;
+  versionId: string;
+  missionType: MissionType;
+  status: MissionStatus;
+  context: ResolvedContext;
+  decision: DecisionResult;
+  pedagogicalPlan: PedagogicalPlan & Record<string, unknown>;
+};
+
+type ResourceListItem = {
+  id: string;
+  missionId?: string;
+  type: string;
+  title: string;
+  status: string;
+  metadata: ResourceMetadata;
+  latestVersion?: ResourceVersion;
+  createdAt: string;
+};
+
+const KNOWLEDGE_IDS = ["metodo-acessa", "dua", "lgpd-educacional"];
+const storePath = join(tmpdir(), "acessa-plus-demo-store.json");
+
+const globalStore = globalThis as typeof globalThis & {
+  acessaPlusDemoStore?: DemoDatabase;
+};
+
+export async function executeMission(
+  request: CreateMissionRequest
+): Promise<MissionExecutionResult> {
+  validateMission(request);
+
+  const context = resolveContext(request);
+  const decision = resolveDecision(context);
+  const pedagogicalPlan = await generatePedagogicalPlan(request, context, decision);
+  const status: MissionStatus = decision.canProceedToPedagogicalEngine
+    ? "COMPLETED"
+    : "NEEDS_REVIEW";
+  const contentText = buildContentText(request, context, pedagogicalPlan);
+  const now = new Date().toISOString();
+  const missionId = `mission_${randomUUID()}`;
+  const resourceId = `resource_${randomUUID()}`;
+  const versionId = `version_${randomUUID()}`;
+  const version: ResourceVersion = {
+    id: versionId,
+    resourceId,
+    versionNumber: 1,
+    contentJson: pedagogicalPlan,
+    contentText,
+    validationStatus: "PENDING",
+    createdAt: now
+  };
+  const resource: Resource = {
+    id: resourceId,
+    missionId,
+    organizationId: request.organizationId,
+    createdByUserId: request.userId,
+    type: request.missionType === "ADAPT_ACTIVITY" ? "ADAPTED_ACTIVITY" : "LESSON_PLAN",
+    title: resolveTitle(request),
+    status: "DRAFT",
+    metadata: buildMetadata(request, context, decision, pedagogicalPlan),
+    versions: [version],
+    createdAt: now,
+    updatedAt: now
+  };
+  const mission: Mission = {
+    id: missionId,
+    organizationId: request.organizationId,
+    createdByUserId: request.userId,
+    missionType: request.missionType,
+    status,
+    input: request.input,
+    context,
+    decision,
+    createdAt: now,
+    resources: [resource]
+  };
+  const db = await readStore();
+
+  db.missions.unshift(mission);
+  db.resources.unshift(resource);
+  await writeStore(db);
+
+  return {
+    missionId,
+    resourceId,
+    versionId,
+    missionType: request.missionType,
+    status,
+    context,
+    decision,
+    pedagogicalPlan
+  };
+}
+
+export async function listMissions(organizationId: string) {
+  const db = await readStore();
+
+  return db.missions
+    .filter((mission) => mission.organizationId === organizationId)
+    .map((mission) => ({
+      id: mission.id,
+      missionType: mission.missionType,
+      status: mission.status,
+      title: mission.resources[0]?.title ?? "Missao sem recurso",
+      resourceId: mission.resources[0]?.id,
+      createdAt: mission.createdAt
+    }));
+}
+
+export async function getMissionDetail(
+  organizationId: string,
+  missionId: string
+) {
+  const db = await readStore();
+  const mission = db.missions.find(
+    (item) => item.id === missionId && item.organizationId === organizationId
+  );
+
+  if (!mission) {
+    return null;
+  }
+
+  return {
+    id: mission.id,
+    organizationId: mission.organizationId,
+    createdByUserId: mission.createdByUserId,
+    missionType: mission.missionType,
+    status: mission.status,
+    input: mission.input,
+    createdAt: mission.createdAt,
+    resources: mission.resources.map((resource) => ({
+      id: resource.id,
+      type: resource.type,
+      title: resource.title,
+      status: resource.status,
+      metadata: resource.metadata,
+      versions: [...resource.versions].sort(
+        (left, right) => right.versionNumber - left.versionNumber
+      )
+    }))
+  };
+}
+
+export async function listResources(input: {
+  organizationId: string;
+  discipline?: string;
+  gradeYear?: string;
+  skill?: string;
+  specificNeed?: string;
+  q?: string;
+}): Promise<ResourceListItem[]> {
+  const db = await readStore();
+
+  return db.resources
+    .filter((resource) => resource.organizationId === input.organizationId)
+    .filter((resource) => matches(resource.metadata.discipline, input.discipline))
+    .filter((resource) => matches(resource.metadata.gradeYear, input.gradeYear))
+    .filter((resource) => matches(resource.metadata.skill, input.skill))
+    .filter((resource) => matches(resource.metadata.specificNeed, input.specificNeed))
+    .filter((resource) =>
+      input.q
+        ? resource.versions.some((version) =>
+            normalizeComparable(version.contentText).includes(
+              normalizeComparable(input.q)
+            )
+          )
+        : true
+    )
+    .map((resource) => ({
+      id: resource.id,
+      missionId: resource.missionId,
+      type: resource.type,
+      title: resource.title,
+      status: resource.status,
+      metadata: resource.metadata,
+      latestVersion: [...resource.versions].sort(
+        (left, right) => right.versionNumber - left.versionNumber
+      )[0],
+      createdAt: resource.createdAt
+    }));
+}
+
+export async function listVersions(organizationId: string, resourceId: string) {
+  const resource = await findResource(organizationId, resourceId);
+
+  return resource
+    ? [...resource.versions].sort(
+        (left, right) => right.versionNumber - left.versionNumber
+      )
+    : [];
+}
+
+export async function createVersion(input: {
+  organizationId: string;
+  resourceId: string;
+  contentJson: Record<string, unknown>;
+  contentText?: string;
+}) {
+  const db = await readStore();
+  const resource = db.resources.find(
+    (item) =>
+      item.id === input.resourceId && item.organizationId === input.organizationId
+  );
+
+  if (!resource) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const latestNumber = resource.versions.reduce(
+    (latest, version) => Math.max(latest, version.versionNumber),
+    0
+  );
+  const version: ResourceVersion = {
+    id: `version_${randomUUID()}`,
+    resourceId: resource.id,
+    versionNumber: latestNumber + 1,
+    contentJson: input.contentJson,
+    contentText: input.contentText?.trim() || buildVersionText(input.contentJson),
+    validationStatus: "PENDING",
+    createdAt: now
+  };
+
+  resource.versions.unshift(version);
+  resource.updatedAt = now;
+
+  const mission = db.missions.find((item) => item.id === resource.missionId);
+  const missionResource = mission?.resources.find((item) => item.id === resource.id);
+
+  if (missionResource) {
+    missionResource.versions = resource.versions;
+    missionResource.updatedAt = now;
+  }
+
+  await writeStore(db);
+
+  return version;
+}
+
+async function findResource(organizationId: string, resourceId: string) {
+  const db = await readStore();
+
+  return db.resources.find(
+    (resource) => resource.id === resourceId && resource.organizationId === organizationId
+  );
+}
+
+async function generatePedagogicalPlan(
+  request: CreateMissionRequest,
+  context: ResolvedContext,
+  decision: DecisionResult
+): Promise<PedagogicalPlan & Record<string, unknown>> {
+  const generated = await callOpenAI(request, context, decision);
+
+  return {
+    intent: request.missionType,
+    contextCompleteness: context.completeness,
+    objectives: normalizeStringArray(generated.objectives, decision.objectives),
+    expectedOutputs: normalizeStringArray(
+      generated.expectedOutputs,
+      decision.expectedProducts
+    ),
+    protocolApplications: buildKnowledgeApplications(),
+    methodologicalConstraints: normalizeStringArray(
+      generated.methodologicalConstraints,
+      decision.constraints
+    ),
+    validationCriteria: normalizeStringArray(generated.validationCriteria, [
+      "Verificar alinhamento ao objetivo da aula.",
+      "Verificar acessibilidade, clareza dos comandos e evidencias de aprendizagem.",
+      "Evitar dados sensiveis ou diagnosticos alem do necessario pedagogicamente."
+    ]),
+    warnings: normalizeStringArray(generated.warnings, []),
+    lessonFlow: normalizeStringArray(generated.lessonFlow, []),
+    adaptedActivities: normalizeStringArray(generated.adaptedActivities, []),
+    accessibilitySupports: normalizeStringArray(generated.accessibilitySupports, []),
+    assessment: normalizeStringArray(generated.assessment, []),
+    teacherReport: normalizeStringArray(generated.teacherReport, []),
+    reuseSuggestions: normalizeStringArray(generated.reuseSuggestions, [])
+  };
+}
+
+async function callOpenAI(
+  request: CreateMissionRequest,
+  context: ResolvedContext,
+  decision: DecisionResult
+): Promise<Record<string, unknown>> {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "OPENAI_API_KEY nao configurada. Configure a variavel na Vercel para gerar materiais."
+    );
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+      input: [
+        {
+          role: "system",
+          content:
+            "Voce e o Motor Pedagogico do ACESSA+. Gere materiais inclusivos em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. Responda somente JSON valido, sem markdown."
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            tarefa:
+              "Gerar planejamento, atividades, adaptacoes e relatorio pedagogico para demonstracao do MVP.",
+            contrato: {
+              objectives: "array de strings",
+              expectedOutputs: "array de strings",
+              methodologicalConstraints: "array de strings",
+              validationCriteria: "array de strings",
+              warnings: "array de strings",
+              lessonFlow: "array de strings",
+              adaptedActivities: "array de strings",
+              accessibilitySupports: "array de strings",
+              assessment: "array de strings",
+              teacherReport: "array de strings",
+              reuseSuggestions: "array de strings"
+            },
+            mission: request,
+            context,
+            decision
+          })
+        }
+      ],
+      text: {
+        format: {
+          type: "json_object"
+        }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    throw new Error(`OpenAI retornou erro ${response.status}: ${errorText}`);
+  }
+
+  const payload = (await response.json()) as { output_text?: string; output?: unknown };
+  const outputText = payload.output_text ?? extractOutputText(payload.output);
+
+  if (!outputText) {
+    throw new Error("A OpenAI nao retornou texto estruturado.");
+  }
+
+  return parseJsonObject(outputText);
+}
+
+function resolveContext(request: CreateMissionRequest): ResolvedContext {
+  const input = request.input;
+  const missingFieldEntries: Array<[string, string | undefined]> = [
+    ["discipline", input.discipline ?? input.subject],
+    ["gradeYear", input.gradeYear ?? input.yearGrade],
+    ["skill", input.skill],
+    ["knowledgeObject", input.knowledgeObject],
+    ["theme", input.theme],
+    ["lessonObjective", input.lessonObjective ?? input.objective],
+    ["specificNeed", input.specificNeed],
+    ["learningPreference", input.learningPreference],
+    ["readingWritingLevel", input.readingWritingLevel],
+    ["availableResources", input.availableResources?.join(", ")],
+    ["expectedProductType", input.expectedProductType]
+  ];
+  const missingFields = missingFieldEntries
+    .filter(([, value]) => !value)
+    .map(([field]) => field);
+  const completeness =
+    missingFields.length === 0
+      ? "COMPLETE"
+      : missingFields.length <= 3
+        ? "PARTIAL"
+        : "INSUFFICIENT";
+
+  return {
+    missionType: request.missionType,
+    rawInput: {
+      ...input,
+      subject: input.subject ?? input.discipline,
+      yearGrade: input.yearGrade ?? input.gradeYear,
+      objective: input.objective ?? input.lessonObjective,
+      accessibilityNeeds:
+        input.accessibilityNeeds ??
+        (input.specificNeed ? [input.specificNeed] : undefined)
+    },
+    organizationId: request.organizationId,
+    userId: request.userId,
+    availableKnowledgeIds: KNOWLEDGE_IDS,
+    detectedSignals: [
+      input.discipline ? `disciplina:${input.discipline}` : undefined,
+      input.gradeYear ? `serie:${input.gradeYear}` : undefined,
+      input.specificNeed ? `necessidade:${input.specificNeed}` : undefined,
+      input.expectedProductType ? `produto:${input.expectedProductType}` : undefined
+    ].filter((item): item is string => Boolean(item)),
+    missingFields,
+    completeness
+  };
+}
+
+function resolveDecision(context: ResolvedContext): DecisionResult {
+  const input = context.rawInput;
+
+  return {
+    stages: {
+      CONTEXT: [
+        `Disciplina: ${input.discipline ?? input.subject ?? "nao informada"}`,
+        `Serie/ano: ${input.gradeYear ?? input.yearGrade ?? "nao informado"}`,
+        `Necessidade pedagogica: ${input.specificNeed ?? "nao informada"}`
+      ],
+      OBJECTIVE: [input.lessonObjective ?? input.objective ?? "Definir objetivo da aula."],
+      CONSTRAINTS: [
+        "Preservar linguagem pedagogica, sem perfil medico.",
+        "Aplicar DUA, acessibilidade visual, comandos claros e avaliacao formativa.",
+        input.readingWritingLevel
+          ? `Considerar nivel de leitura/escrita: ${input.readingWritingLevel}`
+          : "Considerar nivel de leitura/escrita informado pelo professor."
+      ],
+      EXPECTED_PRODUCT: [
+        input.expectedProductType ?? "Material pedagogico inclusivo reutilizavel."
+      ]
+    },
+    knowledgeApplications: buildKnowledgeApplications(),
+    objectives: [
+      input.lessonObjective ??
+        input.objective ??
+        `Planejar aula inclusiva sobre ${input.theme ?? "o tema informado"}.`
+    ],
+    constraints: [
+      "Usar comandos objetivos e criterios claros de mediacao.",
+      "Oferecer multiplas formas de acesso, participacao e expressao.",
+      "Guardar apenas informacoes pedagogicas necessarias."
+    ],
+    expectedProducts: [
+      input.expectedProductType ?? "Plano de aula inclusivo com atividade adaptada."
+    ],
+    warnings:
+      context.completeness === "COMPLETE"
+        ? []
+        : ["A missao possui campos ausentes; revise antes de usar com estudantes."],
+    canProceedToPedagogicalEngine: context.completeness !== "INSUFFICIENT"
+  };
+}
+
+function buildKnowledgeApplications(): KnowledgeApplicationResult[] {
+  return [
+    {
+      knowledgeId: "metodo-acessa",
+      knowledgeVersion: "0.1.0",
+      knowledgeType: "PROTOCOL",
+      appliedCriteria: [
+        "Interpretar a solicitacao como missao pedagogica.",
+        "Organizar contexto, objetivo, restricoes e produto esperado antes da geracao."
+      ],
+      recommendations: [
+        "Manter linguagem clara para o professor e material reutilizavel."
+      ],
+      constraints: ["Nao responder como chatbot direto."],
+      confidence: 0.86,
+      warnings: []
+    },
+    {
+      knowledgeId: "dua",
+      knowledgeVersion: "0.1.0",
+      knowledgeType: "PROTOCOL",
+      appliedCriteria: [
+        "Oferecer multiplas formas de acesso, participacao e expressao.",
+        "Prever apoio visual, concreto, tecnologico ou multissensorial quando pertinente."
+      ],
+      recommendations: [
+        "Usar comandos objetivos, pistas visuais e avaliacao formativa."
+      ],
+      constraints: ["Nao reduzir expectativa pedagogica por causa da necessidade especifica."],
+      confidence: 0.84,
+      warnings: []
+    },
+    {
+      knowledgeId: "lgpd-educacional",
+      knowledgeVersion: "0.1.0",
+      knowledgeType: "LEGISLATION",
+      appliedCriteria: [
+        "Usar apenas dados pedagogicos necessarios.",
+        "Evitar exposicao de dados sensiveis ou perfil medico."
+      ],
+      recommendations: [
+        "Revisar qualquer informacao identificavel antes de compartilhar o material."
+      ],
+      constraints: ["Nao registrar diagnosticos alem do necessario para adaptacao pedagogica."],
+      confidence: 0.82,
+      warnings: []
+    }
+  ];
+}
+
+function validateMission(request: CreateMissionRequest): void {
+  if (!request.userId || !request.organizationId || !request.missionType) {
+    throw new Error("userId, organizationId e missionType sao obrigatorios.");
+  }
+
+  if (!["CREATE_LESSON_PLAN", "ADAPT_ACTIVITY"].includes(request.missionType)) {
+    throw new Error("missionType nao suportado no MVP.");
+  }
+
+  if (!request.input || typeof request.input !== "object") {
+    throw new Error("input da missao e obrigatorio.");
+  }
+}
+
+async function readStore(): Promise<DemoDatabase> {
+  if (globalStore.acessaPlusDemoStore) {
+    return globalStore.acessaPlusDemoStore;
+  }
+
+  try {
+    const parsed = JSON.parse(await readFile(storePath, "utf8")) as DemoDatabase;
+    globalStore.acessaPlusDemoStore = parsed;
+
+    return parsed;
+  } catch {
+    const empty = { missions: [], resources: [] };
+
+    globalStore.acessaPlusDemoStore = empty;
+    return empty;
+  }
+}
+
+async function writeStore(db: DemoDatabase): Promise<void> {
+  globalStore.acessaPlusDemoStore = db;
+
+  try {
+    await mkdir(dirname(storePath), { recursive: true });
+    await writeFile(storePath, JSON.stringify(db), "utf8");
+  } catch {
+    // Vercel serverless storage is ephemeral; memory still keeps the demo flow alive.
+  }
+}
+
+function buildMetadata(
+  request: CreateMissionRequest,
+  context: ResolvedContext,
+  decision: DecisionResult,
+  plan: PedagogicalPlan
+): ResourceMetadata {
+  const input = request.input;
+  const discipline = normalizeText(input.discipline ?? input.subject);
+  const gradeYear = normalizeText(input.gradeYear ?? input.yearGrade);
+  const skill = normalizeText(input.skill);
+  const knowledgeObject = normalizeText(input.knowledgeObject);
+  const theme = normalizeText(input.theme);
+  const specificNeed = normalizeText(input.specificNeed);
+  const learningPreference = normalizeText(input.learningPreference);
+  const readingWritingLevel = normalizeText(input.readingWritingLevel);
+  const expectedProductType = normalizeText(input.expectedProductType);
+
+  return {
+    missionType: request.missionType,
+    discipline,
+    gradeYear,
+    skill,
+    knowledgeObject,
+    theme,
+    specificNeed,
+    learningPreference,
+    readingWritingLevel,
+    expectedProductType,
+    pedagogicalTags: uniqueTags([
+      tag("disciplina", discipline),
+      tag("serie", gradeYear),
+      tag("habilidade", skill),
+      tag("objeto", knowledgeObject),
+      tag("tema", theme),
+      tag("produto", expectedProductType)
+    ]),
+    accessibilityTags: uniqueTags([
+      tag("necessidade", specificNeed),
+      tag("leitura-escrita", readingWritingLevel),
+      tag("preferencia", learningPreference?.split(/[,.]/)[0]?.trim())
+    ]),
+    context,
+    decision,
+    knowledgeApplications: plan.protocolApplications,
+    source: "next-api-demo"
+  };
+}
+
+function buildContentText(
+  request: CreateMissionRequest,
+  context: ResolvedContext,
+  plan: PedagogicalPlan & Record<string, unknown>
+): string {
+  const input = request.input;
+  const lines = [
+    `Missao: ${request.missionType}`,
+    `Disciplina: ${input.discipline ?? input.subject ?? ""}`,
+    `Serie/ano: ${input.gradeYear ?? input.yearGrade ?? ""}`,
+    `Habilidade: ${input.skill ?? ""}`,
+    `Objeto de conhecimento: ${input.knowledgeObject ?? ""}`,
+    `Tema: ${input.theme ?? ""}`,
+    `Objetivo: ${plan.objectives.join("; ")}`,
+    `Necessidade especifica: ${input.specificNeed ?? ""}`,
+    `Como aprende melhor: ${input.learningPreference ?? ""}`,
+    `Nivel de leitura/escrita: ${input.readingWritingLevel ?? ""}`,
+    `Recursos disponiveis: ${input.availableResources?.join(", ") ?? ""}`,
+    `Produto esperado: ${plan.expectedOutputs.join("; ")}`,
+    `Completude do contexto: ${context.completeness}`,
+    `Restricoes: ${plan.methodologicalConstraints.join("; ")}`,
+    `Validacao: ${plan.validationCriteria.join("; ")}`,
+    `Atividades: ${normalizeStringArray(plan.adaptedActivities, []).join("; ")}`,
+    `Relatorio: ${normalizeStringArray(plan.teacherReport, []).join("; ")}`
+  ];
+
+  return lines.filter((line) => !line.endsWith(": ")).join("\n");
+}
+
+function buildVersionText(contentJson: Record<string, unknown>): string {
+  return [
+    `Objetivo: ${normalizeStringArray(contentJson.objectives, []).join("; ")}`,
+    `Produto esperado: ${normalizeStringArray(contentJson.expectedOutputs, []).join("; ")}`,
+    `Restricoes: ${normalizeStringArray(contentJson.methodologicalConstraints, []).join("; ")}`,
+    `Validacao: ${normalizeStringArray(contentJson.validationCriteria, []).join("; ")}`
+  ]
+    .filter((line) => !line.endsWith(": "))
+    .join("\n");
+}
+
+function resolveTitle(request: CreateMissionRequest): string {
+  const prefix =
+    request.missionType === "ADAPT_ACTIVITY"
+      ? "Atividade adaptada"
+      : "Planejamento inclusivo";
+
+  return request.input.theme ? `${prefix}: ${request.input.theme}` : prefix;
+}
+
+function normalizeStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  const parsed = JSON.parse(value) as unknown;
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("Resposta da OpenAI nao e um objeto JSON.");
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function extractOutputText(output: unknown): string | undefined {
+  if (!Array.isArray(output)) {
+    return undefined;
+  }
+
+  return output
+    .flatMap((item) =>
+      isRecord(item) && Array.isArray(item.content) ? item.content : []
+    )
+    .map((content) =>
+      isRecord(content) && typeof content.text === "string" ? content.text : ""
+    )
+    .filter(Boolean)
+    .join("\n");
+}
+
+function matches(value: string | undefined, filter: string | undefined): boolean {
+  return filter
+    ? normalizeComparable(value).includes(normalizeComparable(filter))
+    : true;
+}
+
+function normalizeText(value: string | undefined): string | undefined {
+  const normalized = value?.trim().replace(/\s+/g, " ");
+
+  return normalized ? normalized : undefined;
+}
+
+function normalizeComparable(value: string | undefined): string {
+  return normalizeText(value)
+    ?.normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR") ?? "";
+}
+
+function tag(prefix: string, value: string | undefined): string | undefined {
+  return value ? `${prefix}:${normalizeComparable(value)}` : undefined;
+}
+
+function uniqueTags(tags: Array<string | undefined>): string[] {
+  return [...new Set(tags.filter((item): item is string => Boolean(item)))];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

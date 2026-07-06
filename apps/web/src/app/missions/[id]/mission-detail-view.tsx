@@ -59,7 +59,7 @@ export function MissionDetailView({
       try {
         setError(null);
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333"}/missions/${missionId}?organizationId=${organizationId}`
+          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions/${missionId}?organizationId=${organizationId}`
         );
 
         if (!response.ok) {
@@ -97,7 +97,7 @@ export function MissionDetailView({
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333"}/resources/${resource.id}/versions`,
+        `${process.env.NEXT_PUBLIC_API_URL || "/api"}/resources/${resource.id}/versions`,
         {
           method: "POST",
           headers: {

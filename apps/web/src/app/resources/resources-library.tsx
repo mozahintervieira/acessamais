@@ -66,7 +66,7 @@ export function ResourcesLibrary(): React.ReactElement {
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333"}/resources?${params.toString()}`
+        `${process.env.NEXT_PUBLIC_API_URL || "/api"}/resources?${params.toString()}`
       );
 
       if (!response.ok) {
