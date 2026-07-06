@@ -21,6 +21,12 @@ type MissionDetail = {
         expectedOutputs?: string[];
         methodologicalConstraints?: string[];
         validationCriteria?: string[];
+        lessonFlow?: string[];
+        adaptedActivities?: string[];
+        accessibilitySupports?: string[];
+        assessment?: string[];
+        teacherReport?: string[];
+        reuseSuggestions?: string[];
       };
       contentText: string;
       validationStatus: string;
@@ -142,11 +148,11 @@ export function MissionDetailView({
   return (
     <main className="missionShell">
       <section className="missionIntro">
-        <p className="eyebrow">Detalhe da missao</p>
+        <p className="eyebrow">Editor de documento</p>
         <h1>{resource?.title ?? "Missao salva"}</h1>
         <p className="lead">
-          Revise a versao atual, edite campos estruturados e salve uma nova
-          versao preservando todo o historico do recurso.
+          Revise o material gerado, ajuste a linguagem pedagogica e salve uma
+          nova versao sem perder o historico.
         </p>
         <div className="actionRow">
           <a className="textLink" href="/missions">
@@ -169,14 +175,14 @@ export function MissionDetailView({
       {mission && resource && version ? (
         <section className="missionDetailGrid">
           <aside className="resultPanel">
-            <p className="resultStatus">Status da missao: {mission.status}</p>
-            <ResultBlock title="Missao">
+            <p className="resultStatus">Status: {mission.status}</p>
+            <ResultBlock title="Documento">
               <div className="detailFacts">
                 <span>{mission.missionType}</span>
                 <span>{new Date(mission.createdAt).toLocaleString("pt-BR")}</span>
               </div>
             </ResultBlock>
-            <ResultBlock title="Entrada do professor">
+            <ResultBlock title="Dados usados na geracao">
               <dl className="inputList">
                 {Object.entries(mission.input).map(([key, value]) => (
                   <div key={key}>
@@ -214,16 +220,34 @@ export function MissionDetailView({
             </ResultBlock>
           </aside>
 
-          <section className="resultPanel">
+          <section className="editorPanel">
             <div className="panelHeader">
               <div>
                 <p className="panelLabel">Versao atual</p>
-                <h2>Planejamento salvo</h2>
+                <h2>Documento profissional</h2>
               </div>
               <span className="countBadge">v{version.versionNumber}</span>
             </div>
+            <article className="documentPaper savedDocument">
+              <p className="documentKicker">ACESSA+ | Material pedagogico inclusivo</p>
+              <h2>{resource.title}</h2>
+              <div className="documentMeta">
+                <span>{String(mission.input.discipline ?? "Disciplina")}</span>
+                <span>{String(mission.input.gradeYear ?? "Serie/ano")}</span>
+                <span>{String(mission.input.specificNeed ?? "Acessibilidade")}</span>
+              </div>
+              <ReadOnlySection title="Percurso da aula" items={version.contentJson.lessonFlow ?? []} />
+              <ReadOnlySection title="Atividades e adaptacoes" items={version.contentJson.adaptedActivities ?? []} />
+              <ReadOnlySection title="Apoios de acessibilidade" items={version.contentJson.accessibilitySupports ?? []} />
+              <ReadOnlySection title="Avaliacao" items={version.contentJson.assessment ?? []} />
+              <ReadOnlySection title="Relatorio ao professor" items={version.contentJson.teacherReport ?? []} />
+            </article>
             {editablePlan ? (
-              <div className="editorGrid">
+              <div className="editorGrid editSurface">
+                <div>
+                  <p className="panelLabel">Campos editaveis</p>
+                  <h3>Revisao estruturada</h3>
+                </div>
                 <EditableList
                   label="Objetivos"
                   value={editablePlan.objectives}
@@ -331,6 +355,29 @@ function ResultBlock({
     <section className="resultBlock">
       <h3>{title}</h3>
       {children}
+    </section>
+  );
+}
+
+function ReadOnlySection({
+  title,
+  items
+}: {
+  title: string;
+  items: string[];
+}): React.ReactElement | null {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="documentSection">
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </section>
   );
 }

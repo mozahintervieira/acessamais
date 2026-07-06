@@ -3,10 +3,10 @@
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/planning/new", label: "Nova missao" },
-  { href: "/missions", label: "Missoes" },
+  { href: "/planning/new", label: "Criar" },
+  { href: "/missions", label: "Documentos" },
   { href: "/resources", label: "Banco Inteligente" },
-  { href: "/resources#recursos", label: "Recursos" }
+  { href: "/resources#recursos", label: "Acervo" }
 ];
 
 export function AppNavigation(): React.ReactElement {

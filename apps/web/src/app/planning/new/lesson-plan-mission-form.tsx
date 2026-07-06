@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { CreateMissionRequest } from "@acessa-plus/types";
+import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
+
+type TaskKey = "lesson" | "activity" | "report";
+type StepKey = "essentials" | "learning" | "output";
 
 type MissionResult = {
   missionId: string;
@@ -13,16 +16,18 @@ type MissionResult = {
     detectedSignals: string[];
     missingFields: string[];
   };
-  decision: {
-    stages: Record<string, string[]>;
-    warnings: string[];
-  };
   pedagogicalPlan: {
     objectives: string[];
     expectedOutputs: string[];
     methodologicalConstraints: string[];
     validationCriteria: string[];
     warnings: string[];
+    lessonFlow?: string[];
+    adaptedActivities?: string[];
+    accessibilitySupports?: string[];
+    assessment?: string[];
+    teacherReport?: string[];
+    reuseSuggestions?: string[];
     protocolApplications: Array<{
       knowledgeId: string;
       knowledgeVersion: string;
@@ -45,6 +50,58 @@ type FormState = {
   expectedProductType: string;
 };
 
+const taskOptions: Array<{
+  key: TaskKey;
+  title: string;
+  label: string;
+  description: string;
+  product: string;
+  missionType: MissionType;
+}> = [
+  {
+    key: "lesson",
+    label: "Planejamento",
+    title: "Plano de aula inclusivo",
+    description: "Para sair com objetivo, percurso, acessibilidade e avaliacao.",
+    product: "Plano de aula inclusivo",
+    missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "activity",
+    label: "Atividade",
+    title: "Atividade adaptada",
+    description: "Para gerar comandos, apoios, recursos e evidencias de aprendizagem.",
+    product: "Atividade adaptada com orientacoes ao professor",
+    missionType: "ADAPT_ACTIVITY"
+  },
+  {
+    key: "report",
+    label: "Relatorio",
+    title: "Relatorio pedagogico de apoio",
+    description: "Para registrar objetivos, apoios utilizados e criterios de acompanhamento.",
+    product: "Relatorio pedagogico com plano de acompanhamento",
+    missionType: "CREATE_LESSON_PLAN"
+  }
+];
+
+const steps: Array<{ key: StepKey; title: string; description: string }> = [
+  {
+    key: "essentials",
+    title: "1. Essencial",
+    description: "O minimo para entender a tarefa."
+  },
+  {
+    key: "learning",
+    title: "2. Aprendizagem",
+    description: "Como tornar o material acessivel."
+  },
+  {
+    key: "output",
+    title: "3. Documento",
+    description: "O que sera entregue ao professor."
+  }
+];
+
 const initialState: FormState = {
   discipline: "Lingua Portuguesa",
   gradeYear: "5 ano",
@@ -61,9 +118,14 @@ const initialState: FormState = {
 
 export function LessonPlanMissionForm(): React.ReactElement {
   const [form, setForm] = useState<FormState>(initialState);
+  const [selectedTask, setSelectedTask] = useState<TaskKey>("lesson");
+  const [activeStep, setActiveStep] = useState<StepKey>("essentials");
   const [result, setResult] = useState<MissionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const task =
+    taskOptions.find((option) => option.key === selectedTask) ?? taskOptions[0]!;
 
   async function submitMission(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,9 +136,11 @@ export function LessonPlanMissionForm(): React.ReactElement {
     const request: CreateMissionRequest = {
       userId: "demo-teacher",
       organizationId: "demo-organization",
-      missionType: "CREATE_LESSON_PLAN",
+      missionType: task.missionType,
       input: {
         ...form,
+        expectedProductType: task.product,
+        contextNotes: `Tarefa escolhida: ${task.title}`,
         availableResources: form.availableResources
           .split(",")
           .map((resource) => resource.trim())
@@ -97,7 +161,11 @@ export function LessonPlanMissionForm(): React.ReactElement {
       );
 
       if (!response.ok) {
-        throw new Error("Nao foi possivel executar a missao.");
+        const payload = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+
+        throw new Error(payload?.message ?? "Nao foi possivel gerar o documento.");
       }
 
       setResult((await response.json()) as MissionResult);
@@ -105,10 +173,22 @@ export function LessonPlanMissionForm(): React.ReactElement {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Erro inesperado ao executar a missao."
+          : "Erro inesperado ao gerar documento."
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function selectTask(nextTask: TaskKey): void {
+    const option = taskOptions.find((item) => item.key === nextTask);
+
+    setSelectedTask(nextTask);
+    if (option) {
+      setForm((current) => ({
+        ...current,
+        expectedProductType: option.product
+      }));
     }
   }
 
@@ -120,126 +200,132 @@ export function LessonPlanMissionForm(): React.ReactElement {
   }
 
   return (
-    <main className="missionShell">
-      <section className="missionIntro">
-        <p className="eyebrow">Nova missao</p>
-        <h1>Criar planejamento inclusivo</h1>
+    <main className="missionShell creatorShell">
+      <section className="missionIntro creatorIntro">
+        <p className="eyebrow">Estudio pedagogico</p>
+        <h1>O que deseja criar hoje?</h1>
         <p className="lead">
-          Informe os dados que voce ja conhece sobre a aula e sobre a forma de
-          aprendizagem do estudante. O ACESSA+ organiza a missao sem exigir
-          prompt engineering.
+          Escolha a tarefa, informe o essencial e receba um documento
+          profissional para revisar, salvar e reutilizar.
         </p>
       </section>
 
-      <section className="missionLayout">
-        <form className="guidedForm" onSubmit={submitMission}>
-          <FormSection
-            title="1. Contexto pedagogico"
-            description="Dados curriculares que preservam a intencao da aula."
-          >
-            <Field
-              label="Disciplina"
-              value={form.discipline}
-              onChange={(value) => updateField("discipline", value)}
-            />
-            <Field
-              label="Serie/ano"
-              value={form.gradeYear}
-              onChange={(value) => updateField("gradeYear", value)}
-            />
-            <Field
-              label="Objeto de conhecimento"
-              value={form.knowledgeObject}
-              onChange={(value) => updateField("knowledgeObject", value)}
-            />
-            <Field
-              label="Tema"
-              value={form.theme}
-              onChange={(value) => updateField("theme", value)}
-            />
-            <TextArea
-              label="Habilidade"
-              value={form.skill}
-              onChange={(value) => updateField("skill", value)}
-            />
-          </FormSection>
+      <section className="creatorLayout">
+        <form className="creatorPanel" onSubmit={submitMission}>
+          <section className="taskChooser" aria-label="Escolha da tarefa">
+            {taskOptions.map((option) => (
+              <button
+                className={
+                  option.key === selectedTask ? "taskChoice active" : "taskChoice"
+                }
+                key={option.key}
+                type="button"
+                onClick={() => selectTask(option.key)}
+              >
+                <span>{option.label}</span>
+                <strong>{option.title}</strong>
+                <small>{option.description}</small>
+              </button>
+            ))}
+          </section>
 
-          <FormSection
-            title="2. Objetivo da aula"
-            description="O que o estudante deve aprender ou demonstrar ao final."
-          >
-            <TextArea
-              label="Objetivo da aula"
-              value={form.lessonObjective}
-              onChange={(value) => updateField("lessonObjective", value)}
-            />
-          </FormSection>
+          <nav className="stepNav" aria-label="Etapas do documento">
+            {steps.map((step) => (
+              <button
+                className={step.key === activeStep ? "stepPill active" : "stepPill"}
+                key={step.key}
+                type="button"
+                onClick={() => setActiveStep(step.key)}
+              >
+                <strong>{step.title}</strong>
+                <span>{step.description}</span>
+              </button>
+            ))}
+          </nav>
 
-          <FormSection
-            title="3. Acessibilidade e restricoes"
-            description="Informacoes pedagogicas para personalizacao sem criar perfil medico."
-          >
-            <Field
-              label="Deficiencia/necessidade especifica"
-              value={form.specificNeed}
-              onChange={(value) => updateField("specificNeed", value)}
-            />
-            <Field
-              label="Nivel de leitura/escrita"
-              value={form.readingWritingLevel}
-              onChange={(value) => updateField("readingWritingLevel", value)}
-            />
-            <TextArea
-              label="Como o estudante aprende melhor"
-              value={form.learningPreference}
-              onChange={(value) => updateField("learningPreference", value)}
-            />
-          </FormSection>
+          <section className="formStage">
+            {activeStep === "essentials" ? (
+              <>
+                <Field
+                  label="Disciplina"
+                  value={form.discipline}
+                  onChange={(value) => updateField("discipline", value)}
+                />
+                <Field
+                  label="Serie/ano"
+                  value={form.gradeYear}
+                  onChange={(value) => updateField("gradeYear", value)}
+                />
+                <Field
+                  label="Tema da aula ou material"
+                  value={form.theme}
+                  onChange={(value) => updateField("theme", value)}
+                />
+                <Field
+                  label="Necessidade pedagogica"
+                  value={form.specificNeed}
+                  onChange={(value) => updateField("specificNeed", value)}
+                />
+              </>
+            ) : null}
 
-          <FormSection
-            title="4. Produto esperado"
-            description="Recursos disponiveis e formato que o professor precisa receber."
-          >
-            <Field
-              label="Recursos disponiveis"
-              value={form.availableResources}
-              onChange={(value) => updateField("availableResources", value)}
-            />
-            <Field
-              label="Tipo de produto esperado"
-              value={form.expectedProductType}
-              onChange={(value) => updateField("expectedProductType", value)}
-            />
-          </FormSection>
+            {activeStep === "learning" ? (
+              <>
+                <TextArea
+                  label="Objetivo de aprendizagem"
+                  value={form.lessonObjective}
+                  onChange={(value) => updateField("lessonObjective", value)}
+                />
+                <TextArea
+                  label="Como o estudante aprende melhor"
+                  value={form.learningPreference}
+                  onChange={(value) => updateField("learningPreference", value)}
+                />
+                <Field
+                  label="Nivel de leitura/escrita"
+                  value={form.readingWritingLevel}
+                  onChange={(value) => updateField("readingWritingLevel", value)}
+                />
+              </>
+            ) : null}
 
-          <button className="primaryButton" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Executando missao..." : "Gerar planejamento"}
-          </button>
+            {activeStep === "output" ? (
+              <>
+                <TextArea
+                  label="Habilidade ou descritor"
+                  value={form.skill}
+                  onChange={(value) => updateField("skill", value)}
+                />
+                <Field
+                  label="Objeto de conhecimento"
+                  value={form.knowledgeObject}
+                  onChange={(value) => updateField("knowledgeObject", value)}
+                />
+                <Field
+                  label="Recursos disponiveis"
+                  value={form.availableResources}
+                  onChange={(value) => updateField("availableResources", value)}
+                />
+              </>
+            ) : null}
+          </section>
+
+          <div className="formCommandBar">
+            <div>
+              <span>Entrega selecionada</span>
+              <strong>{task.product}</strong>
+            </div>
+            <button className="primaryButton" disabled={isSubmitting} type="submit">
+              {isSubmitting ? "Gerando documento..." : "Gerar documento"}
+            </button>
+          </div>
 
           {error ? <p className="formError">{error}</p> : null}
         </form>
 
-        <MissionResultPanel result={result} />
+        <MissionResultPanel form={form} result={result} taskTitle={task.title} />
       </section>
     </main>
-  );
-}
-
-function FormSection({
-  title,
-  description,
-  children
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <fieldset className="formSection">
-      <legend>{title}</legend>
-      <p>{description}</p>
-      <div className="sectionGrid">{children}</div>
-    </fieldset>
   );
 }
 
@@ -276,7 +362,7 @@ function TextArea({
     <label className="field fieldWide">
       <span>{label}</span>
       <textarea
-        rows={3}
+        rows={4}
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
       />
@@ -285,89 +371,110 @@ function TextArea({
 }
 
 function MissionResultPanel({
-  result
+  form,
+  result,
+  taskTitle
 }: {
+  form: FormState;
   result: MissionResult | null;
+  taskTitle: string;
 }): React.ReactElement {
   if (!result) {
     return (
-      <aside className="resultPanel">
-        <p className="panelLabel">Previa da missao</p>
-        <h2>Resultado estruturado</h2>
-        <p className="emptyState">
-          O planejamento aparecera aqui apos a execucao. Ele tambem sera salvo
-          como Resource e ResourceVersion para revisao e reutilizacao.
-        </p>
+      <aside className="documentPreview emptyDocument">
+        <div className="documentToolbar">
+          <span>Previa do documento</span>
+          <b>Rascunho</b>
+        </div>
+        <article className="documentPaper">
+          <p className="documentKicker">ACESSA+</p>
+          <h2>{taskTitle}</h2>
+          <div className="documentMeta">
+            <span>{form.discipline}</span>
+            <span>{form.gradeYear}</span>
+            <span>{form.specificNeed}</span>
+          </div>
+          <p>
+            Ao gerar, o documento aparecera aqui com estrutura profissional,
+            secoes pedagogicas e link para revisao da versao salva.
+          </p>
+        </article>
       </aside>
     );
   }
 
+  const plan = result.pedagogicalPlan;
+
   return (
-    <aside className="resultPanel" aria-live="polite">
-      <p className="resultStatus">Missao {result.status}</p>
-      <h2>Plano estruturado</h2>
-      <a className="textLink" href={`/missions/${result.missionId}`}>
-        Abrir missao salva
-      </a>
+    <aside className="documentPreview" aria-live="polite">
+      <div className="documentToolbar">
+        <span>Documento gerado</span>
+        <b>{result.status}</b>
+      </div>
+      <article className="documentPaper">
+        <p className="documentKicker">ACESSA+ | Inteligencia Inclusiva</p>
+        <h2>{taskTitle}</h2>
+        <div className="documentMeta">
+          <span>{form.discipline}</span>
+          <span>{form.gradeYear}</span>
+          <span>{form.specificNeed}</span>
+        </div>
 
-      <ResultBlock title="Contexto">
-        <p>Completude: {result.context.completeness}</p>
-        <List items={result.context.detectedSignals} />
-      </ResultBlock>
-
-      <ResultBlock title="Objetivo">
-        <List items={result.pedagogicalPlan.objectives} />
-      </ResultBlock>
-
-      <ResultBlock title="Restricoes">
-        <List items={result.pedagogicalPlan.methodologicalConstraints} />
-      </ResultBlock>
-
-      <ResultBlock title="Produto esperado">
-        <List items={result.pedagogicalPlan.expectedOutputs} />
-      </ResultBlock>
-
-      <ResultBlock title="Validacao">
-        <List items={result.pedagogicalPlan.validationCriteria} />
-      </ResultBlock>
-
-      <ResultBlock title="Conhecimentos aplicados">
-        <List
-          items={result.pedagogicalPlan.protocolApplications.map(
-            (application) =>
-              `${application.knowledgeId}@${application.knowledgeVersion} (${application.knowledgeType})`
-          )}
+        <DocumentSection title="Objetivo" items={plan.objectives} />
+        <DocumentSection title="Percurso da aula" items={plan.lessonFlow ?? []} />
+        <DocumentSection
+          title="Atividades e adaptacoes"
+          items={plan.adaptedActivities ?? []}
         />
-      </ResultBlock>
+        <DocumentSection
+          title="Apoios de acessibilidade"
+          items={plan.accessibilitySupports ?? []}
+        />
+        <DocumentSection title="Avaliacao" items={plan.assessment ?? []} />
+        <DocumentSection
+          title="Relatorio ao professor"
+          items={plan.teacherReport ?? []}
+        />
+        <DocumentSection
+          title="Criterios de validacao"
+          items={plan.validationCriteria}
+        />
+
+        <footer className="documentFooter">
+          <a className="primaryLink" href={`/missions/${result.missionId}`}>
+            Abrir editor do documento
+          </a>
+          <span>ResourceVersion salva: {result.versionId.slice(0, 18)}</span>
+        </footer>
+      </article>
     </aside>
   );
 }
 
-function ResultBlock({
+function DocumentSection({
   title,
-  children
+  items
 }: {
   title: string;
-  children: React.ReactNode;
+  items: string[];
 }): React.ReactElement {
-  return (
-    <section className="resultBlock">
-      <h3>{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function List({ items }: { items: string[] }): React.ReactElement {
   if (items.length === 0) {
-    return <p>Nenhum item registrado.</p>;
+    return (
+      <section className="documentSection">
+        <h3>{title}</h3>
+        <p>Secao pronta para revisao do professor.</p>
+      </section>
+    );
   }
 
   return (
-    <ul>
-      {items.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
-    </ul>
+    <section className="documentSection">
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -1,78 +1,83 @@
-const workCards = [
+const taskCards = [
   {
     href: "/planning/new",
-    label: "Nova missao",
-    title: "Criar planejamento inclusivo",
-    text: "Preencha um formulario guiado e gere um planejamento com contexto, objetivo, restricoes e produto esperado."
+    label: "Planejamento",
+    title: "Criar uma aula inclusiva",
+    text: "Transforme objetivo, habilidade e necessidade pedagogica em um documento pronto para revisar e usar.",
+    action: "Comecar planejamento"
   },
   {
-    href: "/missions",
-    label: "Missoes",
-    title: "Retomar o que ja foi criado",
-    text: "Acesse missoes salvas, revise o planejamento e acompanhe o recurso gerado."
+    href: "/planning/new?task=activity",
+    label: "Atividade",
+    title: "Gerar atividade adaptada",
+    text: "Produza uma proposta acessivel com comandos claros, apoios, avaliacao e sugestoes de reutilizacao.",
+    action: "Criar atividade"
   },
   {
     href: "/resources",
-    label: "Banco Inteligente",
-    title: "Reutilizar recursos qualificados",
-    text: "Busque recursos por texto, disciplina, serie, habilidade e necessidade especifica."
+    label: "Acervo",
+    title: "Reutilizar materiais salvos",
+    text: "Recupere recursos por disciplina, serie, habilidade, necessidade ou trecho do conteudo.",
+    action: "Abrir Banco Inteligente"
   }
 ];
 
-const foundationSignals = [
-  "Missao CREATE_LESSON_PLAN ativa",
-  "Resource e ResourceVersion preservam historico",
-  "Busca simples em contentText",
-  "Sem IA externa no MVP atual"
+const valueSignals = [
+  "Documento profissional para banca",
+  "Gera planejamento, atividade, adaptacao e relatorio",
+  "Preserva versoes para revisao",
+  "Preparado para religar o backend NestJS"
 ];
 
 export default function HomePage(): React.ReactElement {
   return (
     <main className="homeShell">
-      <section className="homeHero" aria-labelledby="page-title">
+      <section className="homeHero evaluatorHero" aria-labelledby="page-title">
         <div>
-          <p className="eyebrow">ACESSA+ em operacao inicial</p>
-          <h1 id="page-title">Planeje, revise e reutilize materiais inclusivos.</h1>
+          <p className="eyebrow">ACESSA+ MVP demonstravel</p>
+          <h1 id="page-title">O que deseja criar hoje?</h1>
           <p className="lead">
-            A primeira versao funcional reduz o tempo do professor para criar
-            planejamentos inclusivos, preservar versoes e transformar cada
-            recurso salvo em conhecimento reutilizavel.
+            Uma plataforma web para professores planejarem, adaptarem e
+            reutilizarem materiais inclusivos com apoio de inteligencia
+            pedagogica, acessibilidade e versionamento.
           </p>
-          <div className="actionRow">
-            <a className="primaryLink" href="/planning/new">
-              Criar nova missao
-            </a>
-            <a className="textLink" href="/resources">
-              Buscar no Banco Inteligente
-            </a>
+          <div className="signalRow" aria-label="Diferenciais do MVP">
+            {valueSignals.map((signal) => (
+              <span key={signal}>{signal}</span>
+            ))}
           </div>
         </div>
 
-        <aside className="homeStatus" aria-label="Estado atual da plataforma">
-          <strong>Fluxo atual</strong>
+        <aside className="homeStatus evaluatorStatus" aria-label="Fluxo de trabalho">
+          <strong>Fluxo de demonstracao</strong>
           <ol>
-            <li>Professor informa dados pedagogicos.</li>
-            <li>ACESSA+ executa a missao.</li>
-            <li>Planejamento vira recurso versionado.</li>
-            <li>Banco Inteligente permite reutilizacao.</li>
+            <li>Escolha uma tarefa pedagogica.</li>
+            <li>Informe apenas o essencial no inicio.</li>
+            <li>Receba um documento profissional editavel.</li>
+            <li>Salve versoes e reutilize no Banco Inteligente.</li>
           </ol>
         </aside>
       </section>
 
-      <section className="workGrid" aria-label="Acoes principais">
-        {workCards.map((card) => (
-          <a className="workCard" href={card.href} key={card.href}>
+      <section className="taskBoard" aria-label="Tarefas principais">
+        {taskCards.map((card) => (
+          <a className="taskCard" href={card.href} key={card.href}>
             <span>{card.label}</span>
             <strong>{card.title}</strong>
             <p>{card.text}</p>
+            <b>{card.action}</b>
           </a>
         ))}
       </section>
 
-      <section className="foundationStrip" aria-label="Fundacao preservada">
-        {foundationSignals.map((signal) => (
-          <span key={signal}>{signal}</span>
-        ))}
+      <section className="demoStrip" aria-label="Estado do produto">
+        <div>
+          <p className="panelLabel">Produto em producao</p>
+          <h2>Pronto para avaliacao, demonstracao e captacao.</h2>
+        </div>
+        <a className="primaryLink" href="/planning/new">
+          Criar primeiro documento
+        </a>
       </section>
     </main>
   );
