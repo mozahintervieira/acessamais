@@ -35,6 +35,13 @@ type MissionResult = {
   pedagogicalPlan: WorksheetPlan;
 };
 
+type AdaptationState = {
+  enabled: boolean;
+  targetAudience: string;
+  learningProfile: string;
+  supports: string[];
+};
+
 const defaultPrompt =
   "Crie uma atividade de Matematica para estudante com Deficiencia Intelectual sobre equacoes do primeiro grau usando a habilidade BNCC EM13MAT401. Gere uma folha A4 pronta para imprimir.";
 
@@ -81,6 +88,41 @@ const quickSuggestions = [
   }
 ];
 
+const targetAudienceOptions = [
+  "Deficiencia Intelectual",
+  "TEA",
+  "Deficiencia Visual",
+  "Deficiencia Auditiva",
+  "TDAH",
+  "Altas Habilidades/Superdotacao",
+  "Multiplas Deficiencias",
+  "CAA",
+  "Libras",
+  "Braille"
+];
+
+const learningProfileOptions = [
+  "Pre-leitor",
+  "Leitor inicial",
+  "Leitor em desenvolvimento",
+  "Leitor funcional",
+  "Consolidacao"
+];
+
+const supportOptions = [
+  "Fonte ampliada",
+  "Alto contraste",
+  "Imagens/pictogramas",
+  "Exemplo resolvido",
+  "Frases curtas",
+  "Espaco ampliado para resposta",
+  "Respostas por marcacao",
+  "CAA",
+  "Libras",
+  "Braille",
+  "Material tatil"
+];
+
 const adaptationOptions = ["DI", "TEA", "DV", "DA", "TDAH", "AH/SD", "Libras", "Braille", "CAA"];
 
 export function InstantResourceStudio(): React.ReactElement {
@@ -93,6 +135,12 @@ export function InstantResourceStudio(): React.ReactElement {
   const [isEditing, setIsEditing] = useState(false);
   const [showAdaptations, setShowAdaptations] = useState(false);
   const [followUp, setFollowUp] = useState<string | null>(null);
+  const [adaptation, setAdaptation] = useState<AdaptationState>({
+    enabled: true,
+    targetAudience: "Deficiencia Intelectual",
+    learningProfile: "Leitor inicial",
+    supports: ["Imagens/pictogramas", "Exemplo resolvido", "Frases curtas"]
+  });
 
   const activePlan = editablePlan ?? result?.pedagogicalPlan ?? null;
   const canExport = Boolean(activePlan);
@@ -111,16 +159,35 @@ export function InstantResourceStudio(): React.ReactElement {
     setFollowUp(null);
     setIsGenerating(true);
 
+    const adaptationSummary = buildAdaptationSummary(adaptation);
     const request: CreateMissionRequest = {
       userId: "demo-teacher",
       organizationId: "demo-organization",
-      missionType,
+      missionType: adaptation.enabled ? "ADAPT_ACTIVITY" : missionType,
       input: {
         rawPrompt: trimmedPrompt,
+        specificNeed: adaptation.enabled ? adaptation.targetAudience : undefined,
+        readingWritingLevel: adaptation.enabled ? adaptation.learningProfile : undefined,
+        learningPreference: adaptation.enabled
+          ? `Perfil Inteligente de Adaptacao: ${adaptationSummary}`
+          : undefined,
+        accessibilityNeeds: adaptation.enabled
+          ? [adaptation.targetAudience, adaptation.learningProfile, ...adaptation.supports]
+          : undefined,
+        adaptationProfile: adaptation.enabled
+          ? {
+              enabled: true,
+              targetAudience: adaptation.targetAudience,
+              learningProfile: adaptation.learningProfile,
+              supports: adaptation.supports
+            }
+          : { enabled: false },
         expectedProductType: "Recurso pedagogico pronto para uso",
         outputFormat: "A4 pronto para impressao",
         contextNotes:
-          "Interpretar a solicitacao em linguagem natural e gerar um recurso pedagogico completo, visualmente organizado, pronto para sala de aula e com qualidade editorial."
+          adaptation.enabled
+            ? `Interpretar a solicitacao em linguagem natural e gerar um recurso pedagogico completo, visualmente organizado, pronto para sala de aula e com qualidade editorial. Usar Perfil Inteligente de Adaptacao: ${adaptationSummary}.`
+            : "Interpretar a solicitacao em linguagem natural e gerar um recurso pedagogico completo, visualmente organizado, pronto para sala de aula e com qualidade editorial."
       }
     };
 
@@ -157,8 +224,22 @@ export function InstantResourceStudio(): React.ReactElement {
 
   function adaptResource(option: string): void {
     const adaptedPrompt = `${prompt}\n\nAdapte automaticamente este recurso para ${option}, preservando o objetivo de aprendizagem, aplicando acessibilidade, DUA, linguagem clara e apoios pedagogicos adequados.`;
+    setAdaptation((current) => ({
+      ...current,
+      enabled: true,
+      targetAudience: resolveTargetAudience(option)
+    }));
     setPrompt(adaptedPrompt);
     void generateResource(adaptedPrompt, "ADAPT_ACTIVITY");
+  }
+
+  function toggleSupport(support: string): void {
+    setAdaptation((current) => ({
+      ...current,
+      supports: current.supports.includes(support)
+        ? current.supports.filter((item) => item !== support)
+        : [...current.supports, support]
+    }));
   }
 
   function copyResource(): void {
@@ -250,6 +331,58 @@ export function InstantResourceStudio(): React.ReactElement {
           <span>Folha A4 organizada</span>
           <span>Adaptacao inclusiva</span>
         </div>
+
+        <section className="adaptationComposer" aria-label="Perfil Inteligente de Adaptacao">
+          <div className="adaptationQuestion">
+            <div>
+              <strong>Esta atividade sera adaptada?</strong>
+              <span>Use controles rapidos quando precisar de acessibilidade especifica.</span>
+            </div>
+            <div className="segmentedControl" role="group" aria-label="Escolher se a atividade sera adaptada">
+              <button
+                className={!adaptation.enabled ? "active" : undefined}
+                type="button"
+                onClick={() => setAdaptation((current) => ({ ...current, enabled: false }))}
+              >
+                Nao
+              </button>
+              <button
+                className={adaptation.enabled ? "active" : undefined}
+                type="button"
+                onClick={() => setAdaptation((current) => ({ ...current, enabled: true }))}
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+
+          {adaptation.enabled ? (
+            <div className="adaptationPanel">
+              <ChipGroup
+                label="Publico-alvo/necessidade especifica"
+                options={targetAudienceOptions}
+                selected={adaptation.targetAudience}
+                onSelect={(value) =>
+                  setAdaptation((current) => ({ ...current, targetAudience: value }))
+                }
+              />
+              <ChipGroup
+                label="Perfil de aprendizagem"
+                options={learningProfileOptions}
+                selected={adaptation.learningProfile}
+                onSelect={(value) =>
+                  setAdaptation((current) => ({ ...current, learningProfile: value }))
+                }
+              />
+              <MultiChipGroup
+                label="Apoios necessarios"
+                options={supportOptions}
+                selected={adaptation.supports}
+                onToggle={toggleSupport}
+              />
+            </div>
+          ) : null}
+        </section>
 
         {followUp ? <p className="followUpQuestion">{followUp}</p> : null}
 
@@ -434,6 +567,66 @@ function EmptyPreview({ isGenerating }: { isGenerating: boolean }): React.ReactE
   );
 }
 
+function ChipGroup({
+  label,
+  options,
+  selected,
+  onSelect
+}: {
+  label: string;
+  options: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+}): React.ReactElement {
+  return (
+    <div className="chipGroup">
+      <strong>{label}</strong>
+      <div>
+        {options.map((option) => (
+          <button
+            className={selected === option ? "active" : undefined}
+            key={option}
+            type="button"
+            onClick={() => onSelect(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MultiChipGroup({
+  label,
+  options,
+  selected,
+  onToggle
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+}): React.ReactElement {
+  return (
+    <div className="chipGroup">
+      <strong>{label}</strong>
+      <div>
+        {options.map((option) => (
+          <button
+            className={selected.includes(option) ? "active" : undefined}
+            key={option}
+            type="button"
+            onClick={() => onToggle(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
   const questions =
     plan.questions && plan.questions.length > 0
@@ -593,4 +786,32 @@ function buildCopyText(plan: WorksheetPlan): string {
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function buildAdaptationSummary(adaptation: AdaptationState): string {
+  if (!adaptation.enabled) {
+    return "atividade sem adaptacao especifica selecionada";
+  }
+
+  return [
+    `publico-alvo: ${adaptation.targetAudience}`,
+    `perfil de aprendizagem: ${adaptation.learningProfile}`,
+    `apoios: ${adaptation.supports.join(", ") || "sem apoios adicionais selecionados"}`
+  ].join("; ");
+}
+
+function resolveTargetAudience(option: string): string {
+  const map: Record<string, string> = {
+    DI: "Deficiencia Intelectual",
+    TEA: "TEA",
+    DV: "Deficiencia Visual",
+    DA: "Deficiencia Auditiva",
+    TDAH: "TDAH",
+    "AH/SD": "Altas Habilidades/Superdotacao",
+    Libras: "Libras",
+    Braille: "Braille",
+    CAA: "CAA"
+  };
+
+  return map[option] ?? option;
 }

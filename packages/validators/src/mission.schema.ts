@@ -7,6 +7,14 @@ export const missionTypeSchema = z.enum([
 
 export const missionInputSchema = z.object({
   rawPrompt: z.string().min(1).optional(),
+  adaptationProfile: z
+    .object({
+      enabled: z.boolean(),
+      targetAudience: z.string().min(1).optional(),
+      learningProfile: z.string().min(1).optional(),
+      supports: z.array(z.string().min(1)).optional()
+    })
+    .optional(),
   discipline: z.string().min(1).optional(),
   gradeYear: z.string().min(1).optional(),
   skill: z.string().min(1).optional(),

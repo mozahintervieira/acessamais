@@ -410,9 +410,9 @@ async function generatePedagogicalPlan(
     ]),
     adaptationNotes: normalizeStringArray(
       generated.adaptationNotes,
-      request.input.specificNeed
+      request.input.specificNeed || request.input.adaptationProfile?.enabled
         ? [
-            `Atividade adaptada para ${request.input.specificNeed}, preservando o objetivo de aprendizagem.`,
+            `Adaptacao pedagogica aplicada: ${buildAdaptationProfileText(request.input)}.`,
             "Comandos objetivos, organizacao visual e espacos amplos para resposta."
           ]
         : []
@@ -442,6 +442,7 @@ async function callOpenAI(
   decision: DecisionResult
 ): Promise<Record<string, unknown>> {
   const apiKey = process.env.OPENAI_API_KEY;
+  const adaptationProfile = buildAdaptationProfileText(request.input);
 
   if (!apiKey) {
     throw new Error(
@@ -468,6 +469,17 @@ async function callOpenAI(
           content: JSON.stringify({
             tarefa:
               "Gerar o recurso educacional solicitado pelo professor. Quando o pedido for atividade imprimivel, produzir uma folha A4 pronta para impressao, visualmente organizada e rica em recursos didaticos. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
+            perfilInteligenteDeAdaptacao: adaptationProfile,
+            regrasDeAdaptacao: [
+              "Preservar sempre o objetivo de aprendizagem e a habilidade curricular.",
+              "Para Deficiencia Intelectual: linguagem simples, frases curtas, apoio visual, exemplo resolvido, progressao de dificuldade e poucos comandos por vez.",
+              "Para TEA: rotina visual, previsibilidade, instrucoes objetivas, organizacao por etapas e reducao de ambiguidades.",
+              "Para Deficiencia Visual: fonte ampliada, alto contraste, descricao textual, imagens ampliadas e preparacao para material tatil ou Braille quando solicitado.",
+              "Para Deficiencia Auditiva ou Libras: linguagem visual, comandos objetivos, apoio por imagens e Libras apenas quando houver seguranca.",
+              "Para TDAH: comandos curtos, organizacao em blocos, foco visual, atividades rapidas e progressivas.",
+              "Para Altas Habilidades/Superdotacao: desafios adicionais, investigacao, criacao, autonomia e aprofundamento.",
+              "Para CAA: comandos simples, pictogramas descritos, escolhas por marcacao e formas alternativas de resposta."
+            ],
             contrato: {
               subject: "string com disciplina ou area do conhecimento inferida",
               grade: "string com ano/serie quando informado ou inferido",
@@ -539,9 +551,9 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
     ["knowledgeObject", input.knowledgeObject],
     ["theme", input.theme],
     ["lessonObjective", input.lessonObjective ?? input.objective],
-    ["specificNeed", input.specificNeed],
+    ["specificNeed", input.specificNeed ?? input.adaptationProfile?.targetAudience],
     ["learningPreference", input.learningPreference],
-    ["readingWritingLevel", input.readingWritingLevel],
+    ["readingWritingLevel", input.readingWritingLevel ?? input.adaptationProfile?.learningProfile],
     ["availableResources", input.availableResources?.join(", ")],
     ["expectedProductType", input.expectedProductType],
     ["activityType", input.activityType],
@@ -581,6 +593,9 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
       input.discipline ? `disciplina:${input.discipline}` : undefined,
       input.gradeYear ? `serie:${input.gradeYear}` : undefined,
       input.specificNeed ? `necessidade:${input.specificNeed}` : undefined,
+      input.adaptationProfile?.targetAudience
+        ? `perfil-adaptacao:${input.adaptationProfile.targetAudience}`
+        : undefined,
       input.expectedProductType ? `produto:${input.expectedProductType}` : undefined
     ].filter((item): item is string => Boolean(item)),
     missingFields,
@@ -596,7 +611,8 @@ function resolveDecision(context: ResolvedContext): DecisionResult {
       CONTEXT: [
         `Disciplina: ${input.discipline ?? input.subject ?? "nao informada"}`,
         `Serie/ano: ${input.gradeYear ?? input.yearGrade ?? "nao informado"}`,
-        `Necessidade pedagogica: ${input.specificNeed ?? "nao informada"}`
+        `Necessidade pedagogica: ${input.specificNeed ?? input.adaptationProfile?.targetAudience ?? "nao informada"}`,
+        `Perfil Inteligente de Adaptacao: ${buildAdaptationProfileText(input)}`
       ],
       OBJECTIVE: [input.lessonObjective ?? input.objective ?? "Definir objetivo da aula."],
       CONSTRAINTS: [
@@ -604,7 +620,7 @@ function resolveDecision(context: ResolvedContext): DecisionResult {
         "Aplicar DUA, acessibilidade visual, comandos claros e avaliacao formativa.",
         input.readingWritingLevel
           ? `Considerar nivel de leitura/escrita: ${input.readingWritingLevel}`
-          : "Considerar nivel de leitura/escrita informado pelo professor."
+          : `Considerar perfil de aprendizagem: ${input.adaptationProfile?.learningProfile ?? "informado pelo professor."}`
       ],
       EXPECTED_PRODUCT: [
         input.expectedProductType ?? "Material pedagogico inclusivo reutilizavel."
@@ -801,6 +817,7 @@ function buildMetadata(
   const knowledgeObject = normalizeText(input.knowledgeObject);
   const theme = normalizeText(input.theme);
   const specificNeed = normalizeText(input.specificNeed);
+  const adaptationTarget = normalizeText(input.adaptationProfile?.targetAudience);
   const learningPreference = normalizeText(input.learningPreference);
   const readingWritingLevel = normalizeText(input.readingWritingLevel);
   const expectedProductType = normalizeText(input.expectedProductType);
@@ -817,7 +834,7 @@ function buildMetadata(
     skill,
     knowledgeObject,
     theme,
-    specificNeed,
+    specificNeed: specificNeed ?? adaptationTarget,
     learningPreference,
     readingWritingLevel,
     expectedProductType,
@@ -838,6 +855,7 @@ function buildMetadata(
     ]),
     accessibilityTags: uniqueTags([
       tag("necessidade", specificNeed),
+      tag("perfil-adaptacao", adaptationTarget),
       tag("leitura-escrita", readingWritingLevel),
       tag("preferencia", learningPreference?.split(/[,.]/)[0]?.trim())
     ]),
@@ -864,6 +882,7 @@ function buildContentText(
     `Tema: ${input.theme ?? ""}`,
     `Objetivo: ${plan.objectives.join("; ")}`,
     `Necessidade especifica: ${input.specificNeed ?? ""}`,
+    `Perfil Inteligente de Adaptacao: ${buildAdaptationProfileText(input)}`,
     `Como aprende melhor: ${input.learningPreference ?? ""}`,
     `Nivel de leitura/escrita: ${input.readingWritingLevel ?? ""}`,
     `Recursos disponiveis: ${input.availableResources?.join(", ") ?? ""}`,
@@ -971,6 +990,20 @@ function normalizeQuestions(
         : "Responda no espaco indicado.",
     answerSpace: "duas linhas"
   }));
+}
+
+function buildAdaptationProfileText(input: CreateMissionRequest["input"]): string {
+  const profile = input.adaptationProfile;
+
+  if (!profile?.enabled) {
+    return "sem adaptacao especifica selecionada";
+  }
+
+  return [
+    `publico-alvo/necessidade especifica: ${profile.targetAudience ?? input.specificNeed ?? "nao informado"}`,
+    `perfil de aprendizagem: ${profile.learningProfile ?? input.readingWritingLevel ?? "nao informado"}`,
+    `apoios necessarios: ${profile.supports?.join(", ") || "nao informados"}`
+  ].join("; ");
 }
 
 function normalizeString(value: unknown, fallback: string): string {

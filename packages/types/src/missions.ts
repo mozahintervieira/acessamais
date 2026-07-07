@@ -9,6 +9,12 @@ export type MissionStatus =
 
 export type MissionInput = {
   rawPrompt?: string;
+  adaptationProfile?: {
+    enabled: boolean;
+    targetAudience?: string;
+    learningProfile?: string;
+    supports?: string[];
+  };
   discipline?: string;
   gradeYear?: string;
   skill?: string;

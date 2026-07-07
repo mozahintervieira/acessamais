@@ -285,6 +285,110 @@ textarea:focus-visible {
   color: #111827;
 }
 
+.adaptationComposer {
+  width: min(920px, 100%);
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 22px;
+  margin-top: 22px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  text-align: left;
+}
+
+.adaptationQuestion {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.adaptationQuestion div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.adaptationQuestion strong {
+  color: #111827;
+  font-size: 1rem;
+}
+
+.adaptationQuestion span {
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  border: 1px solid #d8dee7;
+  border-radius: 999px;
+  padding: 4px;
+  background: #f8fafc;
+}
+
+.segmentedControl button {
+  min-width: 74px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.segmentedControl button.active {
+  background: #111827;
+  color: #ffffff;
+}
+
+.adaptationPanel {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
+.chipGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.chipGroup > strong {
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.chipGroup > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chipGroup button {
+  min-height: 36px;
+  border: 1px solid #d8dee7;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.chipGroup button.active {
+  border-color: #1d6f78;
+  background: #eef8f7;
+  color: #0b5563;
+}
+
 .heroPreviewWrap {
   width: min(920px, 100%);
   margin-top: 42px;
