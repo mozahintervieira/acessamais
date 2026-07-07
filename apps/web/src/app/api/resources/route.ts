@@ -21,7 +21,11 @@ export async function GET(request: Request): Promise<NextResponse> {
       discipline: optionalParam(params, "discipline"),
       gradeYear: optionalParam(params, "gradeYear"),
       skill: optionalParam(params, "skill"),
+      knowledgeObject: optionalParam(params, "knowledgeObject"),
+      theme: optionalParam(params, "theme"),
+      activityType: optionalParam(params, "activityType"),
       specificNeed: optionalParam(params, "specificNeed"),
+      learningLevel: optionalParam(params, "learningLevel"),
       q: optionalParam(params, "q")
     })
   );

@@ -12,7 +12,11 @@ type ResourceListItem = {
     discipline?: string;
     gradeYear?: string;
     skill?: string;
+    knowledgeObject?: string;
+    theme?: string;
+    activityType?: string;
     specificNeed?: string;
+    learningLevel?: string;
     accessibilityTags?: string[];
     pedagogicalTags?: string[];
   };
@@ -29,7 +33,11 @@ type Filters = {
   discipline: string;
   gradeYear: string;
   skill: string;
+  knowledgeObject: string;
+  theme: string;
+  activityType: string;
   specificNeed: string;
+  learningLevel: string;
 };
 
 const organizationId = "demo-organization";
@@ -40,7 +48,11 @@ export function ResourcesLibrary(): React.ReactElement {
     discipline: "",
     gradeYear: "",
     skill: "",
-    specificNeed: ""
+    knowledgeObject: "",
+    theme: "",
+    activityType: "",
+    specificNeed: "",
+    learningLevel: ""
   });
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -55,9 +67,7 @@ export function ResourcesLibrary(): React.ReactElement {
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        organizationId
-      });
+      const params = new URLSearchParams({ organizationId });
 
       for (const [key, value] of Object.entries(filters)) {
         if (value.trim()) {
@@ -70,7 +80,7 @@ export function ResourcesLibrary(): React.ReactElement {
       );
 
       if (!response.ok) {
-        throw new Error("Nao foi possivel carregar os recursos.");
+        throw new Error("Nao foi possivel carregar os materiais.");
       }
 
       setResources((await response.json()) as ResourceListItem[]);
@@ -78,7 +88,7 @@ export function ResourcesLibrary(): React.ReactElement {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Erro inesperado ao carregar recursos."
+          : "Erro inesperado ao carregar materiais."
       );
     } finally {
       setIsLoading(false);
@@ -95,18 +105,18 @@ export function ResourcesLibrary(): React.ReactElement {
   return (
     <main className="missionShell">
       <section className="missionIntro">
-        <p className="eyebrow">Banco Inteligente inicial</p>
-        <h1>Recursos reutilizaveis</h1>
+        <p className="eyebrow">Banco Inteligente</p>
+        <h1>Atividades e materiais reutilizaveis</h1>
         <p className="lead">
-          Encontre planejamentos salvos, filtre por metadados pedagogicos e
-          reutilize materiais ja versionados pela plataforma.
+          Encontre atividades A4, materiais adaptados, avaliacoes e recursos
+          por disciplina, habilidade, tema, necessidade e nivel de aprendizagem.
         </p>
         <div className="actionRow">
-          <a className="primaryLink" href="/planning/new">
-            Criar nova missao
+          <a className="primaryLink" href="/planning/new?task=printable">
+            Criar atividade A4
           </a>
-          <a className="textLink" href="/missions">
-            Ver missoes
+          <a className="textLink" href="/planning/new?task=adapted">
+            Adaptar material
           </a>
         </div>
       </section>
@@ -114,39 +124,23 @@ export function ResourcesLibrary(): React.ReactElement {
       <section className="listPanel" id="filtros">
         <div className="panelHeader">
           <div>
-            <p className="panelLabel">Filtros pedagogicos</p>
-            <h2>Buscar no acervo</h2>
+            <p className="panelLabel">Filtros do acervo</p>
+            <h2>Buscar atividades</h2>
           </div>
-          <span className="countBadge">{resources.length} recursos</span>
+          <span className="countBadge">{resources.length} materiais</span>
         </div>
-        <div className="filterGrid">
-          <Field
-            label="Busca em texto"
-            value={filters.q}
-            onChange={(value) => updateFilter("q", value)}
-          />
-          <Field
-            label="Disciplina"
-            value={filters.discipline}
-            onChange={(value) => updateFilter("discipline", value)}
-          />
-          <Field
-            label="Serie/ano"
-            value={filters.gradeYear}
-            onChange={(value) => updateFilter("gradeYear", value)}
-          />
-          <Field
-            label="Habilidade"
-            value={filters.skill}
-            onChange={(value) => updateFilter("skill", value)}
-          />
-          <Field
-            label="Necessidade"
-            value={filters.specificNeed}
-            onChange={(value) => updateFilter("specificNeed", value)}
-          />
+        <div className="filterGrid richFilterGrid">
+          <Field label="Busca em texto" value={filters.q} onChange={(value) => updateFilter("q", value)} />
+          <Field label="Disciplina" value={filters.discipline} onChange={(value) => updateFilter("discipline", value)} />
+          <Field label="Ano/serie" value={filters.gradeYear} onChange={(value) => updateFilter("gradeYear", value)} />
+          <Field label="Habilidade" value={filters.skill} onChange={(value) => updateFilter("skill", value)} />
+          <Field label="Objeto de conhecimento" value={filters.knowledgeObject} onChange={(value) => updateFilter("knowledgeObject", value)} />
+          <Field label="Tema" value={filters.theme} onChange={(value) => updateFilter("theme", value)} />
+          <Field label="Tipo de atividade" value={filters.activityType} onChange={(value) => updateFilter("activityType", value)} />
+          <Field label="Necessidade especifica" value={filters.specificNeed} onChange={(value) => updateFilter("specificNeed", value)} />
+          <Field label="Nivel de aprendizagem" value={filters.learningLevel} onChange={(value) => updateFilter("learningLevel", value)} />
           <button className="primaryButton" type="button" onClick={loadResources}>
-            {isLoading ? "Buscando..." : "Buscar recursos"}
+            {isLoading ? "Buscando..." : "Buscar materiais"}
           </button>
         </div>
       </section>
@@ -154,27 +148,28 @@ export function ResourcesLibrary(): React.ReactElement {
       <section className="listPanel" id="recursos">
         <div className="panelHeader">
           <div>
-            <p className="panelLabel">Recursos versionados</p>
-            <h2>Resultados reutilizaveis</h2>
+            <p className="panelLabel">Acervo versionado</p>
+            <h2>Materiais prontos para reutilizar</h2>
           </div>
         </div>
         {error ? <p className="formError">{error}</p> : null}
-        {isLoading ? <p className="emptyState">Buscando recursos...</p> : null}
+        {isLoading ? <p className="emptyState">Buscando materiais...</p> : null}
         {!isLoading && resources.length === 0 ? (
           <p className="emptyState">
-            Nenhum recurso encontrado. Ajuste os filtros ou crie uma nova
-            missao para ampliar o Banco Inteligente.
+            Nenhum material encontrado. Crie uma atividade A4 para iniciar o
+            Banco Inteligente.
           </p>
         ) : null}
         <div className="missionCards">
           {resources.map((resource) => (
             <article className="missionCard" key={resource.id}>
-              <span className="cardMeta">{resource.type}</span>
+              <span className="cardMeta">{resource.metadata.activityType ?? resource.type}</span>
               <strong>{resource.title}</strong>
               <div className="resourceFacts">
                 <span>{resource.metadata.discipline ?? "Disciplina nao informada"}</span>
-                <span>{resource.metadata.gradeYear ?? "Serie nao informada"}</span>
-                <span>{resource.metadata.specificNeed ?? "Necessidade nao informada"}</span>
+                <span>{resource.metadata.gradeYear ?? "Ano/serie nao informado"}</span>
+                <span>{resource.metadata.theme ?? "Tema nao informado"}</span>
+                <span>{resource.metadata.specificNeed ?? "Sem necessidade especifica"}</span>
               </div>
               <p className="helperText">
                 {resource.metadata.skill ?? "Habilidade nao informada"}
@@ -187,7 +182,7 @@ export function ResourcesLibrary(): React.ReactElement {
               />
               {resource.latestVersion ? (
                 <p className="resourceExcerpt">
-                  {resource.latestVersion.contentText.slice(0, 260)}
+                  {resource.latestVersion.contentText.slice(0, 280)}
                 </p>
               ) : null}
               <div className="cardFooter">
@@ -198,7 +193,7 @@ export function ResourcesLibrary(): React.ReactElement {
                 </small>
                 {resource.missionId ? (
                   <a className="textLink" href={`/missions/${resource.missionId}`}>
-                    Abrir recurso
+                    Abrir material
                   </a>
                 ) : null}
               </div>
@@ -222,10 +217,7 @@ function Field({
   return (
     <label className="field">
       <span>{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
+      <input value={value} onChange={(event) => onChange(event.currentTarget.value)} />
     </label>
   );
 }

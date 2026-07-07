@@ -27,6 +27,17 @@ type MissionDetail = {
         assessment?: string[];
         teacherReport?: string[];
         reuseSuggestions?: string[];
+        worksheetTitle?: string;
+        skillCode?: string;
+        baseText?: string;
+        instructions?: string[];
+        questions?: Array<{
+          command: string;
+          support?: string;
+          answerSpace?: string;
+        }>;
+        visualElements?: string[];
+        adaptationNotes?: string[];
       };
       contentText: string;
       validationStatus: string;
@@ -56,6 +67,7 @@ export function MissionDetailView({
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadMission();
@@ -148,11 +160,11 @@ export function MissionDetailView({
   return (
     <main className="missionShell">
       <section className="missionIntro">
-        <p className="eyebrow">Editor de documento</p>
+        <p className="eyebrow">Editor de material</p>
         <h1>{resource?.title ?? "Missao salva"}</h1>
         <p className="lead">
-          Revise o material gerado, ajuste a linguagem pedagogica e salve uma
-          nova versao sem perder o historico.
+          Revise a atividade A4, imprima, copie, exporte e salve uma nova
+          versao sem perder o historico.
         </p>
         <div className="actionRow">
           <a className="textLink" href="/missions">
@@ -224,23 +236,66 @@ export function MissionDetailView({
             <div className="panelHeader">
               <div>
                 <p className="panelLabel">Versao atual</p>
-                <h2>Documento profissional</h2>
+                <h2>Atividade pronta para impressao</h2>
               </div>
               <span className="countBadge">v{version.versionNumber}</span>
             </div>
-            <article className="documentPaper savedDocument">
-              <p className="documentKicker">ACESSA+ | Material pedagogico inclusivo</p>
-              <h2>{resource.title}</h2>
-              <div className="documentMeta">
-                <span>{String(mission.input.discipline ?? "Disciplina")}</span>
-                <span>{String(mission.input.gradeYear ?? "Serie/ano")}</span>
-                <span>{String(mission.input.specificNeed ?? "Acessibilidade")}</span>
-              </div>
-              <ReadOnlySection title="Percurso da aula" items={version.contentJson.lessonFlow ?? []} />
-              <ReadOnlySection title="Atividades e adaptacoes" items={version.contentJson.adaptedActivities ?? []} />
-              <ReadOnlySection title="Apoios de acessibilidade" items={version.contentJson.accessibilitySupports ?? []} />
-              <ReadOnlySection title="Avaliacao" items={version.contentJson.assessment ?? []} />
-              <ReadOnlySection title="Relatorio ao professor" items={version.contentJson.teacherReport ?? []} />
+            <div className="exportBar inlineExport">
+              <button type="button" onClick={() => window.print()}>PDF/imprimir</button>
+              <button type="button" onClick={() => downloadWord(resource.title, version.contentText)}>Word</button>
+              <button type="button" onClick={() => window.print()}>Imagem A4</button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(version.contentText);
+                  setCopyMessage("Material copiado.");
+                }}
+              >
+                Copiar
+              </button>
+              <button type="button" onClick={saveNewVersion}>Salvar</button>
+            </div>
+            {copyMessage ? <p className="successMessage">{copyMessage}</p> : null}
+            <article className="a4Sheet savedDocument">
+              <header className="a4Header">
+                <strong>{String(mission.input.discipline ?? "Disciplina")}</strong>
+                <span>{version.contentJson.skillCode ?? String(mission.input.skill ?? "")}</span>
+              </header>
+              <h2>{version.contentJson.worksheetTitle ?? resource.title}</h2>
+              <p className="a4Instruction">
+                {(version.contentJson.instructions ?? [
+                  "Leia com atencao e responda no espaco indicado."
+                ]).join(" ")}
+              </p>
+              {version.contentJson.baseText ? (
+                <section className="baseText">
+                  <strong>Texto-base</strong>
+                  <p>{version.contentJson.baseText}</p>
+                </section>
+              ) : null}
+              <ol className="questionList">
+                {(version.contentJson.questions ?? []).map((question, index) => (
+                  <li key={`${question.command}-${index}`}>
+                    <p>{question.command}</p>
+                    {question.support ? <small>{question.support}</small> : null}
+                    <div className="answerLines" aria-hidden="true">
+                      <span />
+                      <span />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              {(version.contentJson.adaptationNotes ?? []).length > 0 ? (
+                <section className="adaptationBox">
+                  <strong>Adaptacao aplicada</strong>
+                  <ul>
+                    {(version.contentJson.adaptationNotes ?? []).map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
             </article>
             {editablePlan ? (
               <div className="editorGrid editSurface">
@@ -357,6 +412,17 @@ function ResultBlock({
       {children}
     </section>
   );
+}
+
+function downloadWord(title: string, contentText: string): void {
+  const blob = new Blob([contentText], { type: "application/msword;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.doc`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function ReadOnlySection({

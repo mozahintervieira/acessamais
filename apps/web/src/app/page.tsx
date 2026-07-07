@@ -1,32 +1,71 @@
 const taskCards = [
   {
-    href: "/planning/new",
-    label: "Planejamento",
-    title: "Criar uma aula inclusiva",
-    text: "Transforme objetivo, habilidade e necessidade pedagogica em um documento pronto para revisar e usar.",
-    action: "Comecar planejamento"
+    href: "/planning/new?task=printable",
+    label: "Principal",
+    title: "Atividade pronta para impressao",
+    text: "Da habilidade curricular a uma folha A4 com questoes, instrucoes claras e espacos de resposta.",
+    featured: true
   },
   {
-    href: "/planning/new?task=activity",
-    label: "Atividade",
-    title: "Gerar atividade adaptada",
-    text: "Produza uma proposta acessivel com comandos claros, apoios, avaliacao e sugestoes de reutilizacao.",
-    action: "Criar atividade"
+    href: "/planning/new?task=adapted",
+    label: "Inclusao",
+    title: "Atividade adaptada",
+    text: "Adapte para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo."
   },
   {
-    href: "/resources",
-    label: "Acervo",
-    title: "Reutilizar materiais salvos",
-    text: "Recupere recursos por disciplina, serie, habilidade, necessidade ou trecho do conteudo.",
-    action: "Abrir Banco Inteligente"
+    href: "/planning/new?task=assessment",
+    label: "Avaliacao",
+    title: "Avaliacao",
+    text: "Crie avaliacao objetiva, formativa ou adaptada com criterios claros."
+  },
+  {
+    href: "/planning/new?task=sequence",
+    label: "Percurso",
+    title: "Sequencia didatica",
+    text: "Organize atividades progressivas para mais de uma aula."
+  },
+  {
+    href: "/planning/new?task=lesson",
+    label: "Apoio",
+    title: "Plano de aula",
+    text: "Gere um plano quando precisar orientar a aplicacao do material."
+  },
+  {
+    href: "/planning/new?task=pei",
+    label: "AEE",
+    title: "PEI",
+    text: "Estruture objetivos pedagogicos, apoios e acompanhamento individualizado."
+  },
+  {
+    href: "/planning/new?task=report",
+    label: "Registro",
+    title: "Relatorio pedagogico",
+    text: "Produza registro pedagogico claro, sem perfil medico."
+  },
+  {
+    href: "/planning/new?task=game",
+    label: "Ludico",
+    title: "Jogo pedagogico",
+    text: "Crie jogos simples, concretos e aplicaveis em sala."
+  },
+  {
+    href: "/planning/new?task=caa",
+    label: "Acessibilidade",
+    title: "CAA",
+    text: "Monte atividade com pistas visuais, pranchas e comunicacao alternativa."
+  },
+  {
+    href: "/planning/new?task=libras",
+    label: "Libras",
+    title: "Material em Libras",
+    text: "Prepare orientacoes e suporte visual para estudantes surdos."
+  },
+  {
+    href: "/planning/new?task=braille",
+    label: "Braille",
+    title: "Material em Braille",
+    text: "Crie base acessivel para transcricao, tato e alto contraste."
   }
-];
-
-const valueSignals = [
-  "Documento profissional para banca",
-  "Gera planejamento, atividade, adaptacao e relatorio",
-  "Preserva versoes para revisao",
-  "Preparado para religar o backend NestJS"
 ];
 
 export default function HomePage(): React.ReactElement {
@@ -34,50 +73,46 @@ export default function HomePage(): React.ReactElement {
     <main className="homeShell">
       <section className="homeHero evaluatorHero" aria-labelledby="page-title">
         <div>
-          <p className="eyebrow">ACESSA+ MVP demonstravel</p>
-          <h1 id="page-title">O que deseja criar hoje?</h1>
+          <p className="eyebrow">ACESSA+ MVP</p>
+          <h1 id="page-title">O que voce deseja criar hoje?</h1>
           <p className="lead">
-            Uma plataforma web para professores planejarem, adaptarem e
-            reutilizarem materiais inclusivos com apoio de inteligencia
-            pedagogica, acessibilidade e versionamento.
+            Crie atividades prontas para impressao em segundos. Planeje menos.
+            Ensine mais. Da habilidade curricular a atividade pronta para sala
+            de aula.
           </p>
-          <div className="signalRow" aria-label="Diferenciais do MVP">
-            {valueSignals.map((signal) => (
-              <span key={signal}>{signal}</span>
-            ))}
+          <div className="actionRow">
+            <a className="primaryLink" href="/planning/new?task=printable">
+              Criar atividade A4
+            </a>
+            <a className="textLink" href="/planning/new?task=adapted">
+              Adaptar material
+            </a>
           </div>
         </div>
 
-        <aside className="homeStatus evaluatorStatus" aria-label="Fluxo de trabalho">
-          <strong>Fluxo de demonstracao</strong>
+        <aside className="homeStatus evaluatorStatus" aria-label="Resumo do MVP">
+          <strong>Para demonstracao</strong>
           <ol>
-            <li>Escolha uma tarefa pedagogica.</li>
-            <li>Informe apenas o essencial no inicio.</li>
-            <li>Receba um documento profissional editavel.</li>
-            <li>Salve versoes e reutilize no Banco Inteligente.</li>
+            <li>Escolha o tipo de material.</li>
+            <li>Informe habilidade, tema e necessidade.</li>
+            <li>Receba uma folha A4 pronta para imprimir.</li>
+            <li>Copie, imprima, salve e reutilize no Banco Inteligente.</li>
           </ol>
         </aside>
       </section>
 
-      <section className="taskBoard" aria-label="Tarefas principais">
+      <section className="taskBoard taskBoardWide" aria-label="Tarefas principais">
         {taskCards.map((card) => (
-          <a className="taskCard" href={card.href} key={card.href}>
+          <a
+            className={card.featured ? "taskCard featured" : "taskCard"}
+            href={card.href}
+            key={card.href}
+          >
             <span>{card.label}</span>
             <strong>{card.title}</strong>
             <p>{card.text}</p>
-            <b>{card.action}</b>
           </a>
         ))}
-      </section>
-
-      <section className="demoStrip" aria-label="Estado do produto">
-        <div>
-          <p className="panelLabel">Produto em producao</p>
-          <h2>Pronto para avaliacao, demonstracao e captacao.</h2>
-        </div>
-        <a className="primaryLink" href="/planning/new">
-          Criar primeiro documento
-        </a>
       </section>
     </main>
   );

@@ -1,38 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
 
-type TaskKey = "lesson" | "activity" | "report";
-type StepKey = "essentials" | "learning" | "output";
+type TaskKey =
+  | "printable"
+  | "adapted"
+  | "assessment"
+  | "sequence"
+  | "lesson"
+  | "pei"
+  | "report"
+  | "game"
+  | "caa"
+  | "libras"
+  | "braille";
+
+type StepKey = "curriculum" | "activity" | "accessibility";
+
+type WorksheetQuestion = {
+  command: string;
+  support?: string;
+  answerSpace?: string;
+};
 
 type MissionResult = {
   missionId: string;
   resourceId: string;
   versionId: string;
   status: "COMPLETED" | "NEEDS_REVIEW";
-  context: {
-    completeness: string;
-    detectedSignals: string[];
-    missingFields: string[];
-  };
   pedagogicalPlan: {
-    objectives: string[];
-    expectedOutputs: string[];
-    methodologicalConstraints: string[];
+    worksheetTitle?: string;
+    skillCode?: string;
+    baseText?: string;
+    instructions?: string[];
+    questions?: WorksheetQuestion[];
+    visualElements?: string[];
+    adaptationNotes?: string[];
+    answerKey?: string[];
     validationCriteria: string[];
-    warnings: string[];
-    lessonFlow?: string[];
-    adaptedActivities?: string[];
-    accessibilitySupports?: string[];
-    assessment?: string[];
-    teacherReport?: string[];
-    reuseSuggestions?: string[];
-    protocolApplications: Array<{
-      knowledgeId: string;
-      knowledgeVersion: string;
-      knowledgeType: string;
-    }>;
   };
 };
 
@@ -43,94 +49,143 @@ type FormState = {
   knowledgeObject: string;
   theme: string;
   lessonObjective: string;
+  activityType: string;
+  questionCount: string;
+  difficultyLevel: string;
   specificNeed: string;
-  learningPreference: string;
   readingWritingLevel: string;
+  learningPreference: string;
   availableResources: string;
-  expectedProductType: string;
+  outputFormat: string;
 };
 
 const taskOptions: Array<{
   key: TaskKey;
   title: string;
   label: string;
-  description: string;
   product: string;
   missionType: MissionType;
 }> = [
   {
-    key: "lesson",
-    label: "Planejamento",
-    title: "Plano de aula inclusivo",
-    description: "Para sair com objetivo, percurso, acessibilidade e avaliacao.",
-    product: "Plano de aula inclusivo",
+    key: "printable",
+    label: "Principal",
+    title: "Atividade pronta para impressao",
+    product: "Atividade A4 pronta para impressao",
     missionType: "CREATE_LESSON_PLAN"
   },
   {
-    key: "activity",
-    label: "Atividade",
+    key: "adapted",
+    label: "Inclusao",
     title: "Atividade adaptada",
-    description: "Para gerar comandos, apoios, recursos e evidencias de aprendizagem.",
-    product: "Atividade adaptada com orientacoes ao professor",
+    product: "Atividade A4 adaptada",
     missionType: "ADAPT_ACTIVITY"
   },
   {
-    key: "report",
-    label: "Relatorio",
-    title: "Relatorio pedagogico de apoio",
-    description: "Para registrar objetivos, apoios utilizados e criterios de acompanhamento.",
-    product: "Relatorio pedagogico com plano de acompanhamento",
+    key: "assessment",
+    label: "Avaliacao",
+    title: "Avaliacao",
+    product: "Avaliacao A4 pronta para impressao",
     missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "sequence",
+    label: "Sequencia",
+    title: "Sequencia didatica",
+    product: "Sequencia didatica com atividades A4",
+    missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "lesson",
+    label: "Apoio",
+    title: "Plano de aula",
+    product: "Plano de aula com atividade A4",
+    missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "pei",
+    label: "AEE",
+    title: "PEI",
+    product: "PEI com recurso pedagogico",
+    missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "report",
+    label: "Registro",
+    title: "Relatorio pedagogico",
+    product: "Relatorio pedagogico",
+    missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "game",
+    label: "Ludico",
+    title: "Jogo pedagogico",
+    product: "Jogo pedagogico imprimivel",
+    missionType: "CREATE_LESSON_PLAN"
+  },
+  {
+    key: "caa",
+    label: "CAA",
+    title: "CAA",
+    product: "Atividade com CAA",
+    missionType: "ADAPT_ACTIVITY"
+  },
+  {
+    key: "libras",
+    label: "Libras",
+    title: "Material em Libras",
+    product: "Material com apoio em Libras",
+    missionType: "ADAPT_ACTIVITY"
+  },
+  {
+    key: "braille",
+    label: "Braille",
+    title: "Material em Braille",
+    product: "Material preparado para Braille",
+    missionType: "ADAPT_ACTIVITY"
   }
 ];
 
-const steps: Array<{ key: StepKey; title: string; description: string }> = [
-  {
-    key: "essentials",
-    title: "1. Essencial",
-    description: "O minimo para entender a tarefa."
-  },
-  {
-    key: "learning",
-    title: "2. Aprendizagem",
-    description: "Como tornar o material acessivel."
-  },
-  {
-    key: "output",
-    title: "3. Documento",
-    description: "O que sera entregue ao professor."
-  }
+const steps: Array<{ key: StepKey; title: string }> = [
+  { key: "curriculum", title: "1. Curriculo" },
+  { key: "activity", title: "2. Atividade" },
+  { key: "accessibility", title: "3. Acessibilidade" }
 ];
 
 const initialState: FormState = {
   discipline: "Lingua Portuguesa",
   gradeYear: "5 ano",
-  skill: "Identificar informacoes explicitas em textos.",
+  skill: "EF15LP03 - Localizar informacoes explicitas em textos.",
   knowledgeObject: "Leitura e interpretacao",
   theme: "Genero textual noticia",
-  lessonObjective: "Compreender a estrutura de uma noticia.",
+  lessonObjective: "Identificar informacoes explicitas em uma noticia curta.",
+  activityType: "Interpretacao de texto com questoes objetivas e discursivas",
+  questionCount: "6",
+  difficultyLevel: "Intermediario",
   specificNeed: "Deficiencia intelectual",
-  learningPreference: "Aprende melhor com imagens, exemplos concretos e comandos curtos.",
   readingWritingLevel: "Le frases curtas com apoio visual.",
-  availableResources: "cartazes, tablet, imagens impressas",
-  expectedProductType: "Plano de aula inclusivo"
+  learningPreference: "Aprende melhor com imagens, exemplos concretos e comandos curtos.",
+  availableResources: "imagens impressas, lapis de cor, tablet",
+  outputFormat: "A4 pronto para impressao"
 };
 
 export function LessonPlanMissionForm(): React.ReactElement {
   const [form, setForm] = useState<FormState>(initialState);
-  const [selectedTask, setSelectedTask] = useState<TaskKey>("lesson");
-  const [activeStep, setActiveStep] = useState<StepKey>("essentials");
+  const [selectedTask, setSelectedTask] = useState<TaskKey>("printable");
+  const [activeStep, setActiveStep] = useState<StepKey>("curriculum");
   const [result, setResult] = useState<MissionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
-  const task =
-    taskOptions.find((option) => option.key === selectedTask) ?? taskOptions[0]!;
+  const task = useMemo(
+    () => taskOptions.find((option) => option.key === selectedTask) ?? taskOptions[0]!,
+    [selectedTask]
+  );
 
   useEffect(() => {
     const taskParam = new URLSearchParams(window.location.search).get("task");
 
-    if (taskParam === "activity" || taskParam === "report") {
+    if (isTaskKey(taskParam)) {
       selectTask(taskParam);
     }
   }, []);
@@ -140,6 +195,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
     setIsSubmitting(true);
     setError(null);
     setResult(null);
+    setCopyMessage(null);
 
     const request: CreateMissionRequest = {
       userId: "demo-teacher",
@@ -148,7 +204,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
       input: {
         ...form,
         expectedProductType: task.product,
-        contextNotes: `Tarefa escolhida: ${task.title}`,
+        contextNotes: `Criar ${task.title} no formato ${form.outputFormat}.`,
         availableResources: form.availableResources
           .split(",")
           .map((resource) => resource.trim())
@@ -173,7 +229,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
           message?: string;
         } | null;
 
-        throw new Error(payload?.message ?? "Nao foi possivel gerar o documento.");
+        throw new Error(payload?.message ?? "Nao foi possivel gerar a atividade.");
       }
 
       setResult((await response.json()) as MissionResult);
@@ -181,7 +237,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Erro inesperado ao gerar documento."
+          : "Erro inesperado ao gerar atividade."
       );
     } finally {
       setIsSubmitting(false);
@@ -195,7 +251,8 @@ export function LessonPlanMissionForm(): React.ReactElement {
     if (option) {
       setForm((current) => ({
         ...current,
-        expectedProductType: option.product
+        expectedProductType: option.product,
+        outputFormat: "A4 pronto para impressao"
       }));
     }
   }
@@ -207,20 +264,43 @@ export function LessonPlanMissionForm(): React.ReactElement {
     }));
   }
 
+  async function copyActivity(): Promise<void> {
+    const text = result ? buildCopyText(form, result) : "";
+
+    if (!text) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(text);
+    setCopyMessage("Atividade copiada.");
+  }
+
+  function downloadWord(): void {
+    const text = result ? buildCopyText(form, result) : "";
+    const blob = new Blob([text], { type: "application/msword;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "atividade-acessa-plus.doc";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <main className="missionShell creatorShell">
       <section className="missionIntro creatorIntro">
-        <p className="eyebrow">Estudio pedagogico</p>
-        <h1>O que deseja criar hoje?</h1>
+        <p className="eyebrow">Criador de material pedagogico</p>
+        <h1>Crie atividades prontas para impressao em segundos.</h1>
         <p className="lead">
-          Escolha a tarefa, informe o essencial e receba um documento
-          profissional para revisar, salvar e reutilizar.
+          Da habilidade curricular a atividade A4 pronta para sala de aula.
+          Planeje menos. Ensine mais.
         </p>
       </section>
 
       <section className="creatorLayout">
         <form className="creatorPanel" onSubmit={submitMission}>
-          <section className="taskChooser" aria-label="Escolha da tarefa">
+          <section className="taskChooser taskChooserMany" aria-label="Tipo de material">
             {taskOptions.map((option) => (
               <button
                 className={
@@ -232,12 +312,11 @@ export function LessonPlanMissionForm(): React.ReactElement {
               >
                 <span>{option.label}</span>
                 <strong>{option.title}</strong>
-                <small>{option.description}</small>
               </button>
             ))}
           </section>
 
-          <nav className="stepNav" aria-label="Etapas do documento">
+          <nav className="stepNav" aria-label="Etapas da atividade">
             {steps.map((step) => (
               <button
                 className={step.key === activeStep ? "stepPill active" : "stepPill"}
@@ -246,92 +325,63 @@ export function LessonPlanMissionForm(): React.ReactElement {
                 onClick={() => setActiveStep(step.key)}
               >
                 <strong>{step.title}</strong>
-                <span>{step.description}</span>
               </button>
             ))}
           </nav>
 
           <section className="formStage">
-            {activeStep === "essentials" ? (
+            {activeStep === "curriculum" ? (
               <>
-                <Field
-                  label="Disciplina"
-                  value={form.discipline}
-                  onChange={(value) => updateField("discipline", value)}
-                />
-                <Field
-                  label="Serie/ano"
-                  value={form.gradeYear}
-                  onChange={(value) => updateField("gradeYear", value)}
-                />
-                <Field
-                  label="Tema da aula ou material"
-                  value={form.theme}
-                  onChange={(value) => updateField("theme", value)}
-                />
-                <Field
-                  label="Necessidade pedagogica"
-                  value={form.specificNeed}
-                  onChange={(value) => updateField("specificNeed", value)}
-                />
+                <Field label="Disciplina" value={form.discipline} onChange={(value) => updateField("discipline", value)} />
+                <Field label="Ano/serie" value={form.gradeYear} onChange={(value) => updateField("gradeYear", value)} />
+                <TextArea label="Habilidade BNCC ou curriculo" value={form.skill} onChange={(value) => updateField("skill", value)} />
+                <Field label="Objeto de conhecimento" value={form.knowledgeObject} onChange={(value) => updateField("knowledgeObject", value)} />
+                <Field label="Tema/conteudo" value={form.theme} onChange={(value) => updateField("theme", value)} />
               </>
             ) : null}
 
-            {activeStep === "learning" ? (
+            {activeStep === "activity" ? (
               <>
-                <TextArea
-                  label="Objetivo de aprendizagem"
-                  value={form.lessonObjective}
-                  onChange={(value) => updateField("lessonObjective", value)}
-                />
-                <TextArea
-                  label="Como o estudante aprende melhor"
-                  value={form.learningPreference}
-                  onChange={(value) => updateField("learningPreference", value)}
-                />
-                <Field
-                  label="Nivel de leitura/escrita"
-                  value={form.readingWritingLevel}
-                  onChange={(value) => updateField("readingWritingLevel", value)}
-                />
+                <TextArea label="Objetivo da atividade" value={form.lessonObjective} onChange={(value) => updateField("lessonObjective", value)} />
+                <Field label="Tipo de atividade desejada" value={form.activityType} onChange={(value) => updateField("activityType", value)} />
+                <Field label="Quantidade de questoes" value={form.questionCount} onChange={(value) => updateField("questionCount", value)} />
+                <Field label="Nivel de dificuldade" value={form.difficultyLevel} onChange={(value) => updateField("difficultyLevel", value)} />
+                <Field label="Formato de saida" value={form.outputFormat} onChange={(value) => updateField("outputFormat", value)} />
               </>
             ) : null}
 
-            {activeStep === "output" ? (
+            {activeStep === "accessibility" ? (
               <>
-                <TextArea
-                  label="Habilidade ou descritor"
-                  value={form.skill}
-                  onChange={(value) => updateField("skill", value)}
-                />
-                <Field
-                  label="Objeto de conhecimento"
-                  value={form.knowledgeObject}
-                  onChange={(value) => updateField("knowledgeObject", value)}
-                />
-                <Field
-                  label="Recursos disponiveis"
-                  value={form.availableResources}
-                  onChange={(value) => updateField("availableResources", value)}
-                />
+                <Field label="Necessidade especifica/deficiencia" value={form.specificNeed} onChange={(value) => updateField("specificNeed", value)} />
+                <Field label="Nivel de leitura/escrita do estudante" value={form.readingWritingLevel} onChange={(value) => updateField("readingWritingLevel", value)} />
+                <TextArea label="Como o estudante aprende melhor" value={form.learningPreference} onChange={(value) => updateField("learningPreference", value)} />
+                <Field label="Recursos disponiveis" value={form.availableResources} onChange={(value) => updateField("availableResources", value)} />
               </>
             ) : null}
           </section>
 
           <div className="formCommandBar">
             <div>
-              <span>Entrega selecionada</span>
+              <span>Material selecionado</span>
               <strong>{task.product}</strong>
             </div>
             <button className="primaryButton" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Gerando documento..." : "Gerar documento"}
+              {isSubmitting ? "Gerando atividade..." : "Gerar atividade A4"}
             </button>
           </div>
 
           {error ? <p className="formError">{error}</p> : null}
         </form>
 
-        <MissionResultPanel form={form} result={result} taskTitle={task.title} />
+        <A4Preview
+          form={form}
+          result={result}
+          taskTitle={task.title}
+          onCopy={copyActivity}
+          onPrint={() => window.print()}
+          onWord={downloadWord}
+          copyMessage={copyMessage}
+        />
       </section>
     </main>
   );
@@ -349,10 +399,7 @@ function Field({
   return (
     <label className="field">
       <span>{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
+      <input required value={value} onChange={(event) => onChange(event.currentTarget.value)} />
     </label>
   );
 }
@@ -369,120 +416,120 @@ function TextArea({
   return (
     <label className="field fieldWide">
       <span>{label}</span>
-      <textarea
-        rows={4}
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
+      <textarea required rows={4} value={value} onChange={(event) => onChange(event.currentTarget.value)} />
     </label>
   );
 }
 
-function MissionResultPanel({
+function A4Preview({
   form,
   result,
-  taskTitle
+  taskTitle,
+  onCopy,
+  onPrint,
+  onWord,
+  copyMessage
 }: {
   form: FormState;
   result: MissionResult | null;
   taskTitle: string;
+  onCopy: () => void;
+  onPrint: () => void;
+  onWord: () => void;
+  copyMessage: string | null;
 }): React.ReactElement {
-  if (!result) {
-    return (
-      <aside className="documentPreview emptyDocument">
-        <div className="documentToolbar">
-          <span>Previa do documento</span>
-          <b>Rascunho</b>
-        </div>
-        <article className="documentPaper">
-          <p className="documentKicker">ACESSA+</p>
-          <h2>{taskTitle}</h2>
-          <div className="documentMeta">
-            <span>{form.discipline}</span>
-            <span>{form.gradeYear}</span>
-            <span>{form.specificNeed}</span>
-          </div>
-          <p>
-            Ao gerar, o documento aparecera aqui com estrutura profissional,
-            secoes pedagogicas e link para revisao da versao salva.
-          </p>
-        </article>
-      </aside>
-    );
-  }
-
-  const plan = result.pedagogicalPlan;
+  const worksheet = result?.pedagogicalPlan;
+  const questions = worksheet?.questions ?? buildPreviewQuestions(form.questionCount);
 
   return (
-    <aside className="documentPreview" aria-live="polite">
-      <div className="documentToolbar">
-        <span>Documento gerado</span>
-        <b>{result.status}</b>
+    <aside className="a4Workspace" aria-live="polite">
+      <div className="exportBar">
+        <button type="button" onClick={onPrint}>PDF/imprimir</button>
+        <button type="button" onClick={onWord} disabled={!result}>Word</button>
+        <button type="button" onClick={onPrint}>Imagem A4</button>
+        <button type="button" onClick={onCopy} disabled={!result}>Copiar</button>
+        <a className="saveButton" href={result ? `/missions/${result.missionId}` : "/missions"}>Salvar</a>
       </div>
-      <article className="documentPaper">
-        <p className="documentKicker">ACESSA+ | Inteligencia Inclusiva</p>
-        <h2>{taskTitle}</h2>
-        <div className="documentMeta">
-          <span>{form.discipline}</span>
-          <span>{form.gradeYear}</span>
-          <span>{form.specificNeed}</span>
-        </div>
+      {copyMessage ? <p className="successMessage">{copyMessage}</p> : null}
 
-        <DocumentSection title="Objetivo" items={plan.objectives} />
-        <DocumentSection title="Percurso da aula" items={plan.lessonFlow ?? []} />
-        <DocumentSection
-          title="Atividades e adaptacoes"
-          items={plan.adaptedActivities ?? []}
-        />
-        <DocumentSection
-          title="Apoios de acessibilidade"
-          items={plan.accessibilitySupports ?? []}
-        />
-        <DocumentSection title="Avaliacao" items={plan.assessment ?? []} />
-        <DocumentSection
-          title="Relatorio ao professor"
-          items={plan.teacherReport ?? []}
-        />
-        <DocumentSection
-          title="Criterios de validacao"
-          items={plan.validationCriteria}
-        />
-
-        <footer className="documentFooter">
-          <a className="primaryLink" href={`/missions/${result.missionId}`}>
-            Abrir editor do documento
-          </a>
-          <span>ResourceVersion salva: {result.versionId.slice(0, 18)}</span>
-        </footer>
+      <article className="a4Sheet">
+        <header className="a4Header">
+          <strong>{form.discipline}</strong>
+          <span>{worksheet?.skillCode ?? form.skill}</span>
+        </header>
+        <h2>{worksheet?.worksheetTitle ?? taskTitle}</h2>
+        <p className="a4Instruction">
+          {(worksheet?.instructions ?? [
+            "Leia com atencao e responda no espaco indicado.",
+            "Use apoio visual, concreto ou leitura mediada quando necessario."
+          ]).join(" ")}
+        </p>
+        {worksheet?.baseText ? (
+          <section className="baseText">
+            <strong>Texto-base</strong>
+            <p>{worksheet.baseText}</p>
+          </section>
+        ) : null}
+        {(worksheet?.visualElements ?? []).length > 0 ? (
+          <div className="visualRow">
+            {(worksheet?.visualElements ?? []).slice(0, 3).map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+        ) : null}
+        <ol className="questionList">
+          {questions.map((question, index) => (
+            <li key={`${question.command}-${index}`}>
+              <p>{question.command}</p>
+              {question.support ? <small>{question.support}</small> : null}
+              <div className="answerLines" aria-hidden="true">
+                <span />
+                <span />
+              </div>
+            </li>
+          ))}
+        </ol>
+        {(worksheet?.adaptationNotes ?? []).length > 0 ? (
+          <section className="adaptationBox">
+            <strong>Adaptacao aplicada</strong>
+            <ul>
+              {(worksheet?.adaptationNotes ?? []).map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
       </article>
     </aside>
   );
 }
 
-function DocumentSection({
-  title,
-  items
-}: {
-  title: string;
-  items: string[];
-}): React.ReactElement {
-  if (items.length === 0) {
-    return (
-      <section className="documentSection">
-        <h3>{title}</h3>
-        <p>Secao pronta para revisao do professor.</p>
-      </section>
-    );
-  }
+function buildPreviewQuestions(questionCount: string): WorksheetQuestion[] {
+  const count = Math.min(Math.max(Number.parseInt(questionCount, 10) || 4, 1), 10);
 
-  return (
-    <section className="documentSection">
-      <h3>{title}</h3>
-      <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    </section>
-  );
+  return Array.from({ length: count }, (_, index) => ({
+    command: `${index + 1}. Questao ${index + 1} aparecera aqui apos a geracao.`,
+    support: "Espaco reservado para resposta do estudante."
+  }));
+}
+
+function buildCopyText(form: FormState, result: MissionResult): string {
+  const worksheet = result.pedagogicalPlan;
+  const questions = worksheet.questions ?? [];
+
+  return [
+    form.discipline,
+    worksheet.skillCode ?? form.skill,
+    worksheet.worksheetTitle ?? "Atividade A4",
+    worksheet.baseText ? `Texto-base: ${worksheet.baseText}` : "",
+    ...questions.map((question, index) => `${index + 1}. ${question.command}`),
+    "acessa+ | educacao inclusiva na pratica - @mozahintervieira"
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function isTaskKey(value: string | null): value is TaskKey {
+  return taskOptions.some((option) => option.key === value);
 }

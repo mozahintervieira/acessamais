@@ -24,6 +24,11 @@ type ResourceMetadata = {
   learningPreference?: string;
   readingWritingLevel?: string;
   expectedProductType?: string;
+  activityType?: string;
+  questionCount?: string;
+  difficultyLevel?: string;
+  outputFormat?: string;
+  learningLevel?: string;
   accessibilityTags: string[];
   pedagogicalTags: string[];
   [key: string]: unknown;
@@ -222,7 +227,11 @@ export async function listResources(input: {
   discipline?: string;
   gradeYear?: string;
   skill?: string;
+  knowledgeObject?: string;
+  theme?: string;
+  activityType?: string;
   specificNeed?: string;
+  learningLevel?: string;
   q?: string;
 }): Promise<ResourceListItem[]> {
   const db = await readStore();
@@ -232,7 +241,13 @@ export async function listResources(input: {
     .filter((resource) => matches(resource.metadata.discipline, input.discipline))
     .filter((resource) => matches(resource.metadata.gradeYear, input.gradeYear))
     .filter((resource) => matches(resource.metadata.skill, input.skill))
+    .filter((resource) =>
+      matches(resource.metadata.knowledgeObject, input.knowledgeObject)
+    )
+    .filter((resource) => matches(resource.metadata.theme, input.theme))
+    .filter((resource) => matches(resource.metadata.activityType, input.activityType))
     .filter((resource) => matches(resource.metadata.specificNeed, input.specificNeed))
+    .filter((resource) => matches(resource.metadata.learningLevel, input.learningLevel))
     .filter((resource) =>
       input.q
         ? resource.versions.some((version) =>
@@ -348,6 +363,28 @@ async function generatePedagogicalPlan(
       "Evitar dados sensiveis ou diagnosticos alem do necessario pedagogicamente."
     ]),
     warnings: normalizeStringArray(generated.warnings, []),
+    worksheetTitle: normalizeString(
+      generated.worksheetTitle,
+      `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
+    ),
+    skillCode: normalizeString(generated.skillCode, request.input.skill ?? ""),
+    baseText: normalizeString(generated.baseText, ""),
+    instructions: normalizeStringArray(generated.instructions, [
+      "Leia com atencao e responda no espaco indicado.",
+      "Use apoio visual, concreto ou leitura mediada quando necessario."
+    ]),
+    questions: normalizeQuestions(generated.questions, request),
+    visualElements: normalizeStringArray(generated.visualElements, []),
+    adaptationNotes: normalizeStringArray(
+      generated.adaptationNotes,
+      request.input.specificNeed
+        ? [
+            `Atividade adaptada para ${request.input.specificNeed}, preservando o objetivo de aprendizagem.`,
+            "Comandos objetivos, organizacao visual e espacos amplos para resposta."
+          ]
+        : []
+    ),
+    answerKey: normalizeStringArray(generated.answerKey, []),
     lessonFlow: normalizeStringArray(generated.lessonFlow, fallback.lessonFlow),
     adaptedActivities: normalizeStringArray(
       generated.adaptedActivities,
@@ -391,14 +428,22 @@ async function callOpenAI(
         {
           role: "system",
           content:
-            "Voce e o Motor Pedagogico do ACESSA+. Gere materiais inclusivos em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. Responda somente JSON valido, sem markdown."
+            "Voce e o Motor Pedagogico do ACESSA+. Gere atividades pedagogicas prontas para impressao em A4, em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. O resultado principal deve parecer material de professor, nao resposta de chatbot. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
         },
         {
           role: "user",
           content: JSON.stringify({
             tarefa:
-              "Gerar planejamento, atividades, adaptacoes e relatorio pedagogico para demonstracao do MVP.",
+              "Gerar uma atividade pronta para impressao em A4. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
             contrato: {
+              worksheetTitle: "string com titulo da atividade",
+              skillCode: "string com codigo/texto da habilidade",
+              baseText: "string com texto-base curto quando necessario",
+              instructions: "array de strings com instrucoes claras para estudante",
+              questions: "array de objetos { command, support, answerSpace } com questoes numeradas no front",
+              visualElements: "array de strings descrevendo elementos visuais simples quando pertinente",
+              adaptationNotes: "array de strings explicando adaptacoes aplicadas",
+              answerKey: "array de strings com gabarito ou criterios para professor",
               objectives: "array de strings",
               expectedOutputs: "array de strings",
               methodologicalConstraints: "array de strings",
@@ -454,7 +499,11 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
     ["learningPreference", input.learningPreference],
     ["readingWritingLevel", input.readingWritingLevel],
     ["availableResources", input.availableResources?.join(", ")],
-    ["expectedProductType", input.expectedProductType]
+    ["expectedProductType", input.expectedProductType],
+    ["activityType", input.activityType],
+    ["questionCount", input.questionCount],
+    ["difficultyLevel", input.difficultyLevel],
+    ["outputFormat", input.outputFormat]
   ];
   const missingFields = missingFieldEntries
     .filter(([, value]) => !value)
@@ -517,7 +566,7 @@ function resolveDecision(context: ResolvedContext): DecisionResult {
     objectives: [
       input.lessonObjective ??
         input.objective ??
-        `Planejar aula inclusiva sobre ${input.theme ?? "o tema informado"}.`
+        `Criar atividade pronta para impressao sobre ${input.theme ?? "o tema informado"}.`
     ],
     constraints: [
       "Usar comandos objetivos e criterios claros de mediacao.",
@@ -525,7 +574,7 @@ function resolveDecision(context: ResolvedContext): DecisionResult {
       "Guardar apenas informacoes pedagogicas necessarias."
     ],
     expectedProducts: [
-      input.expectedProductType ?? "Plano de aula inclusivo com atividade adaptada."
+      input.expectedProductType ?? "Atividade A4 pronta para impressao."
     ],
     warnings:
       context.completeness === "COMPLETE"
@@ -645,7 +694,7 @@ function buildGeneratedFallbacks(request: CreateMissionRequest): {
       "O recurso pode ser revisado e reutilizado em novas turmas ou contextos."
     ],
     reuseSuggestions: [
-      "Salvar o recurso como modelo para aulas com objetivos semelhantes.",
+      "Salvar o recurso como modelo para atividades com objetivos semelhantes.",
       "Alterar disciplina, habilidade ou tema mantendo a estrutura de acessibilidade.",
       "Registrar quais apoios funcionaram melhor para qualificar futuras versoes.",
       "Reutilizar as tags pedagogicas e de acessibilidade no Banco Inteligente."
@@ -698,6 +747,11 @@ function buildMetadata(
   const learningPreference = normalizeText(input.learningPreference);
   const readingWritingLevel = normalizeText(input.readingWritingLevel);
   const expectedProductType = normalizeText(input.expectedProductType);
+  const activityType = normalizeText(input.activityType);
+  const questionCount = normalizeText(input.questionCount);
+  const difficultyLevel = normalizeText(input.difficultyLevel);
+  const outputFormat = normalizeText(input.outputFormat);
+  const learningLevel = normalizeText(input.learningLevel ?? input.readingWritingLevel);
 
   return {
     missionType: request.missionType,
@@ -710,12 +764,19 @@ function buildMetadata(
     learningPreference,
     readingWritingLevel,
     expectedProductType,
+    activityType,
+    questionCount,
+    difficultyLevel,
+    outputFormat,
+    learningLevel,
     pedagogicalTags: uniqueTags([
       tag("disciplina", discipline),
       tag("serie", gradeYear),
       tag("habilidade", skill),
       tag("objeto", knowledgeObject),
       tag("tema", theme),
+      tag("tipo", activityType),
+      tag("dificuldade", difficultyLevel),
       tag("produto", expectedProductType)
     ]),
     accessibilityTags: uniqueTags([
@@ -748,7 +809,16 @@ function buildContentText(
     `Como aprende melhor: ${input.learningPreference ?? ""}`,
     `Nivel de leitura/escrita: ${input.readingWritingLevel ?? ""}`,
     `Recursos disponiveis: ${input.availableResources?.join(", ") ?? ""}`,
+    `Tipo de atividade: ${input.activityType ?? ""}`,
+    `Quantidade de questoes: ${input.questionCount ?? ""}`,
+    `Nivel de dificuldade: ${input.difficultyLevel ?? ""}`,
+    `Formato: ${input.outputFormat ?? ""}`,
     `Produto esperado: ${plan.expectedOutputs.join("; ")}`,
+    `Titulo da atividade: ${normalizeString(plan.worksheetTitle, "")}`,
+    `Texto-base: ${normalizeString(plan.baseText, "")}`,
+    `Questoes: ${normalizeQuestions(plan.questions, request)
+      .map((question) => question.command)
+      .join("; ")}`,
     `Completude do contexto: ${context.completeness}`,
     `Restricoes: ${plan.methodologicalConstraints.join("; ")}`,
     `Validacao: ${plan.validationCriteria.join("; ")}`,
@@ -761,6 +831,12 @@ function buildContentText(
 
 function buildVersionText(contentJson: Record<string, unknown>): string {
   return [
+    `Titulo: ${normalizeString(contentJson.worksheetTitle, "")}`,
+    `Habilidade: ${normalizeString(contentJson.skillCode, "")}`,
+    `Texto-base: ${normalizeString(contentJson.baseText, "")}`,
+    `Questoes: ${normalizeQuestions(contentJson.questions, undefined)
+      .map((question) => question.command)
+      .join("; ")}`,
     `Objetivo: ${normalizeStringArray(contentJson.objectives, []).join("; ")}`,
     `Produto esperado: ${normalizeStringArray(contentJson.expectedOutputs, []).join("; ")}`,
     `Restricoes: ${normalizeStringArray(contentJson.methodologicalConstraints, []).join("; ")}`,
@@ -774,9 +850,65 @@ function resolveTitle(request: CreateMissionRequest): string {
   const prefix =
     request.missionType === "ADAPT_ACTIVITY"
       ? "Atividade adaptada"
-      : "Planejamento inclusivo";
+      : "Atividade pronta para impressao";
 
   return request.input.theme ? `${prefix}: ${request.input.theme}` : prefix;
+}
+
+function normalizeQuestions(
+  value: unknown,
+  request: CreateMissionRequest | undefined
+): Array<{ command: string; support?: string; answerSpace?: string }> {
+  if (Array.isArray(value)) {
+    const questions: Array<{
+      command: string;
+      support?: string;
+      answerSpace?: string;
+    }> = [];
+
+    for (const item of value) {
+      if (typeof item === "string" && item.trim()) {
+        questions.push({ command: item.trim() });
+        continue;
+      }
+
+      if (isRecord(item)) {
+        const command = normalizeString(item.command, "");
+
+        if (command) {
+          questions.push({
+            command,
+            support: normalizeString(item.support, ""),
+            answerSpace: normalizeString(item.answerSpace, "")
+          });
+        }
+      }
+    }
+
+    if (questions.length > 0) {
+      return questions;
+    }
+  }
+
+  const input = request?.input;
+  const count = Math.min(
+    Math.max(Number.parseInt(input?.questionCount ?? "5", 10) || 5, 1),
+    10
+  );
+  const theme = input?.theme ?? input?.knowledgeObject ?? "conteudo estudado";
+
+  return Array.from({ length: count }, (_, index) => ({
+    command: `Resolva a questao sobre ${theme}.`,
+    support:
+      index === 0
+        ? "Observe as pistas visuais e leia o comando com atencao."
+        : "Responda no espaco indicado.",
+    answerSpace: "duas linhas"
+  }));
+}
+
+function normalizeString(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {

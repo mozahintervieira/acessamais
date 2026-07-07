@@ -26,7 +26,7 @@ export function MissionsList(): React.ReactElement {
         );
 
         if (!response.ok) {
-          throw new Error("Nao foi possivel carregar as missoes.");
+          throw new Error("Nao foi possivel carregar os materiais.");
         }
 
         setMissions((await response.json()) as MissionListItem[]);
@@ -34,7 +34,7 @@ export function MissionsList(): React.ReactElement {
         setError(
           caughtError instanceof Error
             ? caughtError.message
-            : "Erro inesperado ao carregar missoes."
+            : "Erro inesperado ao carregar materiais."
         );
       } finally {
         setIsLoading(false);
@@ -47,18 +47,18 @@ export function MissionsList(): React.ReactElement {
   return (
     <main className="missionShell">
       <section className="missionIntro">
-        <p className="eyebrow">Historico de trabalho</p>
-        <h1>Missoes salvas</h1>
+        <p className="eyebrow">Meus materiais</p>
+        <h1>Atividades e recursos salvos</h1>
         <p className="lead">
-          Retome planejamentos, abra o recurso gerado e preserve o historico de
-          cada material sem sobrescrever versoes anteriores.
+          Retome atividades A4, materiais adaptados, avaliacoes e recursos
+          versionados sem perder o historico.
         </p>
         <div className="actionRow">
-          <a className="primaryLink" href="/planning/new">
-            Criar nova missao
+          <a className="primaryLink" href="/planning/new?task=printable">
+            Criar atividade A4
           </a>
           <a className="textLink" href="/resources">
-            Buscar recursos
+            Abrir Banco Inteligente
           </a>
         </div>
       </section>
@@ -66,18 +66,18 @@ export function MissionsList(): React.ReactElement {
       <section className="listPanel">
         <div className="panelHeader">
           <div>
-            <p className="panelLabel">Missoes por organizacao</p>
-            <h2>Planejamentos registrados</h2>
+            <p className="panelLabel">Materiais por organizacao</p>
+            <h2>Recursos registrados</h2>
           </div>
           <span className="countBadge">{missions.length} itens</span>
         </div>
 
-        {isLoading ? <p className="emptyState">Carregando missoes...</p> : null}
+        {isLoading ? <p className="emptyState">Carregando materiais...</p> : null}
         {error ? <p className="formError">{error}</p> : null}
         {!isLoading && missions.length === 0 ? (
           <p className="emptyState">
-            Nenhuma missao salva ainda. Crie o primeiro planejamento para iniciar
-            o Banco Inteligente.
+            Nenhum material salvo ainda. Crie a primeira atividade A4 para
+            iniciar o Banco Inteligente.
           </p>
         ) : null}
 

@@ -21,6 +21,11 @@ export const missionInputSchema = z.object({
   readingWritingLevel: z.string().min(1).optional(),
   availableResources: z.array(z.string().min(1)).optional(),
   expectedProductType: z.string().min(1).optional(),
+  activityType: z.string().min(1).optional(),
+  questionCount: z.string().min(1).optional(),
+  difficultyLevel: z.string().min(1).optional(),
+  outputFormat: z.string().min(1).optional(),
+  learningLevel: z.string().min(1).optional(),
   originalContent: z.string().min(1).optional(),
   accessibilityNeeds: z.array(z.string().min(1)).optional(),
   contextNotes: z.string().optional()

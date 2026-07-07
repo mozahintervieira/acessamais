@@ -23,6 +23,11 @@ export type MissionInput = {
   readingWritingLevel?: string;
   availableResources?: string[];
   expectedProductType?: string;
+  activityType?: string;
+  questionCount?: string;
+  difficultyLevel?: string;
+  outputFormat?: string;
+  learningLevel?: string;
   originalContent?: string;
   accessibilityNeeds?: string[];
   contextNotes?: string;
