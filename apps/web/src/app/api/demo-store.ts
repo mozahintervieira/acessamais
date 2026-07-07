@@ -408,15 +408,7 @@ async function generatePedagogicalPlan(
       "Avancar para aplicacao guiada.",
       "Finalizar com producao ou explicacao propria."
     ]),
-    adaptationNotes: normalizeStringArray(
-      generated.adaptationNotes,
-      request.input.specificNeed || request.input.adaptationProfile?.enabled
-        ? [
-            `Adaptacao pedagogica aplicada: ${buildAdaptationProfileText(request.input)}.`,
-            "Comandos objetivos, organizacao visual e espacos amplos para resposta."
-          ]
-        : []
-    ),
+    adaptationNotes: buildAdaptationNotes(generated.adaptationNotes, request),
     answerKey: normalizeStringArray(generated.answerKey, []),
     lessonFlow: normalizeStringArray(generated.lessonFlow, fallback.lessonFlow),
     adaptedActivities: normalizeStringArray(
@@ -1004,6 +996,25 @@ function buildAdaptationProfileText(input: CreateMissionRequest["input"]): strin
     `perfil de aprendizagem: ${profile.learningProfile ?? input.readingWritingLevel ?? "nao informado"}`,
     `apoios necessarios: ${profile.supports?.join(", ") || "nao informados"}`
   ].join("; ");
+}
+
+function buildAdaptationNotes(
+  generatedValue: unknown,
+  request: CreateMissionRequest
+): string[] {
+  const generatedNotes = normalizeStringArray(generatedValue, []);
+
+  if (!request.input.specificNeed && !request.input.adaptationProfile?.enabled) {
+    return generatedNotes;
+  }
+
+  return [
+    `Adaptacao pedagogica aplicada: ${buildAdaptationProfileText(request.input)}.`,
+    ...generatedNotes,
+    ...(generatedNotes.length === 0
+      ? ["Comandos objetivos, organizacao visual e espacos amplos para resposta."]
+      : [])
+  ];
 }
 
 function normalizeString(value: unknown, fallback: string): string {
