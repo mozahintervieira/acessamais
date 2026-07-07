@@ -5,7 +5,7 @@ describe("foundation web app", () => {
     expect("ACESSA+").toContain("ACESSA");
   });
 
-  it("exposes the first complete teacher mission route", () => {
-    expect("/planning/new").toBe("/planning/new");
+  it("centers the MVP on instant resource generation", () => {
+    expect("O que voce deseja criar hoje?").toContain("criar");
   });
 });

@@ -8,6 +8,7 @@ export type MissionStatus =
   | "FAILED";
 
 export type MissionInput = {
+  rawPrompt?: string;
   discipline?: string;
   gradeYear?: string;
   skill?: string;

@@ -367,7 +367,21 @@ async function generatePedagogicalPlan(
       generated.worksheetTitle,
       `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
     ),
+    subject: normalizeString(
+      generated.subject,
+      request.input.discipline ?? request.input.subject ?? "Recurso pedagogico"
+    ),
+    grade: normalizeString(
+      generated.grade,
+      request.input.gradeYear ?? request.input.yearGrade ?? ""
+    ),
     skillCode: normalizeString(generated.skillCode, request.input.skill ?? ""),
+    learningObjective: normalizeString(
+      generated.learningObjective,
+      request.input.lessonObjective ??
+        request.input.objective ??
+        "Desenvolver a aprendizagem prevista na solicitacao do professor."
+    ),
     baseText: normalizeString(generated.baseText, ""),
     instructions: normalizeStringArray(generated.instructions, [
       "Leia com atencao e responda no espaco indicado.",
@@ -428,16 +442,19 @@ async function callOpenAI(
         {
           role: "system",
           content:
-            "Voce e o Motor Pedagogico do ACESSA+. Gere atividades pedagogicas prontas para impressao em A4, em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. O resultado principal deve parecer material de professor, nao resposta de chatbot. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
+            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico profissional pronto para uso. Gere atividades, avaliacoes, PEI, CAA, Libras, Braille ou materiais acessiveis em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. Para atividades imprimiveis, o resultado principal deve parecer uma folha A4 feita por professor experiente, nao uma resposta de chatbot. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
         },
         {
           role: "user",
           content: JSON.stringify({
             tarefa:
-              "Gerar uma atividade pronta para impressao em A4. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
+              "Gerar o recurso educacional solicitado pelo professor. Quando o pedido for atividade imprimivel, produzir uma folha A4 pronta para impressao. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
             contrato: {
+              subject: "string com disciplina ou area do conhecimento inferida",
+              grade: "string com ano/serie quando informado ou inferido",
               worksheetTitle: "string com titulo da atividade",
               skillCode: "string com codigo/texto da habilidade",
+              learningObjective: "string com objetivo de aprendizagem",
               baseText: "string com texto-base curto quando necessario",
               instructions: "array de strings com instrucoes claras para estudante",
               questions: "array de objetos { command, support, answerSpace } com questoes numeradas no front",
@@ -456,6 +473,7 @@ async function callOpenAI(
               teacherReport: "array de strings",
               reuseSuggestions: "array de strings"
             },
+            pedidoNatural: request.input.rawPrompt,
             mission: request,
             context,
             decision
@@ -489,6 +507,7 @@ async function callOpenAI(
 function resolveContext(request: CreateMissionRequest): ResolvedContext {
   const input = request.input;
   const missingFieldEntries: Array<[string, string | undefined]> = [
+    ["rawPrompt", input.rawPrompt],
     ["discipline", input.discipline ?? input.subject],
     ["gradeYear", input.gradeYear ?? input.yearGrade],
     ["skill", input.skill],
@@ -508,8 +527,11 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
   const missingFields = missingFieldEntries
     .filter(([, value]) => !value)
     .map(([field]) => field);
-  const completeness =
-    missingFields.length === 0
+  const completeness = input.rawPrompt
+    ? missingFields.length <= 3
+      ? "COMPLETE"
+      : "PARTIAL"
+    : missingFields.length === 0
       ? "COMPLETE"
       : missingFields.length <= 3
         ? "PARTIAL"
@@ -530,6 +552,7 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
     userId: request.userId,
     availableKnowledgeIds: KNOWLEDGE_IDS,
     detectedSignals: [
+      input.rawPrompt ? "entrada:linguagem-natural" : undefined,
       input.discipline ? `disciplina:${input.discipline}` : undefined,
       input.gradeYear ? `serie:${input.gradeYear}` : undefined,
       input.specificNeed ? `necessidade:${input.specificNeed}` : undefined,
@@ -566,7 +589,7 @@ function resolveDecision(context: ResolvedContext): DecisionResult {
     objectives: [
       input.lessonObjective ??
         input.objective ??
-        `Criar atividade pronta para impressao sobre ${input.theme ?? "o tema informado"}.`
+        `Criar recurso pedagogico pronto para uso a partir do pedido: ${input.rawPrompt ?? input.theme ?? "tema informado"}.`
     ],
     constraints: [
       "Usar comandos objetivos e criterios claros de mediacao.",
@@ -646,6 +669,15 @@ function validateMission(request: CreateMissionRequest): void {
   if (!request.input || typeof request.input !== "object") {
     throw new Error("input da missao e obrigatorio.");
   }
+
+  if (
+    !request.input.rawPrompt &&
+    !request.input.theme &&
+    !request.input.lessonObjective &&
+    !request.input.originalContent
+  ) {
+    throw new Error("Descreva em uma frase o recurso pedagogico que deseja criar.");
+  }
 }
 
 function buildGeneratedFallbacks(request: CreateMissionRequest): {
@@ -657,7 +689,7 @@ function buildGeneratedFallbacks(request: CreateMissionRequest): {
   reuseSuggestions: string[];
 } {
   const input = request.input;
-  const theme = input.theme ?? input.knowledgeObject ?? "tema informado";
+  const theme = input.theme ?? input.knowledgeObject ?? input.rawPrompt ?? "tema informado";
   const need = input.specificNeed ?? "necessidade pedagogica informada";
   const resources = input.availableResources?.join(", ") || "recursos disponiveis";
 
@@ -798,6 +830,7 @@ function buildContentText(
 ): string {
   const input = request.input;
   const lines = [
+    `Pedido natural: ${input.rawPrompt ?? ""}`,
     `Missao: ${request.missionType}`,
     `Disciplina: ${input.discipline ?? input.subject ?? ""}`,
     `Serie/ano: ${input.gradeYear ?? input.yearGrade ?? ""}`,
@@ -815,6 +848,9 @@ function buildContentText(
     `Formato: ${input.outputFormat ?? ""}`,
     `Produto esperado: ${plan.expectedOutputs.join("; ")}`,
     `Titulo da atividade: ${normalizeString(plan.worksheetTitle, "")}`,
+    `Disciplina inferida: ${normalizeString(plan.subject, "")}`,
+    `Ano/serie inferido: ${normalizeString(plan.grade, "")}`,
+    `Objetivo de aprendizagem: ${normalizeString(plan.learningObjective, "")}`,
     `Texto-base: ${normalizeString(plan.baseText, "")}`,
     `Questoes: ${normalizeQuestions(plan.questions, request)
       .map((question) => question.command)

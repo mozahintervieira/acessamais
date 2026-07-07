@@ -3,11 +3,8 @@
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/planning/new?task=printable", label: "Criar atividade" },
-  { href: "/resources", label: "Banco Inteligente" },
-  { href: "/missions", label: "Meus materiais" },
-  { href: "/planning/new?task=adapted", label: "Adaptar material" },
-  { href: "/missions", label: "Exportar" }
+  { href: "/", label: "Criar" },
+  { href: "/resources", label: "Recursos" }
 ];
 
 export function AppNavigation(): React.ReactElement {

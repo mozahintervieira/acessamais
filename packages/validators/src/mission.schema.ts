@@ -6,6 +6,7 @@ export const missionTypeSchema = z.enum([
 ]);
 
 export const missionInputSchema = z.object({
+  rawPrompt: z.string().min(1).optional(),
   discipline: z.string().min(1).optional(),
   gradeYear: z.string().min(1).optional(),
   skill: z.string().min(1).optional(),
