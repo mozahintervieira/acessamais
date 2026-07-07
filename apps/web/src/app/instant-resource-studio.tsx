@@ -9,7 +9,31 @@ type WorksheetQuestion = {
   answerSpace?: string;
 };
 
+type StudentSheet = {
+  title?: string;
+  context?: string;
+  instructions?: string[];
+  baseText?: string;
+  didacticBoxes?: string[];
+  visualElements?: string[];
+  tableRows?: string[];
+  questions?: WorksheetQuestion[];
+};
+
+type TeacherGuide = {
+  skillCode?: string;
+  knowledgeObject?: string;
+  objectives?: string[];
+  methodology?: string[];
+  adaptations?: string[];
+  duaPrinciples?: string[];
+  assessmentCriteria?: string[];
+  applicationSuggestions?: string[];
+};
+
 type WorksheetPlan = {
+  studentSheet?: StudentSheet;
+  teacherGuide?: TeacherGuide;
   worksheetTitle?: string;
   subject?: string;
   grade?: string;
@@ -26,6 +50,9 @@ type WorksheetPlan = {
   methodologyTips?: string[];
   difficultyProgression?: string[];
   adaptationNotes?: string[];
+  objectives?: string[];
+  validationCriteria?: string[];
+  reuseSuggestions?: string[];
 };
 
 type MissionResult = {
@@ -134,6 +161,7 @@ export function InstantResourceStudio(): React.ReactElement {
   const [message, setMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showAdaptations, setShowAdaptations] = useState(false);
+  const [showTeacherGuide, setShowTeacherGuide] = useState(false);
   const [followUp, setFollowUp] = useState<string | null>(null);
   const [adaptation, setAdaptation] = useState<AdaptationState>({
     enabled: true,
@@ -208,6 +236,7 @@ export function InstantResourceStudio(): React.ReactElement {
       setEditablePlan(payload.pedagogicalPlan);
       setIsEditing(false);
       setShowAdaptations(false);
+      setShowTeacherGuide(false);
       setMessage("Recurso gerado. Voce ja pode editar, adaptar ou exportar.");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Erro inesperado ao gerar recurso.");
@@ -401,8 +430,8 @@ export function InstantResourceStudio(): React.ReactElement {
         <div className="heroPreviewWrap" aria-hidden="true">
           <div className="heroWorksheetPreview">
             <div className="previewHeader">
-              <strong>MATEMATICA</strong>
-              <span>BNCC EM13MAT401</span>
+              <strong>ATIVIDADE A4</strong>
+              <span>pronta para imprimir</span>
             </div>
             <h2>Equacoes do primeiro grau</h2>
             <p>Resolva cada situacao com atencao. Use o exemplo como apoio.</p>
@@ -449,6 +478,9 @@ export function InstantResourceStudio(): React.ReactElement {
           </button>
           <button type="button" disabled={!canExport} onClick={() => setShowAdaptations((current) => !current)}>
             Adaptar
+          </button>
+          <button type="button" disabled={!canExport} onClick={() => setShowTeacherGuide((current) => !current)}>
+            {showTeacherGuide ? "Ver folha do estudante" : "Ver guia do professor"}
           </button>
           <a className={canExport && result ? "" : "disabledLink"} href={result ? `/missions/${result.missionId}` : "/missions"}>
             Salvar
@@ -497,7 +529,15 @@ export function InstantResourceStudio(): React.ReactElement {
           </section>
         ) : null}
 
-        {activePlan ? <PrintableWorksheet plan={activePlan} /> : <EmptyPreview isGenerating={isGenerating} />}
+        {activePlan ? (
+          showTeacherGuide ? (
+            <TeacherGuideView plan={activePlan} />
+          ) : (
+            <PrintableWorksheet plan={activePlan} />
+          )
+        ) : (
+          <EmptyPreview isGenerating={isGenerating} />
+        )}
       </section>
 
       <section className="productSections" aria-label="Recursos do ACESSA+">
@@ -628,53 +668,48 @@ function MultiChipGroup({
 }
 
 function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
+  const sheet = resolveStudentSheet(plan);
   const questions =
-    plan.questions && plan.questions.length > 0
-      ? plan.questions
+    sheet.questions && sheet.questions.length > 0
+      ? sheet.questions
       : [{ command: "Responda a questao proposta no espaco indicado." }];
 
   return (
     <article className="premiumA4Sheet">
-      <header className="premiumA4Header">
-        <strong>{plan.subject ?? "Recurso pedagogico"}</strong>
-        <span>{plan.skillCode ?? "Habilidade curricular indicada pelo professor"}</span>
-      </header>
-
       <section className="worksheetTitleBlock">
-        <h2>{plan.worksheetTitle ?? "Atividade pronta para impressao"}</h2>
-        <p>{plan.learningObjective ?? "Objetivo de aprendizagem organizado a partir da solicitacao do professor."}</p>
+        <h2>{sheet.title ?? "Atividade pronta para impressao"}</h2>
       </section>
 
       <section className="worksheetContext">
         <strong>Contexto da atividade</strong>
         <p>
-          {plan.context ??
-            plan.baseText ??
+          {sheet.context ??
+            sheet.baseText ??
             "Observe as informacoes, leia os apoios visuais e realize cada etapa no seu ritmo."}
         </p>
       </section>
 
-      {(plan.instructions ?? []).length > 0 ? (
+      {(sheet.instructions ?? []).length > 0 ? (
         <section className="worksheetInstructions">
           <strong>Instrucoes</strong>
           <ul>
-            {(plan.instructions ?? []).map((instruction) => (
+            {(sheet.instructions ?? []).map((instruction) => (
               <li key={instruction}>{instruction}</li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      {plan.baseText ? (
+      {sheet.baseText ? (
         <section className="worksheetBaseText">
           <strong>Texto-base</strong>
-          <p>{plan.baseText}</p>
+          <p>{sheet.baseText}</p>
         </section>
       ) : null}
 
       <section className="worksheetBoxes">
-        {(plan.didacticBoxes && plan.didacticBoxes.length > 0
-          ? plan.didacticBoxes
+        {(sheet.didacticBoxes && sheet.didacticBoxes.length > 0
+          ? sheet.didacticBoxes
           : ["Lembrete importante: leia o comando, observe o exemplo e responda no espaco indicado."]
         )
           .slice(0, 2)
@@ -686,9 +721,9 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
           ))}
       </section>
 
-      {(plan.visualElements ?? []).length > 0 ? (
+      {(sheet.visualElements ?? []).length > 0 ? (
         <section className="worksheetVisuals" aria-label="Elementos visuais sugeridos">
-          {(plan.visualElements ?? []).slice(0, 4).map((visual) => (
+          {(sheet.visualElements ?? []).slice(0, 4).map((visual) => (
             <div key={visual}>{visual}</div>
           ))}
         </section>
@@ -705,8 +740,8 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
           <strong>Organize</strong>
           <strong>Responda</strong>
         </div>
-        {(plan.tableRows && plan.tableRows.length > 0
-          ? plan.tableRows
+        {(sheet.tableRows && sheet.tableRows.length > 0
+          ? sheet.tableRows
           : ["Informacao principal | Ideia importante | Minha resposta"]
         )
           .slice(0, 3)
@@ -740,52 +775,98 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
         ))}
       </ol>
 
-      {(plan.difficultyProgression ?? []).length > 0 ? (
-        <section className="worksheetProgression">
-          <strong>Progressao da atividade</strong>
-          <ul>
-            {(plan.difficultyProgression ?? []).slice(0, 4).map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {(plan.adaptationNotes ?? []).length > 0 ? (
-        <section className="worksheetAdaptation">
-          <strong>Adaptacao pedagogica aplicada</strong>
-          <p>{(plan.adaptationNotes ?? []).join(" ")}</p>
-        </section>
-      ) : null}
-
-      {(plan.methodologyTips ?? []).length > 0 ? (
-        <section className="worksheetTeacherNote">
-          <strong>Orientacao ao professor</strong>
-          <p>{(plan.methodologyTips ?? []).join(" ")}</p>
-        </section>
-      ) : null}
-
       <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
     </article>
   );
 }
 
 function buildCopyText(plan: WorksheetPlan): string {
+  const sheet = resolveStudentSheet(plan);
+
   return [
-    plan.subject ?? "Recurso pedagogico",
-    plan.skillCode ?? "",
-    plan.worksheetTitle ?? "Atividade pronta para impressao",
-    plan.learningObjective ? `Objetivo: ${plan.learningObjective}` : "",
-    plan.context ? `Contexto: ${plan.context}` : "",
-    ...(plan.instructions ?? []).map((instruction) => `Instrucao: ${instruction}`),
-    plan.baseText ? `Texto-base: ${plan.baseText}` : "",
-    ...(plan.didacticBoxes ?? []).map((box) => `Quadro de apoio: ${box}`),
-    ...(plan.tableRows ?? []).map((row) => `Tabela: ${row}`),
-    ...(plan.questions ?? []).map((question, index) => `${index + 1}. ${question.command}`),
+    sheet.title ?? "Atividade pronta para impressao",
+    sheet.context ? `Contexto: ${sheet.context}` : "",
+    ...(sheet.instructions ?? []).map((instruction) => `Instrucao: ${instruction}`),
+    sheet.baseText ? `Texto-base: ${sheet.baseText}` : "",
+    ...(sheet.didacticBoxes ?? []).map((box) => `Quadro de apoio: ${box}`),
+    ...(sheet.tableRows ?? []).map((row) => `Tabela: ${row}`),
+    ...(sheet.questions ?? []).map((question, index) => `${index + 1}. ${question.command}`),
     "acessa+ | educacao inclusiva na pratica - @mozahintervieira"
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function TeacherGuideView({ plan }: { plan: WorksheetPlan }): React.ReactElement {
+  const guide = resolveTeacherGuide(plan);
+
+  return (
+    <article className="teacherGuide">
+      <header>
+        <span>Guia do professor</span>
+        <h2>{resolveStudentSheet(plan).title ?? "Recurso pedagogico"}</h2>
+      </header>
+      <GuideSection title="Habilidade BNCC" items={[guide.skillCode ?? plan.skillCode ?? "Nao informada"]} />
+      <GuideSection title="Objeto de conhecimento" items={[guide.knowledgeObject ?? "Nao informado"]} />
+      <GuideSection title="Objetivos" items={guide.objectives ?? plan.objectives ?? []} />
+      <GuideSection title="Metodologia" items={guide.methodology ?? plan.methodologyTips ?? []} />
+      <GuideSection title="Adaptacoes realizadas" items={guide.adaptations ?? plan.adaptationNotes ?? []} />
+      <GuideSection title="Principios do DUA" items={guide.duaPrinciples ?? ["Oferecer multiplas formas de acesso, participacao e expressao."]} />
+      <GuideSection title="Criterios de avaliacao" items={guide.assessmentCriteria ?? plan.validationCriteria ?? []} />
+      <GuideSection title="Sugestoes de aplicacao" items={guide.applicationSuggestions ?? plan.reuseSuggestions ?? []} />
+    </article>
+  );
+}
+
+function GuideSection({
+  title,
+  items
+}: {
+  title: string;
+  items: string[];
+}): React.ReactElement | null {
+  const cleanItems = items.filter(Boolean);
+
+  if (cleanItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <section>
+      <strong>{title}</strong>
+      <ul>
+        {cleanItems.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function resolveStudentSheet(plan: WorksheetPlan): StudentSheet {
+  return {
+    title: plan.studentSheet?.title ?? plan.worksheetTitle,
+    context: plan.studentSheet?.context ?? plan.context,
+    instructions: plan.studentSheet?.instructions ?? plan.instructions,
+    baseText: plan.studentSheet?.baseText ?? plan.baseText,
+    didacticBoxes: plan.studentSheet?.didacticBoxes ?? plan.didacticBoxes,
+    visualElements: plan.studentSheet?.visualElements ?? plan.visualElements,
+    tableRows: plan.studentSheet?.tableRows ?? plan.tableRows,
+    questions: plan.studentSheet?.questions ?? plan.questions
+  };
+}
+
+function resolveTeacherGuide(plan: WorksheetPlan): TeacherGuide {
+  return {
+    skillCode: plan.teacherGuide?.skillCode ?? plan.skillCode,
+    knowledgeObject: plan.teacherGuide?.knowledgeObject,
+    objectives: plan.teacherGuide?.objectives ?? plan.objectives,
+    methodology: plan.teacherGuide?.methodology ?? plan.methodologyTips,
+    adaptations: plan.teacherGuide?.adaptations ?? plan.adaptationNotes,
+    duaPrinciples: plan.teacherGuide?.duaPrinciples,
+    assessmentCriteria: plan.teacherGuide?.assessmentCriteria ?? plan.validationCriteria,
+    applicationSuggestions: plan.teacherGuide?.applicationSuggestions ?? plan.reuseSuggestions
+  };
 }
 
 function buildAdaptationSummary(adaptation: AdaptationState): string {

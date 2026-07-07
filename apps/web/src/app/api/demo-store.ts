@@ -363,6 +363,8 @@ async function generatePedagogicalPlan(
       "Evitar dados sensiveis ou diagnosticos alem do necessario pedagogicamente."
     ]),
     warnings: normalizeStringArray(generated.warnings, []),
+    studentSheet: buildStudentSheet(generated, request),
+    teacherGuide: buildTeacherGuide(generated, request),
     worksheetTitle: normalizeString(
       generated.worksheetTitle,
       `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
@@ -454,13 +456,13 @@ async function callOpenAI(
         {
           role: "system",
           content:
-            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Gere atividades, avaliacoes, PEI, CAA, Libras, Braille ou materiais acessiveis em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Para atividades imprimiveis, produza folha A4 com aparencia de material de editora educacional, incluindo titulo, contexto, objetivo, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador grafico, elementos visuais descritos, atividades variadas, progressao de dificuldade, questoes com espaco de resposta, adaptacoes e orientacoes metodologicas. Nunca entregue apenas perguntas. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
+            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Gere sempre dois documentos separados: studentSheet e teacherGuide. A studentSheet e a folha do estudante, A4 pronta para impressao, com aparencia de material de editora educacional. Ela deve conter somente conteudo destinado ao estudante: titulo, contexto, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador visual, elementos visuais descritos, atividades variadas e questoes com espaco de resposta. Nunca inclua na studentSheet: objetivo da aula, metodologia, adaptacao pedagogica aplicada, criterios de avaliacao, orientacoes ao professor, BNCC, habilidade, objeto de conhecimento ou informacao tecnica. O teacherGuide e separado e contem habilidade BNCC, objeto de conhecimento, objetivos, metodologia, adaptacoes realizadas, principios do DUA, orientacoes pedagogicas, criterios de avaliacao e sugestoes de aplicacao. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
         },
         {
           role: "user",
           content: JSON.stringify({
             tarefa:
-              "Gerar o recurso educacional solicitado pelo professor. Quando o pedido for atividade imprimivel, produzir uma folha A4 pronta para impressao, visualmente organizada e rica em recursos didaticos. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
+              "Gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
             perfilInteligenteDeAdaptacao: adaptationProfile,
             regrasDeAdaptacao: [
               "Preservar sempre o objetivo de aprendizagem e a habilidade curricular.",
@@ -473,6 +475,26 @@ async function callOpenAI(
               "Para CAA: comandos simples, pictogramas descritos, escolhas por marcacao e formas alternativas de resposta."
             ],
             contrato: {
+              studentSheet: {
+                title: "titulo para o estudante, sem codigo BNCC",
+                context: "contexto curto para o estudante",
+                instructions: "array de instrucoes para o estudante",
+                baseText: "texto-base quando necessario",
+                didacticBoxes: "array de quadros de apoio para o estudante",
+                visualElements: "array de elementos visuais para a folha",
+                tableRows: "array no formato coluna1 | coluna2 | coluna3",
+                questions: "array de objetos { command, support, answerSpace } para o estudante"
+              },
+              teacherGuide: {
+                skillCode: "habilidade BNCC ou curricular",
+                knowledgeObject: "objeto de conhecimento",
+                objectives: "array de objetivos pedagogicos",
+                methodology: "array de orientacoes metodologicas",
+                adaptations: "array de adaptacoes realizadas",
+                duaPrinciples: "array de principios do DUA aplicados",
+                assessmentCriteria: "array de criterios de avaliacao",
+                applicationSuggestions: "array de sugestoes de aplicacao"
+              },
               subject: "string com disciplina ou area do conhecimento inferida",
               grade: "string com ano/serie quando informado ou inferido",
               worksheetTitle: "string com titulo da atividade",
@@ -982,6 +1004,95 @@ function normalizeQuestions(
         : "Responda no espaco indicado.",
     answerSpace: "duas linhas"
   }));
+}
+
+function buildStudentSheet(
+  generated: Record<string, unknown>,
+  request: CreateMissionRequest
+): Record<string, unknown> {
+  const source = isRecord(generated.studentSheet) ? generated.studentSheet : {};
+
+  return {
+    title: normalizeString(
+      source.title,
+      normalizeString(
+        generated.worksheetTitle,
+        `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
+      )
+    ),
+    context: normalizeString(
+      source.context,
+      normalizeString(
+        generated.context,
+        "Leia as informacoes, observe os apoios visuais e realize as atividades com atencao."
+      )
+    ),
+    instructions: normalizeStringArray(source.instructions, [
+      "Leia cada comando com atencao.",
+      "Responda nos espacos indicados."
+    ]),
+    baseText: normalizeString(source.baseText, normalizeString(generated.baseText, "")),
+    didacticBoxes: normalizeStringArray(
+      source.didacticBoxes,
+      normalizeStringArray(generated.didacticBoxes, [
+        "Use o exemplo e as pistas visuais para ajudar na resposta."
+      ])
+    ),
+    visualElements: normalizeStringArray(
+      source.visualElements,
+      normalizeStringArray(generated.visualElements, [])
+    ),
+    tableRows: normalizeStringArray(
+      source.tableRows,
+      normalizeStringArray(generated.tableRows, [
+        "Informacao principal | Ideia importante | Minha resposta"
+      ])
+    ),
+    questions: normalizeQuestions(source.questions ?? generated.questions, request)
+  };
+}
+
+function buildTeacherGuide(
+  generated: Record<string, unknown>,
+  request: CreateMissionRequest
+): Record<string, unknown> {
+  const source = isRecord(generated.teacherGuide) ? generated.teacherGuide : {};
+
+  return {
+    skillCode: normalizeString(source.skillCode, normalizeString(generated.skillCode, request.input.skill ?? "")),
+    knowledgeObject: normalizeString(source.knowledgeObject, request.input.knowledgeObject ?? ""),
+    objectives: normalizeStringArray(
+      source.objectives,
+      normalizeStringArray(generated.objectives, [
+        request.input.lessonObjective ??
+          request.input.objective ??
+          "Promover a aprendizagem prevista no recurso."
+      ])
+    ),
+    methodology: normalizeStringArray(
+      source.methodology,
+      normalizeStringArray(generated.methodologyTips, [
+        "Apresentar a atividade, mediar a leitura dos comandos e acompanhar as respostas."
+      ])
+    ),
+    adaptations: buildAdaptationNotes(generated.adaptationNotes, request),
+    duaPrinciples: normalizeStringArray(source.duaPrinciples, [
+      "Oferecer multiplas formas de acesso, participacao e expressao.",
+      "Usar apoios visuais, organizacao clara e formas alternativas de resposta quando necessario."
+    ]),
+    assessmentCriteria: normalizeStringArray(
+      source.assessmentCriteria,
+      normalizeStringArray(generated.validationCriteria, [
+        "Observar compreensao dos comandos, participacao e evidencias de aprendizagem."
+      ])
+    ),
+    applicationSuggestions: normalizeStringArray(
+      source.applicationSuggestions,
+      normalizeStringArray(generated.reuseSuggestions, [
+        "Aplicar com mediacao proporcional ao perfil do estudante e registrar apoios que funcionaram."
+      ])
+    )
+  };
 }
 
 function buildAdaptationProfileText(input: CreateMissionRequest["input"]): string {

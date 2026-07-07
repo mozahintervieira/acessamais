@@ -899,6 +899,61 @@ textarea:focus-visible {
   text-align: center;
 }
 
+.teacherGuide {
+  width: min(100%, 820px);
+  justify-self: center;
+  display: grid;
+  gap: 16px;
+  border: 1px solid #d8dee7;
+  border-radius: 24px;
+  padding: 34px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+}
+
+.teacherGuide header {
+  border-bottom: 2px solid #111827;
+  padding-bottom: 16px;
+}
+
+.teacherGuide header span {
+  color: #0b5563;
+  font-size: 0.85rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.teacherGuide h2 {
+  margin: 8px 0 0;
+  color: #111827;
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.teacherGuide section {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.teacherGuide section strong {
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.teacherGuide ul {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.55;
+}
+
 .productSections {
   display: grid;
   gap: 28px;
@@ -2225,6 +2280,7 @@ p {
   .adaptPanel,
   .quickEditor,
   .emptyWorksheet,
+  .teacherGuide,
   .creatorPanel,
   .missionIntro,
   .exportBar,
