@@ -212,11 +212,13 @@ export function InstantResourceStudio(): React.ReactElement {
 
   return (
     <main className="aiStudioShell">
-      <section className="aiHero" aria-labelledby="studio-title">
-        <p className="studioEyebrow">ACESSA+ cria recursos pedagogicos em segundos</p>
-        <h1 id="studio-title">O que voce deseja criar hoje?</h1>
+      <section className="saasHero" aria-labelledby="studio-title">
+        <div className="heroTrustBadge">IA pedagogica inclusiva para professores</div>
+        <h1 id="studio-title">Crie atividades prontas para imprimir com IA.</h1>
         <p className="studioLead">
-          Digite uma frase. Receba uma atividade, avaliacao, PEI ou recurso acessivel com aparencia profissional.
+          Descreva o que precisa em uma frase. O ACESSA+ transforma habilidade,
+          tema e necessidade pedagogica em um recurso A4 profissional para sala
+          de aula.
         </p>
 
         <form
@@ -237,6 +239,12 @@ export function InstantResourceStudio(): React.ReactElement {
           </button>
         </form>
 
+        <div className="heroMicrocopy">
+          <span>Sem formulario longo</span>
+          <span>Folha A4 organizada</span>
+          <span>Adaptacao inclusiva</span>
+        </div>
+
         {followUp ? <p className="followUpQuestion">{followUp}</p> : null}
 
         <div className="suggestionRail" aria-label="Sugestoes rapidas">
@@ -249,6 +257,46 @@ export function InstantResourceStudio(): React.ReactElement {
               {suggestion.label}
             </button>
           ))}
+        </div>
+
+        <div className="heroPreviewWrap" aria-hidden="true">
+          <div className="heroWorksheetPreview">
+            <div className="previewHeader">
+              <strong>MATEMATICA</strong>
+              <span>BNCC EM13MAT401</span>
+            </div>
+            <h2>Equacoes do primeiro grau</h2>
+            <p>Resolva cada situacao com atencao. Use o exemplo como apoio.</p>
+            <div className="previewVisuals">
+              <span>Exemplo guiado</span>
+              <span>Espaco para desenho</span>
+            </div>
+            <ol>
+              <li>Observe a equacao e encontre o valor desconhecido.</li>
+              <li>Explique como chegou ao resultado.</li>
+              <li>Crie uma situacao-problema parecida.</li>
+            </ol>
+            <footer>acessa+ | educacao inclusiva na pratica</footer>
+          </div>
+        </div>
+      </section>
+
+      <section className="trustStrip" aria-label="Indicadores de valor">
+        <div>
+          <strong>30 segundos</strong>
+          <span>do pedido ao primeiro recurso</span>
+        </div>
+        <div>
+          <strong>A4</strong>
+          <span>pronto para imprimir ou adaptar</span>
+        </div>
+        <div>
+          <strong>DUA + BNCC</strong>
+          <span>organizado para inclusao real</span>
+        </div>
+        <div>
+          <strong>Sem burocracia</strong>
+          <span>linguagem natural, nao formulario</span>
         </div>
       </section>
 
@@ -311,6 +359,58 @@ export function InstantResourceStudio(): React.ReactElement {
         ) : null}
 
         {activePlan ? <PrintableWorksheet plan={activePlan} /> : <EmptyPreview isGenerating={isGenerating} />}
+      </section>
+
+      <section className="productSections" aria-label="Recursos do ACESSA+">
+        <div className="sectionIntro">
+          <p className="studioEyebrow">Da ideia ao material pronto</p>
+          <h2>Uma plataforma para eliminar horas de producao manual.</h2>
+          <p>
+            O ACESSA+ nao entrega apenas texto. Ele organiza o recurso como
+            material pedagogico: objetivo, comandos, questoes, espacos de
+            resposta, acessibilidade e exportacao.
+          </p>
+        </div>
+
+        <div className="featureGrid">
+          <article>
+            <span>01</span>
+            <strong>Crie por linguagem natural</strong>
+            <p>
+              Peça uma atividade, avaliacao, PEI, prancha CAA, material em
+              Libras ou recurso para Braille sem aprender prompt engineering.
+            </p>
+          </article>
+          <article>
+            <span>02</span>
+            <strong>Receba uma folha A4</strong>
+            <p>
+              O resultado aparece como documento de professor, com titulo,
+              habilidade, objetivo, instrucoes, questoes e espacos para resposta.
+            </p>
+          </article>
+          <article>
+            <span>03</span>
+            <strong>Adapte com um clique</strong>
+            <p>
+              Recrie o mesmo objetivo para DI, TEA, DV, DA, TDAH, AH/SD,
+              Libras, Braille ou CAA preservando a aprendizagem.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="confidenceBand" aria-label="Confianca pedagogica">
+        <div>
+          <p className="studioEyebrow">Confianca para demonstracao</p>
+          <h2>Feito para parecer simples, estruturado para evoluir.</h2>
+        </div>
+        <ul>
+          <li>Next.js API Routes + OpenAI, funcionando integralmente na Vercel.</li>
+          <li>Compatibilidade mantida para religar o backend no futuro.</li>
+          <li>Recursos salvos como materiais reutilizaveis no Banco Inteligente.</li>
+          <li>LGPD: sem nome de estudante, escola, turma, data ou professor no A4.</li>
+        </ul>
       </section>
     </main>
   );
