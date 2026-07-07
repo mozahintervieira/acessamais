@@ -242,7 +242,7 @@ export function MissionDetailView({
             </div>
             <div className="exportBar inlineExport">
               <button type="button" onClick={() => window.print()}>PDF/imprimir</button>
-              <button type="button" onClick={() => downloadWord(resource.title, version.contentText)}>Word</button>
+              <button type="button" onClick={() => downloadWord(resource.title, version.contentText)}>Exportar Word</button>
               <button type="button" onClick={() => window.print()}>Imagem A4</button>
               <button
                 type="button"

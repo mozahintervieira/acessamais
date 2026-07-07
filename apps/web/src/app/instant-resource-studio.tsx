@@ -15,10 +15,16 @@ type WorksheetPlan = {
   grade?: string;
   skillCode?: string;
   learningObjective?: string;
+  context?: string;
   baseText?: string;
   instructions?: string[];
   questions?: WorksheetQuestion[];
   visualElements?: string[];
+  didacticBoxes?: string[];
+  tableRows?: string[];
+  graphicOrganizers?: string[];
+  methodologyTips?: string[];
+  difficultyProgression?: string[];
   adaptationNotes?: string[];
 };
 
@@ -34,22 +40,22 @@ const defaultPrompt =
 
 const quickSuggestions = [
   {
-    label: "Printable Activity",
+    label: "Atividade pronta para impressao",
     prompt:
-      "Crie uma atividade pronta para impressao em A4 de Ciencias sobre ecossistemas para o 7 ano, com 6 questoes, texto-base curto e espacos para resposta."
+      "Crie uma atividade pronta para impressao em A4 de Ciencias sobre ecossistemas para o 7 ano, com contexto, quadro explicativo, atividade visual, tabela, 6 questoes variadas e espacos para resposta."
   },
   {
-    label: "Adapt Existing Activity",
+    label: "Adaptar atividade existente",
     prompt:
       "Adapte uma atividade de leitura sobre noticia para um estudante autista, com comandos objetivos, rotina visual e menor carga de escrita."
   },
   {
-    label: "Assessment",
+    label: "Avaliacao",
     prompt:
       "Gere uma avaliacao de Matematica sobre porcentagem para o 8 ano, com questoes progressivas e gabarito para o professor."
   },
   {
-    label: "Lesson Plan",
+    label: "Plano de aula",
     prompt:
       "Crie um plano de aula curto com atividade imprimivel sobre povos indigenas para o Ensino Medio."
   },
@@ -59,7 +65,7 @@ const quickSuggestions = [
       "Gere um PEI pedagogico para estudante com dificuldade de leitura, com objetivos, apoios e evidencias de aprendizagem."
   },
   {
-    label: "LIBRAS",
+    label: "Libras",
     prompt:
       "Crie um material com apoio em Libras sobre sinais de saudacao para estudante surdo."
   },
@@ -69,13 +75,13 @@ const quickSuggestions = [
       "Prepare uma atividade de Geografia sobre mapas para estudante com deficiencia visual, com orientacoes para Braille e recurso tatil."
   },
   {
-    label: "Communication Board",
+    label: "Prancha de comunicacao",
     prompt:
       "Crie uma prancha de comunicacao CAA para rotina de sala de aula com pictogramas descritos e comandos simples."
   }
 ];
 
-const adaptationOptions = ["DI", "TEA", "DV", "DA", "TDAH", "AH/SD", "LIBRAS", "Braille", "CAA"];
+const adaptationOptions = ["DI", "TEA", "DV", "DA", "TDAH", "AH/SD", "Libras", "Braille", "CAA"];
 
 export function InstantResourceStudio(): React.ReactElement {
   const [prompt, setPrompt] = useState(defaultPrompt);
@@ -114,7 +120,7 @@ export function InstantResourceStudio(): React.ReactElement {
         expectedProductType: "Recurso pedagogico pronto para uso",
         outputFormat: "A4 pronto para impressao",
         contextNotes:
-          "Interpretar a solicitacao em linguagem natural e gerar um recurso educacional visualmente organizado, pronto para sala de aula."
+          "Interpretar a solicitacao em linguagem natural e gerar um recurso pedagogico completo, visualmente organizado, pronto para sala de aula e com qualidade editorial."
       }
     };
 
@@ -144,7 +150,7 @@ export function InstantResourceStudio(): React.ReactElement {
   }
 
   function improveResource(): void {
-    const improvedPrompt = `${prompt}\n\nMelhore o material gerado: deixe mais bonito, mais claro, mais organizado pedagogicamente, com comandos objetivos, melhor distribuicao visual em A4 e maior qualidade editorial.`;
+    const improvedPrompt = `${prompt}\n\nMelhore o recurso gerado: deixe mais bonito, mais claro, mais organizado pedagogicamente, com comandos objetivos, contexto, quadros, tabela, elementos visuais, progressao de dificuldade, espacos de resposta e maior qualidade editorial em A4.`;
     setPrompt(improvedPrompt);
     void generateResource(improvedPrompt);
   }
@@ -231,11 +237,11 @@ export function InstantResourceStudio(): React.ReactElement {
           <textarea
             aria-label="Descreva o recurso pedagogico que deseja criar"
             value={prompt}
-            placeholder="Create a Mathematics activity for a student with Intellectual Disability about first-degree equations using BNCC skill EM13MAT401. Generate an A4 printable worksheet."
+            placeholder="Crie uma atividade de Matematica para estudante com Deficiencia Intelectual sobre equacoes do primeiro grau usando a habilidade BNCC EM13MAT401. Gere uma folha A4 pronta para imprimir."
             onChange={(event) => setPrompt(event.currentTarget.value)}
           />
           <button className="generateButton" disabled={isGenerating} type="submit">
-            {isGenerating ? "GERANDO..." : "GENERATE"}
+            {isGenerating ? "GERANDO..." : "Gerar atividade"}
           </button>
         </form>
 
@@ -303,28 +309,28 @@ export function InstantResourceStudio(): React.ReactElement {
       <section className={activePlan ? "studioResult visible" : "studioResult"} aria-live="polite">
         <div className="resultActions" aria-label="Acoes do recurso gerado">
           <button type="button" disabled={!canExport} onClick={() => setIsEditing((current) => !current)}>
-            Edit
+            Editar
           </button>
           <button type="button" disabled={!canExport || isGenerating} onClick={improveResource}>
-            Improve
+            Melhorar
           </button>
           <button type="button" disabled={!canExport} onClick={() => setShowAdaptations((current) => !current)}>
-            Adapt
+            Adaptar
           </button>
           <a className={canExport && result ? "" : "disabledLink"} href={result ? `/missions/${result.missionId}` : "/missions"}>
-            Save
+            Salvar
           </a>
           <button type="button" disabled={!canExport} onClick={() => window.print()}>
-            Export PDF
+            Exportar PDF
           </button>
           <button type="button" disabled={!canExport} onClick={exportWord}>
-            Export Word
+            Exportar Word
           </button>
           <button type="button" disabled={!canExport} onClick={() => window.print()}>
-            Export PNG
+            Exportar imagem
           </button>
           <button type="button" disabled={!canExport} onClick={shareResource}>
-            Share
+            Compartilhar
           </button>
         </div>
 
@@ -377,8 +383,8 @@ export function InstantResourceStudio(): React.ReactElement {
             <span>01</span>
             <strong>Crie por linguagem natural</strong>
             <p>
-              Peça uma atividade, avaliacao, PEI, prancha CAA, material em
-              Libras ou recurso para Braille sem aprender prompt engineering.
+              Peca uma atividade, avaliacao, PEI, prancha CAA, material em
+              Libras ou recurso para Braille sem aprender engenharia de comandos.
             </p>
           </article>
           <article>
@@ -406,8 +412,8 @@ export function InstantResourceStudio(): React.ReactElement {
           <h2>Feito para parecer simples, estruturado para evoluir.</h2>
         </div>
         <ul>
-          <li>Next.js API Routes + OpenAI, funcionando integralmente na Vercel.</li>
-          <li>Compatibilidade mantida para religar o backend no futuro.</li>
+          <li>Funciona integralmente na publicacao atual, sem depender de sistema externo obrigatorio.</li>
+          <li>Compatibilidade mantida para religar o servidor principal no futuro.</li>
           <li>Recursos salvos como materiais reutilizaveis no Banco Inteligente.</li>
           <li>LGPD: sem nome de estudante, escola, turma, data ou professor no A4.</li>
         </ul>
@@ -446,6 +452,15 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
         <p>{plan.learningObjective ?? "Objetivo de aprendizagem organizado a partir da solicitacao do professor."}</p>
       </section>
 
+      <section className="worksheetContext">
+        <strong>Contexto da atividade</strong>
+        <p>
+          {plan.context ??
+            plan.baseText ??
+            "Observe as informacoes, leia os apoios visuais e realize cada etapa no seu ritmo."}
+        </p>
+      </section>
+
       {(plan.instructions ?? []).length > 0 ? (
         <section className="worksheetInstructions">
           <strong>Instrucoes</strong>
@@ -464,6 +479,20 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
         </section>
       ) : null}
 
+      <section className="worksheetBoxes">
+        {(plan.didacticBoxes && plan.didacticBoxes.length > 0
+          ? plan.didacticBoxes
+          : ["Lembrete importante: leia o comando, observe o exemplo e responda no espaco indicado."]
+        )
+          .slice(0, 2)
+          .map((box) => (
+            <div key={box}>
+              <strong>Quadro de apoio</strong>
+              <p>{box}</p>
+            </div>
+          ))}
+      </section>
+
       {(plan.visualElements ?? []).length > 0 ? (
         <section className="worksheetVisuals" aria-label="Elementos visuais sugeridos">
           {(plan.visualElements ?? []).slice(0, 4).map((visual) => (
@@ -476,6 +505,33 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
           <div>Exemplo resolvido</div>
         </section>
       )}
+
+      <section className="worksheetTable" aria-label="Tabela da atividade">
+        <div>
+          <strong>Observe</strong>
+          <strong>Organize</strong>
+          <strong>Responda</strong>
+        </div>
+        {(plan.tableRows && plan.tableRows.length > 0
+          ? plan.tableRows
+          : ["Informacao principal | Ideia importante | Minha resposta"]
+        )
+          .slice(0, 3)
+          .map((row) => {
+            const cells = row
+              .split("|")
+              .map((cell) => cell.trim())
+              .filter(Boolean);
+
+            return (
+              <div key={row}>
+                <span>{cells[0] ?? row}</span>
+                <span>{cells[1] ?? ""}</span>
+                <span>{cells[2] ?? ""}</span>
+              </div>
+            );
+          })}
+      </section>
 
       <ol className="premiumQuestions">
         {questions.map((question, index) => (
@@ -491,10 +547,28 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
         ))}
       </ol>
 
+      {(plan.difficultyProgression ?? []).length > 0 ? (
+        <section className="worksheetProgression">
+          <strong>Progressao da atividade</strong>
+          <ul>
+            {(plan.difficultyProgression ?? []).slice(0, 4).map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {(plan.adaptationNotes ?? []).length > 0 ? (
         <section className="worksheetAdaptation">
           <strong>Adaptacao pedagogica aplicada</strong>
           <p>{(plan.adaptationNotes ?? []).join(" ")}</p>
+        </section>
+      ) : null}
+
+      {(plan.methodologyTips ?? []).length > 0 ? (
+        <section className="worksheetTeacherNote">
+          <strong>Orientacao ao professor</strong>
+          <p>{(plan.methodologyTips ?? []).join(" ")}</p>
         </section>
       ) : null}
 
@@ -509,8 +583,11 @@ function buildCopyText(plan: WorksheetPlan): string {
     plan.skillCode ?? "",
     plan.worksheetTitle ?? "Atividade pronta para impressao",
     plan.learningObjective ? `Objetivo: ${plan.learningObjective}` : "",
+    plan.context ? `Contexto: ${plan.context}` : "",
     ...(plan.instructions ?? []).map((instruction) => `Instrucao: ${instruction}`),
     plan.baseText ? `Texto-base: ${plan.baseText}` : "",
+    ...(plan.didacticBoxes ?? []).map((box) => `Quadro de apoio: ${box}`),
+    ...(plan.tableRows ?? []).map((row) => `Tabela: ${row}`),
     ...(plan.questions ?? []).map((question, index) => `${index + 1}. ${question.command}`),
     "acessa+ | educacao inclusiva na pratica - @mozahintervieira"
   ]

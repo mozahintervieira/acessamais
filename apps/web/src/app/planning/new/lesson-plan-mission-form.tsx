@@ -445,7 +445,7 @@ function A4Preview({
     <aside className="a4Workspace" aria-live="polite">
       <div className="exportBar">
         <button type="button" onClick={onPrint}>PDF/imprimir</button>
-        <button type="button" onClick={onWord} disabled={!result}>Word</button>
+        <button type="button" onClick={onWord} disabled={!result}>Exportar Word</button>
         <button type="button" onClick={onPrint}>Imagem A4</button>
         <button type="button" onClick={onCopy} disabled={!result}>Copiar</button>
         <a className="saveButton" href={result ? `/missions/${result.missionId}` : "/missions"}>Salvar</a>

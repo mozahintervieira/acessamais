@@ -382,6 +382,10 @@ async function generatePedagogicalPlan(
         request.input.objective ??
         "Desenvolver a aprendizagem prevista na solicitacao do professor."
     ),
+    context: normalizeString(
+      generated.context,
+      "Contexto organizado para introduzir a atividade de forma clara e significativa."
+    ),
     baseText: normalizeString(generated.baseText, ""),
     instructions: normalizeStringArray(generated.instructions, [
       "Leia com atencao e responda no espaco indicado.",
@@ -389,6 +393,21 @@ async function generatePedagogicalPlan(
     ]),
     questions: normalizeQuestions(generated.questions, request),
     visualElements: normalizeStringArray(generated.visualElements, []),
+    didacticBoxes: normalizeStringArray(generated.didacticBoxes, [
+      "Leia o comando, observe o exemplo e registre sua resposta no espaco indicado."
+    ]),
+    tableRows: normalizeStringArray(generated.tableRows, [
+      "Informacao principal | Ideia importante | Minha resposta"
+    ]),
+    graphicOrganizers: normalizeStringArray(generated.graphicOrganizers, []),
+    methodologyTips: normalizeStringArray(generated.methodologyTips, [
+      "Mediar a leitura dos comandos, oferecer exemplo inicial e registrar evidencias de aprendizagem durante a realizacao."
+    ]),
+    difficultyProgression: normalizeStringArray(generated.difficultyProgression, [
+      "Comecar com reconhecimento do conceito.",
+      "Avancar para aplicacao guiada.",
+      "Finalizar com producao ou explicacao propria."
+    ]),
     adaptationNotes: normalizeStringArray(
       generated.adaptationNotes,
       request.input.specificNeed
@@ -426,7 +445,7 @@ async function callOpenAI(
 
   if (!apiKey) {
     throw new Error(
-      "OPENAI_API_KEY nao configurada. Configure a variavel na Vercel para gerar materiais."
+      "Chave do provedor de IA nao configurada. Configure a variavel de ambiente na publicacao para gerar materiais."
     );
   }
 
@@ -442,23 +461,29 @@ async function callOpenAI(
         {
           role: "system",
           content:
-            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico profissional pronto para uso. Gere atividades, avaliacoes, PEI, CAA, Libras, Braille ou materiais acessiveis em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. Para atividades imprimiveis, o resultado principal deve parecer uma folha A4 feita por professor experiente, nao uma resposta de chatbot. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
+            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Gere atividades, avaliacoes, PEI, CAA, Libras, Braille ou materiais acessiveis em portugues do Brasil, com base em DUA, BNCC, acessibilidade, avaliacao formativa e LGPD. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Para atividades imprimiveis, produza folha A4 com aparencia de material de editora educacional, incluindo titulo, contexto, objetivo, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador grafico, elementos visuais descritos, atividades variadas, progressao de dificuldade, questoes com espaco de resposta, adaptacoes e orientacoes metodologicas. Nunca entregue apenas perguntas. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
         },
         {
           role: "user",
           content: JSON.stringify({
             tarefa:
-              "Gerar o recurso educacional solicitado pelo professor. Quando o pedido for atividade imprimivel, produzir uma folha A4 pronta para impressao. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
+              "Gerar o recurso educacional solicitado pelo professor. Quando o pedido for atividade imprimivel, produzir uma folha A4 pronta para impressao, visualmente organizada e rica em recursos didaticos. Se houver necessidade especifica, adaptar para DI, TEA, DV, DA, TDAH, AH/SD, CAA, Libras ou Braille preservando o objetivo de aprendizagem.",
             contrato: {
               subject: "string com disciplina ou area do conhecimento inferida",
               grade: "string com ano/serie quando informado ou inferido",
               worksheetTitle: "string com titulo da atividade",
               skillCode: "string com codigo/texto da habilidade",
               learningObjective: "string com objetivo de aprendizagem",
+              context: "string com contexto pedagogico inicial da atividade",
               baseText: "string com texto-base curto quando necessario",
               instructions: "array de strings com instrucoes claras para estudante",
-              questions: "array de objetos { command, support, answerSpace } com questoes numeradas no front",
-              visualElements: "array de strings descrevendo elementos visuais simples quando pertinente",
+              questions: "array de objetos { command, support, answerSpace } com atividades variadas, progressivas e espaco de resposta",
+              visualElements: "array de strings descrevendo icones, imagens, marcadores ou recursos visuais simples",
+              didacticBoxes: "array de strings com quadros de apoio, lembretes ou conceitos-chave",
+              tableRows: "array de strings no formato coluna1 | coluna2 | coluna3 para montar tabela pedagogica",
+              graphicOrganizers: "array de strings com organizadores graficos sugeridos",
+              methodologyTips: "array de strings com orientacoes objetivas para o professor",
+              difficultyProgression: "array de strings descrevendo progressao de dificuldade",
               adaptationNotes: "array de strings explicando adaptacoes aplicadas",
               answerKey: "array de strings com gabarito ou criterios para professor",
               objectives: "array de strings",
@@ -491,14 +516,14 @@ async function callOpenAI(
   if (!response.ok) {
     const errorText = await response.text();
 
-    throw new Error(`OpenAI retornou erro ${response.status}: ${errorText}`);
+    throw new Error(`O provedor de IA retornou erro ${response.status}: ${errorText}`);
   }
 
   const payload = (await response.json()) as { output_text?: string; output?: unknown };
   const outputText = payload.output_text ?? extractOutputText(payload.output);
 
   if (!outputText) {
-    throw new Error("A OpenAI nao retornou texto estruturado.");
+    throw new Error("O provedor de IA nao retornou um recurso estruturado.");
   }
 
   return parseJsonObject(outputText);
@@ -851,7 +876,12 @@ function buildContentText(
     `Disciplina inferida: ${normalizeString(plan.subject, "")}`,
     `Ano/serie inferido: ${normalizeString(plan.grade, "")}`,
     `Objetivo de aprendizagem: ${normalizeString(plan.learningObjective, "")}`,
+    `Contexto: ${normalizeString(plan.context, "")}`,
     `Texto-base: ${normalizeString(plan.baseText, "")}`,
+    `Quadros de apoio: ${normalizeStringArray(plan.didacticBoxes, []).join("; ")}`,
+    `Tabela: ${normalizeStringArray(plan.tableRows, []).join("; ")}`,
+    `Organizadores graficos: ${normalizeStringArray(plan.graphicOrganizers, []).join("; ")}`,
+    `Progressao: ${normalizeStringArray(plan.difficultyProgression, []).join("; ")}`,
     `Questoes: ${normalizeQuestions(plan.questions, request)
       .map((question) => question.command)
       .join("; ")}`,
@@ -963,7 +993,7 @@ function parseJsonObject(value: string): Record<string, unknown> {
   const parsed = JSON.parse(value) as unknown;
 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("Resposta da OpenAI nao e um objeto JSON.");
+    throw new Error("A resposta do provedor de IA nao retornou um objeto estruturado.");
   }
 
   return parsed as Record<string, unknown>;
