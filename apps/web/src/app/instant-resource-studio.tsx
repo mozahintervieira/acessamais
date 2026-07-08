@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
 import { saveGeneratedMission } from "./demo-local-store";
+import { VisualResourceGrid } from "./visual-resource-grid";
 
 type WorksheetQuestion = {
   command: string;
@@ -756,18 +757,7 @@ function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactEleme
           ))}
       </section>
 
-      {(sheet.visualElements ?? []).length > 0 ? (
-        <section className="worksheetVisuals" aria-label="Elementos visuais sugeridos">
-          {(sheet.visualElements ?? []).slice(0, 4).map((visual) => (
-            <div key={visual}>{visual}</div>
-          ))}
-        </section>
-      ) : (
-        <section className="worksheetVisuals" aria-label="Espacos para elementos visuais">
-          <div>Imagem ou recurso visual</div>
-          <div>Exemplo resolvido</div>
-        </section>
-      )}
+      <VisualResourceGrid items={sheet.visualElements ?? []} />
 
       <section className="worksheetTable" aria-label="Tabela da atividade">
         <div>

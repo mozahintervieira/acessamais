@@ -456,7 +456,7 @@ async function callOpenAI(
         {
           role: "system",
           content:
-            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Gere sempre dois documentos separados: studentSheet e teacherGuide. A studentSheet e a folha do estudante, A4 pronta para impressao, com aparencia de material de editora educacional. Ela deve conter somente conteudo destinado ao estudante: titulo, contexto, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador visual, elementos visuais descritos, atividades variadas e questoes com espaco de resposta. Nunca inclua na studentSheet: objetivo da aula, metodologia, adaptacao pedagogica aplicada, criterios de avaliacao, orientacoes ao professor, BNCC, habilidade, objeto de conhecimento ou informacao tecnica. O teacherGuide e separado e contem habilidade BNCC, objeto de conhecimento, objetivos, metodologia, adaptacoes realizadas, principios do DUA, orientacoes pedagogicas, criterios de avaliacao e sugestoes de aplicacao. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
+            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Gere sempre dois documentos separados: studentSheet e teacherGuide. A studentSheet e a folha do estudante, A4 pronta para impressao, com aparencia de material de editora educacional. Ela deve conter somente conteudo destinado ao estudante: titulo, contexto, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador visual, intencoes visuais renderizaveis, atividades variadas e questoes com espaco de resposta. Nunca inclua na studentSheet: objetivo da aula, metodologia, adaptacao pedagogica aplicada, criterios de avaliacao, orientacoes ao professor, BNCC, habilidade, objeto de conhecimento ou informacao tecnica. Em visualElements, nunca escreva frases descritivas iniciadas por imagem, icone, pictograma ou desenho seguidas de 'de'. Use nomes semanticos renderizaveis, como 'reta numerica', 'balanca de equacao', 'blocos de contagem', 'ciclo da agua', 'linha do tempo', 'mapa simples', 'cartoes CAA', 'tabela comparativa' ou 'personagem lendo'. Para Libras, nao invente sinais; use apoio visual generico. Para Braille, use apenas celula Braille generica quando solicitado. O teacherGuide e separado e contem habilidade BNCC, objeto de conhecimento, objetivos, metodologia, adaptacoes realizadas, principios do DUA, orientacoes pedagogicas, criterios de avaliacao e sugestoes de aplicacao. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
         },
         {
           role: "user",
@@ -481,7 +481,7 @@ async function callOpenAI(
                 instructions: "array de instrucoes para o estudante",
                 baseText: "texto-base quando necessario",
                 didacticBoxes: "array de quadros de apoio para o estudante",
-                visualElements: "array de elementos visuais para a folha",
+                visualElements: "array de intencoes visuais renderizaveis, sem prefixos descritivos iniciados por imagem, icone, pictograma ou desenho",
                 tableRows: "array no formato coluna1 | coluna2 | coluna3",
                 questions: "array de objetos { command, support, answerSpace } para o estudante"
               },
@@ -504,7 +504,7 @@ async function callOpenAI(
               baseText: "string com texto-base curto quando necessario",
               instructions: "array de strings com instrucoes claras para estudante",
               questions: "array de objetos { command, support, answerSpace } com atividades variadas, progressivas e espaco de resposta",
-              visualElements: "array de strings descrevendo icones, imagens, marcadores ou recursos visuais simples",
+              visualElements: "array de nomes semanticos para recursos visuais renderizaveis",
               didacticBoxes: "array de strings com quadros de apoio, lembretes ou conceitos-chave",
               tableRows: "array de strings no formato coluna1 | coluna2 | coluna3 para montar tabela pedagogica",
               graphicOrganizers: "array de strings com organizadores graficos sugeridos",

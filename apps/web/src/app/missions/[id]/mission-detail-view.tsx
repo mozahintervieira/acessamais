@@ -6,6 +6,7 @@ import {
   saveLocalResourceVersion,
   type LocalContentJson
 } from "../../demo-local-store";
+import { VisualResourceGrid } from "../../visual-resource-grid";
 
 type MissionDetail = {
   id: string;
@@ -416,16 +417,7 @@ function StudentSheetView({
           </ul>
         </section>
       ) : null}
-      {sheet.visualElements.length > 0 ? (
-        <section className="baseText">
-          <strong>Elementos visuais</strong>
-          <ul>
-            {sheet.visualElements.map((element) => (
-              <li key={element}>{element}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <VisualResourceGrid compact items={sheet.visualElements} />
       {sheet.tableRows.length > 0 ? (
         <table className="worksheetTable">
           <tbody>

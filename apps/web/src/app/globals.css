@@ -176,7 +176,7 @@ textarea:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
-  align-items: end;
+  align-items: flex-end;
   margin-top: 34px;
   border: 1px solid rgba(15, 23, 42, 0.11);
   border-radius: 24px;
@@ -805,6 +805,240 @@ textarea:focus-visible {
   font-size: 0.9rem;
   font-weight: 800;
   text-align: center;
+}
+
+.visualResourceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.visualResourceGrid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.visualResourceCard {
+  min-height: 118px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #1f2937;
+  text-align: center;
+}
+
+.visualResourceCard span {
+  max-width: 100%;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.svgVisual {
+  width: 124px;
+  height: 74px;
+}
+
+.svgVisual line,
+.svgVisual path,
+.svgVisual circle,
+.svgVisual rect {
+  fill: none;
+  stroke: #0f766e;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.svgVisual path {
+  fill: #dff7ef;
+}
+
+.mapVisual path {
+  fill: #e0f2fe;
+  stroke: #0369a1;
+}
+
+.mapVisual circle {
+  fill: #f97316;
+  stroke: #c2410c;
+}
+
+.numberLineVisual {
+  width: min(160px, 100%);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: flex-end;
+  border-top: 4px solid #0f766e;
+  padding-top: 8px;
+}
+
+.numberLineVisual i {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  font-style: normal;
+}
+
+.numberLineVisual b {
+  width: 3px;
+  height: 14px;
+  margin-top: -18px;
+  background: #0f766e;
+}
+
+.numberLineVisual small {
+  color: #111827;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.blocksVisual {
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
+  gap: 7px;
+}
+
+.blocksVisual i {
+  aspect-ratio: 1;
+  border: 2px solid #1d4ed8;
+  border-radius: 8px;
+  background: #dbeafe;
+}
+
+.barChartVisual {
+  height: 72px;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.barChartVisual i {
+  width: 22px;
+  border-radius: 8px 8px 3px 3px;
+  background: #14b8a6;
+}
+
+.barChartVisual i:nth-child(1) {
+  height: 30px;
+}
+
+.barChartVisual i:nth-child(2) {
+  height: 50px;
+}
+
+.barChartVisual i:nth-child(3) {
+  height: 40px;
+}
+
+.barChartVisual i:nth-child(4) {
+  height: 66px;
+}
+
+.cycleVisual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cycleVisual i {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ccfbf1;
+  color: #115e59;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.cycleVisual b {
+  color: #0f766e;
+  font-size: 1.25rem;
+}
+
+.timelineVisual {
+  width: min(150px, 100%);
+  display: flex;
+  justify-content: space-between;
+  border-top: 4px solid #7c3aed;
+  padding-top: 12px;
+}
+
+.timelineVisual i {
+  width: 24px;
+  height: 24px;
+  margin-top: -26px;
+  border: 4px solid #7c3aed;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.caaVisual {
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  gap: 7px;
+}
+
+.caaVisual i {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #94a3b8;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 1.35rem;
+  font-style: normal;
+}
+
+.brailleVisual {
+  display: grid;
+  grid-template-columns: repeat(2, 22px);
+  gap: 8px 12px;
+  padding: 8px;
+}
+
+.brailleVisual i {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #111827;
+}
+
+.miniTableVisual {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  overflow: hidden;
+  border: 2px solid #0f766e;
+  border-radius: 10px;
+}
+
+.miniTableVisual i {
+  width: 34px;
+  height: 24px;
+  border-right: 1px solid #0f766e;
+  border-bottom: 1px solid #0f766e;
+  background: #ecfeff;
+}
+
+.emojiVisual {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: #ecfeff;
+  color: #0f766e;
+  font-size: 2.25rem;
 }
 
 .worksheetTable {
