@@ -310,9 +310,27 @@ export function InstantResourceStudio(): React.ReactElement {
     }));
   }
 
+  function updateStudentSheetField(field: keyof StudentSheet, value: string): void {
+    setEditablePlan((current) => ({
+      ...(current ?? {}),
+      studentSheet: {
+        ...(current?.studentSheet ?? {}),
+        [field]: value
+      }
+    }));
+  }
+
   function updateQuestions(value: string): void {
     setEditablePlan((current) => ({
       ...(current ?? {}),
+      studentSheet: {
+        ...(current?.studentSheet ?? {}),
+        questions: value
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => ({ command: line }))
+      },
       questions: value
         .split("\n")
         .map((line) => line.trim())
@@ -322,7 +340,7 @@ export function InstantResourceStudio(): React.ReactElement {
   }
 
   const questionText = useMemo(
-    () => (activePlan?.questions ?? []).map((question) => question.command).join("\n"),
+    () => (resolveStudentSheet(activePlan ?? {}).questions ?? []).map((question) => question.command).join("\n"),
     [activePlan]
   );
 
@@ -516,11 +534,20 @@ export function InstantResourceStudio(): React.ReactElement {
           <section className="quickEditor" aria-label="Edicao rapida">
             <label>
               <span>Titulo</span>
-              <input value={activePlan.worksheetTitle ?? ""} onChange={(event) => updatePlanField("worksheetTitle", event.currentTarget.value)} />
+              <input
+                value={resolveStudentSheet(activePlan).title ?? ""}
+                onChange={(event) => {
+                  updatePlanField("worksheetTitle", event.currentTarget.value);
+                  updateStudentSheetField("title", event.currentTarget.value);
+                }}
+              />
             </label>
             <label>
-              <span>Objetivo</span>
-              <input value={activePlan.learningObjective ?? ""} onChange={(event) => updatePlanField("learningObjective", event.currentTarget.value)} />
+              <span>Contexto da folha</span>
+              <input
+                value={resolveStudentSheet(activePlan).context ?? ""}
+                onChange={(event) => updateStudentSheetField("context", event.currentTarget.value)}
+              />
             </label>
             <label>
               <span>Questoes</span>

@@ -1,5 +1,5 @@
-import { LessonPlanMissionForm } from "./lesson-plan-mission-form";
+import { redirect } from "next/navigation";
 
 export default function NewPlanningPage(): React.ReactElement {
-  return <LessonPlanMissionForm />;
+  redirect("/");
 }

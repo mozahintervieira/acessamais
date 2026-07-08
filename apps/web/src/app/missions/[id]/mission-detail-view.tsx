@@ -17,6 +17,8 @@ type MissionDetail = {
       id: string;
       versionNumber: number;
       contentJson: {
+        studentSheet?: StudentSheet;
+        teacherGuide?: TeacherGuide;
         objectives?: string[];
         expectedOutputs?: string[];
         methodologicalConstraints?: string[];
@@ -48,6 +50,32 @@ type MissionDetail = {
 
 const organizationId = "demo-organization";
 
+type StudentSheet = {
+  title?: string;
+  context?: string;
+  instructions?: string[];
+  baseText?: string;
+  didacticBoxes?: string[];
+  visualElements?: string[];
+  tableRows?: string[];
+  questions?: Array<{
+    command: string;
+    support?: string;
+    answerSpace?: string;
+  }>;
+};
+
+type TeacherGuide = {
+  skillCode?: string;
+  knowledgeObject?: string;
+  objectives?: string[];
+  methodology?: string[];
+  adaptations?: string[];
+  duaPrinciples?: string[];
+  assessmentCriteria?: string[];
+  applicationSuggestions?: string[];
+};
+
 type EditablePlan = {
   objectives: string[];
   expectedOutputs: string[];
@@ -68,6 +96,7 @@ export function MissionDetailView({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [showTeacherGuide, setShowTeacherGuide] = useState(false);
 
   useEffect(() => {
     void loadMission();
@@ -187,22 +216,12 @@ export function MissionDetailView({
       {mission && resource && version ? (
         <section className="missionDetailGrid">
           <aside className="resultPanel">
-            <p className="resultStatus">Status: {mission.status}</p>
+            <p className="resultStatus">{formatStatus(mission.status)}</p>
             <ResultBlock title="Documento">
               <div className="detailFacts">
-                <span>{mission.missionType}</span>
+                <span>{formatMissionType(mission.missionType)}</span>
                 <span>{new Date(mission.createdAt).toLocaleString("pt-BR")}</span>
               </div>
-            </ResultBlock>
-            <ResultBlock title="Dados usados na geracao">
-              <dl className="inputList">
-                {Object.entries(mission.input).map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{key}</dt>
-                    <dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd>
-                  </div>
-                ))}
-              </dl>
             </ResultBlock>
             <ResultBlock title="Historico de versoes">
               <p className="helperText">
@@ -244,6 +263,9 @@ export function MissionDetailView({
               <button type="button" onClick={() => window.print()}>PDF/imprimir</button>
               <button type="button" onClick={() => downloadWord(resource.title, version.contentText)}>Exportar Word</button>
               <button type="button" onClick={() => window.print()}>Imagem A4</button>
+              <button type="button" onClick={() => setShowTeacherGuide((current) => !current)}>
+                {showTeacherGuide ? "Ver folha do estudante" : "Ver guia do professor"}
+              </button>
               <button
                 type="button"
                 onClick={async () => {
@@ -256,69 +278,33 @@ export function MissionDetailView({
               <button type="button" onClick={saveNewVersion}>Salvar</button>
             </div>
             {copyMessage ? <p className="successMessage">{copyMessage}</p> : null}
-            <article className="a4Sheet savedDocument">
-              <header className="a4Header">
-                <strong>{String(mission.input.discipline ?? "Disciplina")}</strong>
-                <span>{version.contentJson.skillCode ?? String(mission.input.skill ?? "")}</span>
-              </header>
-              <h2>{version.contentJson.worksheetTitle ?? resource.title}</h2>
-              <p className="a4Instruction">
-                {(version.contentJson.instructions ?? [
-                  "Leia com atencao e responda no espaco indicado."
-                ]).join(" ")}
-              </p>
-              {version.contentJson.baseText ? (
-                <section className="baseText">
-                  <strong>Texto-base</strong>
-                  <p>{version.contentJson.baseText}</p>
-                </section>
-              ) : null}
-              <ol className="questionList">
-                {(version.contentJson.questions ?? []).map((question, index) => (
-                  <li key={`${question.command}-${index}`}>
-                    <p>{question.command}</p>
-                    {question.support ? <small>{question.support}</small> : null}
-                    <div className="answerLines" aria-hidden="true">
-                      <span />
-                      <span />
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              {(version.contentJson.adaptationNotes ?? []).length > 0 ? (
-                <section className="adaptationBox">
-                  <strong>Adaptacao aplicada</strong>
-                  <ul>
-                    {(version.contentJson.adaptationNotes ?? []).map((note) => (
-                      <li key={note}>{note}</li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-              <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
-            </article>
+            {showTeacherGuide ? (
+              <TeacherGuideView content={version.contentJson} />
+            ) : (
+              <StudentSheetView content={version.contentJson} title={resource.title} />
+            )}
             {editablePlan ? (
               <div className="editorGrid editSurface">
                 <div>
                   <p className="panelLabel">Campos editaveis</p>
-                  <h3>Revisao estruturada</h3>
+                  <h3>Guia do professor</h3>
                 </div>
                 <EditableList
-                  label="Objetivos"
+                  label="Objetivos pedagogicos"
                   value={editablePlan.objectives}
                   onChange={(items) =>
                     setEditablePlan({ ...editablePlan, objectives: items })
                   }
                 />
                 <EditableList
-                  label="Produto esperado"
+                  label="Produto esperado para sala de aula"
                   value={editablePlan.expectedOutputs}
                   onChange={(items) =>
                     setEditablePlan({ ...editablePlan, expectedOutputs: items })
                   }
                 />
                 <EditableList
-                  label="Restricoes metodologicas"
+                  label="Cuidados pedagogicos"
                   value={editablePlan.methodologicalConstraints}
                   onChange={(items) =>
                     setEditablePlan({
@@ -328,7 +314,7 @@ export function MissionDetailView({
                   }
                 />
                 <EditableList
-                  label="Criterios de validacao"
+                  label="Criterios de qualidade"
                   value={editablePlan.validationCriteria}
                   onChange={(items) =>
                     setEditablePlan({
@@ -347,17 +333,187 @@ export function MissionDetailView({
                 </button>
               </div>
             ) : null}
-            <ResultBlock title="Texto simples indexavel">
-              <p className="helperText">
-                Este texto alimenta a busca simples do Banco Inteligente no MVP.
-              </p>
-              <pre className="contentText">{version.contentText}</pre>
-            </ResultBlock>
           </section>
         </section>
       ) : null}
     </main>
   );
+}
+
+function StudentSheetView({
+  content,
+  title
+}: {
+  content: MissionDetail["resources"][number]["versions"][number]["contentJson"];
+  title: string;
+}): React.ReactElement {
+  const sheet = resolveStudentSheet(content, title);
+
+  return (
+    <article className="a4Sheet savedDocument">
+      <header className="a4Header">
+        <strong>Atividade</strong>
+        <span>Pronta para imprimir</span>
+      </header>
+      <h2>{sheet.title}</h2>
+      {sheet.context ? <p className="a4Instruction">{sheet.context}</p> : null}
+      {sheet.instructions.length > 0 ? (
+        <section className="baseText">
+          <strong>Como fazer</strong>
+          <ul>
+            {sheet.instructions.map((instruction) => (
+              <li key={instruction}>{instruction}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {sheet.baseText ? (
+        <section className="baseText">
+          <strong>Texto-base</strong>
+          <p>{sheet.baseText}</p>
+        </section>
+      ) : null}
+      {sheet.didacticBoxes.length > 0 ? (
+        <section className="adaptationBox">
+          <strong>Quadro de apoio</strong>
+          <ul>
+            {sheet.didacticBoxes.map((box) => (
+              <li key={box}>{box}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {sheet.visualElements.length > 0 ? (
+        <section className="baseText">
+          <strong>Elementos visuais</strong>
+          <ul>
+            {sheet.visualElements.map((element) => (
+              <li key={element}>{element}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {sheet.tableRows.length > 0 ? (
+        <table className="worksheetTable">
+          <tbody>
+            {sheet.tableRows.map((row) => (
+              <tr key={row}>
+                <td>{row}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      <ol className="questionList">
+        {sheet.questions.map((question, index) => (
+          <li key={`${question.command}-${index}`}>
+            <p>{question.command}</p>
+            {question.support ? <small>{question.support}</small> : null}
+            <div className="answerLines" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          </li>
+        ))}
+      </ol>
+      <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
+    </article>
+  );
+}
+
+function TeacherGuideView({
+  content
+}: {
+  content: MissionDetail["resources"][number]["versions"][number]["contentJson"];
+}): React.ReactElement {
+  const guide = resolveTeacherGuide(content);
+
+  return (
+    <article className="teacherGuide">
+      <header>
+        <span>Guia do professor</span>
+        <h2>Informacoes pedagogicas do material</h2>
+      </header>
+      <GuideSection title="Habilidade curricular" items={[guide.skillCode]} />
+      <GuideSection title="Objeto de conhecimento" items={[guide.knowledgeObject]} />
+      <GuideSection title="Objetivos pedagogicos" items={guide.objectives} />
+      <GuideSection title="Metodologia sugerida" items={guide.methodology} />
+      <GuideSection title="Adaptacoes realizadas" items={guide.adaptations} />
+      <GuideSection title="Principios do DUA" items={guide.duaPrinciples} />
+      <GuideSection title="Criterios de avaliacao" items={guide.assessmentCriteria} />
+      <GuideSection title="Sugestoes de aplicacao" items={guide.applicationSuggestions} />
+    </article>
+  );
+}
+
+function GuideSection({ title, items }: { title: string; items: Array<string | undefined> }): React.ReactElement | null {
+  const cleanItems = items.filter((item): item is string => Boolean(item?.trim()));
+
+  if (cleanItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <section>
+      <strong>{title}</strong>
+      <ul>
+        {cleanItems.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function resolveStudentSheet(
+  content: MissionDetail["resources"][number]["versions"][number]["contentJson"],
+  title: string
+): Required<StudentSheet> {
+  return {
+    title: content.studentSheet?.title ?? content.worksheetTitle ?? title,
+    context: content.studentSheet?.context ?? "",
+    instructions: content.studentSheet?.instructions ?? content.instructions ?? ["Leia com atencao e responda no espaco indicado."],
+    baseText: content.studentSheet?.baseText ?? content.baseText ?? "",
+    didacticBoxes: content.studentSheet?.didacticBoxes ?? [],
+    visualElements: content.studentSheet?.visualElements ?? content.visualElements ?? [],
+    tableRows: content.studentSheet?.tableRows ?? [],
+    questions: content.studentSheet?.questions ?? content.questions ?? []
+  };
+}
+
+function resolveTeacherGuide(
+  content: MissionDetail["resources"][number]["versions"][number]["contentJson"]
+): Required<TeacherGuide> {
+  return {
+    skillCode: content.teacherGuide?.skillCode ?? content.skillCode ?? "Nao informada",
+    knowledgeObject: content.teacherGuide?.knowledgeObject ?? "Nao informado",
+    objectives: content.teacherGuide?.objectives ?? content.objectives ?? [],
+    methodology: content.teacherGuide?.methodology ?? content.methodologicalConstraints ?? [],
+    adaptations: content.teacherGuide?.adaptations ?? content.adaptationNotes ?? [],
+    duaPrinciples: content.teacherGuide?.duaPrinciples ?? [],
+    assessmentCriteria: content.teacherGuide?.assessmentCriteria ?? content.validationCriteria ?? [],
+    applicationSuggestions: content.teacherGuide?.applicationSuggestions ?? content.reuseSuggestions ?? []
+  };
+}
+
+function formatMissionType(value: string): string {
+  const labels: Record<string, string> = {
+    CREATE_LESSON_PLAN: "Atividade pronta para impressao",
+    ADAPT_ACTIVITY: "Material adaptado"
+  };
+
+  return labels[value] ?? "Recurso pedagogico";
+}
+
+function formatStatus(value: string): string {
+  const labels: Record<string, string> = {
+    COMPLETED: "Pronto para revisar",
+    NEEDS_REVIEW: "Precisa de revisao",
+    DRAFT: "Rascunho"
+  };
+
+  return labels[value] ?? "Em revisao";
 }
 
 function toEditablePlan(

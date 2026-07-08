@@ -112,10 +112,10 @@ export function ResourcesLibrary(): React.ReactElement {
           por disciplina, habilidade, tema, necessidade e nivel de aprendizagem.
         </p>
         <div className="actionRow">
-          <a className="primaryLink" href="/planning/new?task=printable">
+          <a className="primaryLink" href="/">
             Criar atividade A4
           </a>
-          <a className="textLink" href="/planning/new?task=adapted">
+          <a className="textLink" href="/">
             Adaptar material
           </a>
         </div>
@@ -163,7 +163,7 @@ export function ResourcesLibrary(): React.ReactElement {
         <div className="missionCards">
           {resources.map((resource) => (
             <article className="missionCard" key={resource.id}>
-              <span className="cardMeta">{resource.metadata.activityType ?? resource.type}</span>
+              <span className="cardMeta">{resource.metadata.activityType ?? formatResourceType(resource.type)}</span>
               <strong>{resource.title}</strong>
               <div className="resourceFacts">
                 <span>{resource.metadata.discipline ?? "Disciplina nao informada"}</span>
@@ -234,4 +234,15 @@ function TagList({ tags }: { tags: string[] }): React.ReactElement | null {
       ))}
     </div>
   );
+}
+
+function formatResourceType(value: string): string {
+  const labels: Record<string, string> = {
+    LESSON_PLAN: "Atividade pronta para impressão",
+    ADAPTED_ACTIVITY: "Material adaptado",
+    ASSESSMENT: "Avaliação",
+    RESOURCE: "Recurso pedagógico"
+  };
+
+  return labels[value] ?? "Recurso pedagógico";
 }

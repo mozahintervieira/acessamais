@@ -54,7 +54,7 @@ export function MissionsList(): React.ReactElement {
           versionados sem perder o historico.
         </p>
         <div className="actionRow">
-          <a className="primaryLink" href="/planning/new?task=printable">
+          <a className="primaryLink" href="/">
             Criar atividade A4
           </a>
           <a className="textLink" href="/resources">
@@ -84,10 +84,10 @@ export function MissionsList(): React.ReactElement {
         <div className="missionCards">
           {missions.map((mission) => (
             <a className="missionCard" href={`/missions/${mission.id}`} key={mission.id}>
-              <span className="cardMeta">{mission.missionType}</span>
+              <span className="cardMeta">{formatMissionType(mission.missionType)}</span>
               <strong>{mission.title}</strong>
               <div className="cardFooter">
-                <small>{mission.status}</small>
+                <small>{formatStatus(mission.status)}</small>
                 <small>{new Date(mission.createdAt).toLocaleString("pt-BR")}</small>
               </div>
             </a>
@@ -96,4 +96,23 @@ export function MissionsList(): React.ReactElement {
       </section>
     </main>
   );
+}
+
+function formatMissionType(value: string): string {
+  const labels: Record<string, string> = {
+    CREATE_LESSON_PLAN: "Atividade pronta para impressão",
+    ADAPT_ACTIVITY: "Material adaptado"
+  };
+
+  return labels[value] ?? "Recurso pedagógico";
+}
+
+function formatStatus(value: string): string {
+  const labels: Record<string, string> = {
+    COMPLETED: "Pronto para revisar",
+    NEEDS_REVIEW: "Precisa de revisão",
+    DRAFT: "Rascunho"
+  };
+
+  return labels[value] ?? "Em revisão";
 }
