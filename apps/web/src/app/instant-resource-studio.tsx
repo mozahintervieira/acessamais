@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
+import { saveGeneratedMission } from "./demo-local-store";
 
 type WorksheetQuestion = {
   command: string;
@@ -234,6 +235,13 @@ export function InstantResourceStudio(): React.ReactElement {
       const payload = (await response.json()) as MissionResult;
       setResult(payload);
       setEditablePlan(payload.pedagogicalPlan);
+      saveGeneratedMission({
+        missionId: payload.missionId,
+        resourceId: payload.resourceId,
+        missionType: adaptation.enabled ? "ADAPT_ACTIVITY" : missionType,
+        contentJson: payload.pedagogicalPlan,
+        prompt: trimmedPrompt
+      });
       setIsEditing(false);
       setShowAdaptations(false);
       setShowTeacherGuide(false);

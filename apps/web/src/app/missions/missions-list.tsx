@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { listLocalMissions } from "../demo-local-store";
 
 type MissionListItem = {
   id: string;
@@ -29,13 +30,20 @@ export function MissionsList(): React.ReactElement {
           throw new Error("Nao foi possivel carregar os materiais.");
         }
 
-        setMissions((await response.json()) as MissionListItem[]);
+        const apiMissions = (await response.json()) as MissionListItem[];
+        setMissions(mergeMissions(apiMissions, listLocalMissions()));
       } catch (caughtError) {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Erro inesperado ao carregar materiais."
-        );
+        const localMissions = listLocalMissions();
+
+        if (localMissions.length > 0) {
+          setMissions(localMissions);
+        } else {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Erro inesperado ao carregar materiais."
+          );
+        }
       } finally {
         setIsLoading(false);
       }
@@ -95,6 +103,21 @@ export function MissionsList(): React.ReactElement {
         </div>
       </section>
     </main>
+  );
+}
+
+function mergeMissions(
+  apiMissions: MissionListItem[],
+  localMissions: MissionListItem[]
+): MissionListItem[] {
+  const apiIds = new Set(apiMissions.map((mission) => mission.id));
+
+  return [
+    ...apiMissions,
+    ...localMissions.filter((mission) => !apiIds.has(mission.id))
+  ].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
   );
 }
 

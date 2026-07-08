@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  getLocalMission,
+  saveLocalResourceVersion,
+  type LocalContentJson
+} from "../../demo-local-store";
 
 type MissionDetail = {
   id: string;
@@ -113,25 +118,37 @@ export function MissionDetailView({
           throw new Error("Nao foi possivel carregar a missao.");
         }
 
-        const detail = (await response.json()) as MissionDetail;
-        const version =
-          detail.resources[0]?.versions.find(
-            (item) => item.id === nextSelectedVersionId
-          ) ?? detail.resources[0]?.versions[0];
-
-        setMission(detail);
-        setSelectedVersionId(version?.id ?? null);
-        setEditablePlan(toEditablePlan(version?.contentJson));
+        applyMissionDetail((await response.json()) as MissionDetail, nextSelectedVersionId);
       } catch (caughtError) {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Erro inesperado ao carregar missao."
-        );
+        const localMission = getLocalMission(missionId);
+
+        if (localMission?.resources?.length) {
+          applyMissionDetail(localMission as MissionDetail, nextSelectedVersionId);
+        } else {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Erro inesperado ao carregar missao."
+          );
+        }
       } finally {
         setIsLoading(false);
       }
     }
+
+  function applyMissionDetail(
+    detail: MissionDetail,
+    nextSelectedVersionId?: string
+  ): void {
+    const selectedVersion =
+      detail.resources[0]?.versions.find(
+        (item) => item.id === nextSelectedVersionId
+      ) ?? detail.resources[0]?.versions[0];
+
+    setMission(detail);
+    setSelectedVersionId(selectedVersion?.id ?? null);
+    setEditablePlan(toEditablePlan(selectedVersion?.contentJson));
+  }
 
   async function saveNewVersion(): Promise<void> {
     if (!resource || !editablePlan) {
@@ -171,11 +188,27 @@ export function MissionDetailView({
       setMessage(`Versao ${saved.versionNumber} salva com sucesso.`);
       await loadMission(saved.id);
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Erro inesperado ao salvar versao."
-      );
+      const localVersion = saveLocalResourceVersion({
+        resourceId: resource.id,
+        contentJson: {
+          ...version?.contentJson,
+          objectives: editablePlan.objectives,
+          expectedOutputs: editablePlan.expectedOutputs,
+          methodologicalConstraints: editablePlan.methodologicalConstraints,
+          validationCriteria: editablePlan.validationCriteria
+        } as LocalContentJson
+      });
+
+      if (localVersion) {
+        setMessage(`Versao ${localVersion.versionNumber} salva com sucesso.`);
+        await loadMission(localVersion.id);
+      } else {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Erro inesperado ao salvar versao."
+        );
+      }
     } finally {
       setIsSaving(false);
     }

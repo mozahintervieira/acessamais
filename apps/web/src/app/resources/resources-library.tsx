@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { listLocalResources } from "../demo-local-store";
 
 type ResourceListItem = {
   id: string;
@@ -83,13 +84,20 @@ export function ResourcesLibrary(): React.ReactElement {
         throw new Error("Nao foi possivel carregar os materiais.");
       }
 
-      setResources((await response.json()) as ResourceListItem[]);
+      const apiResources = (await response.json()) as ResourceListItem[];
+      setResources(mergeResources(apiResources, filterLocalResources(listLocalResources(), filters)));
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Erro inesperado ao carregar materiais."
-      );
+      const localResources = filterLocalResources(listLocalResources(), filters);
+
+      if (localResources.length > 0) {
+        setResources(localResources);
+      } else {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Erro inesperado ao carregar materiais."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -203,6 +211,60 @@ export function ResourcesLibrary(): React.ReactElement {
       </section>
     </main>
   );
+}
+
+function mergeResources(
+  apiResources: ResourceListItem[],
+  localResources: ResourceListItem[]
+): ResourceListItem[] {
+  const apiIds = new Set(apiResources.map((resource) => resource.id));
+
+  return [
+    ...apiResources,
+    ...localResources.filter((resource) => !apiIds.has(resource.id))
+  ].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  );
+}
+
+function filterLocalResources(
+  resources: ResourceListItem[],
+  filters: Filters
+): ResourceListItem[] {
+  return resources.filter((resource) => {
+    const searchableText = [
+      resource.title,
+      resource.metadata.discipline,
+      resource.metadata.gradeYear,
+      resource.metadata.skill,
+      resource.metadata.knowledgeObject,
+      resource.metadata.theme,
+      resource.metadata.activityType,
+      resource.metadata.specificNeed,
+      resource.metadata.learningLevel,
+      resource.latestVersion?.contentText
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return (
+      matches(searchableText, filters.q) &&
+      matches(resource.metadata.discipline, filters.discipline) &&
+      matches(resource.metadata.gradeYear, filters.gradeYear) &&
+      matches(resource.metadata.skill, filters.skill) &&
+      matches(resource.metadata.knowledgeObject, filters.knowledgeObject) &&
+      matches(resource.metadata.theme, filters.theme) &&
+      matches(resource.metadata.activityType, filters.activityType) &&
+      matches(resource.metadata.specificNeed, filters.specificNeed) &&
+      matches(resource.metadata.learningLevel, filters.learningLevel)
+    );
+  });
+}
+
+function matches(value: string | undefined, filter: string): boolean {
+  return !filter.trim() || (value ?? "").toLowerCase().includes(filter.trim().toLowerCase());
 }
 
 function Field({
