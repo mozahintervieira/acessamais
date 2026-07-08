@@ -20,6 +20,7 @@ export type LocalContentJson = {
   teacherGuide?: {
     skillCode?: string;
     knowledgeObject?: string;
+    curricularAnalysis?: string[];
     objectives?: string[];
     methodology?: string[];
     adaptations?: string[];
@@ -266,6 +267,7 @@ function buildContentText(contentJson: LocalContentJson): string {
     questionText,
     teacherGuide?.skillCode,
     teacherGuide?.knowledgeObject,
+    ...(teacherGuide?.curricularAnalysis ?? []),
     ...(teacherGuide?.objectives ?? contentJson.objectives ?? []),
     ...(teacherGuide?.adaptations ?? contentJson.adaptationNotes ?? [])
   ]

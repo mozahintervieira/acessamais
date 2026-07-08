@@ -25,6 +25,7 @@ type StudentSheet = {
 type TeacherGuide = {
   skillCode?: string;
   knowledgeObject?: string;
+  curricularAnalysis?: string[];
   objectives?: string[];
   methodology?: string[];
   adaptations?: string[];
@@ -833,6 +834,7 @@ function TeacherGuideView({ plan }: { plan: WorksheetPlan }): React.ReactElement
       </header>
       <GuideSection title="Habilidade BNCC" items={[guide.skillCode ?? plan.skillCode ?? "Nao informada"]} />
       <GuideSection title="Objeto de conhecimento" items={[guide.knowledgeObject ?? "Nao informado"]} />
+      <GuideSection title="Analise curricular" items={guide.curricularAnalysis ?? []} />
       <GuideSection title="Objetivos" items={guide.objectives ?? plan.objectives ?? []} />
       <GuideSection title="Metodologia" items={guide.methodology ?? plan.methodologyTips ?? []} />
       <GuideSection title="Adaptacoes realizadas" items={guide.adaptations ?? plan.adaptationNotes ?? []} />
@@ -885,6 +887,7 @@ function resolveTeacherGuide(plan: WorksheetPlan): TeacherGuide {
   return {
     skillCode: plan.teacherGuide?.skillCode ?? plan.skillCode,
     knowledgeObject: plan.teacherGuide?.knowledgeObject,
+    curricularAnalysis: plan.teacherGuide?.curricularAnalysis,
     objectives: plan.teacherGuide?.objectives ?? plan.objectives,
     methodology: plan.teacherGuide?.methodology ?? plan.methodologyTips,
     adaptations: plan.teacherGuide?.adaptations ?? plan.adaptationNotes,

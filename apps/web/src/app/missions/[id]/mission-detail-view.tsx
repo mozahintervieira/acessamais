@@ -74,6 +74,7 @@ type StudentSheet = {
 type TeacherGuide = {
   skillCode?: string;
   knowledgeObject?: string;
+  curricularAnalysis?: string[];
   objectives?: string[];
   methodology?: string[];
   adaptations?: string[];
@@ -462,6 +463,7 @@ function TeacherGuideView({
       </header>
       <GuideSection title="Habilidade curricular" items={[guide.skillCode]} />
       <GuideSection title="Objeto de conhecimento" items={[guide.knowledgeObject]} />
+      <GuideSection title="Analise curricular" items={guide.curricularAnalysis} />
       <GuideSection title="Objetivos pedagogicos" items={guide.objectives} />
       <GuideSection title="Metodologia sugerida" items={guide.methodology} />
       <GuideSection title="Adaptacoes realizadas" items={guide.adaptations} />
@@ -513,6 +515,7 @@ function resolveTeacherGuide(
   return {
     skillCode: content.teacherGuide?.skillCode ?? content.skillCode ?? "Nao informada",
     knowledgeObject: content.teacherGuide?.knowledgeObject ?? "Nao informado",
+    curricularAnalysis: content.teacherGuide?.curricularAnalysis ?? [],
     objectives: content.teacherGuide?.objectives ?? content.objectives ?? [],
     methodology: content.teacherGuide?.methodology ?? content.methodologicalConstraints ?? [],
     adaptations: content.teacherGuide?.adaptations ?? content.adaptationNotes ?? [],

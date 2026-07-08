@@ -358,10 +358,11 @@ async function generatePedagogicalPlan(
       decision.constraints
     ),
     validationCriteria: normalizeStringArray(generated.validationCriteria, [
-      "Verificar alinhamento ao objetivo da aula.",
+      "Verificar se a atividade avalia diretamente a competencia exigida pela habilidade curricular.",
       "Verificar acessibilidade, clareza dos comandos e evidencias de aprendizagem.",
       "Evitar dados sensiveis ou diagnosticos alem do necessario pedagogicamente."
     ]),
+    curricularAnalysis: buildCurricularAnalysis(generated, request),
     warnings: normalizeStringArray(generated.warnings, []),
     studentSheet: buildStudentSheet(generated, request),
     teacherGuide: buildTeacherGuide(generated, request),
@@ -456,13 +457,21 @@ async function callOpenAI(
         {
           role: "system",
           content:
-            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Gere sempre dois documentos separados: studentSheet e teacherGuide. A studentSheet e a folha do estudante, A4 pronta para impressao, com aparencia de material de editora educacional. Ela deve conter somente conteudo destinado ao estudante: titulo, contexto, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador visual, intencoes visuais renderizaveis, atividades variadas e questoes com espaco de resposta. Nunca inclua na studentSheet: objetivo da aula, metodologia, adaptacao pedagogica aplicada, criterios de avaliacao, orientacoes ao professor, BNCC, habilidade, objeto de conhecimento ou informacao tecnica. Em visualElements, nunca escreva frases descritivas iniciadas por imagem, icone, pictograma ou desenho seguidas de 'de'. Use nomes semanticos renderizaveis, como 'reta numerica', 'balanca de equacao', 'blocos de contagem', 'ciclo da agua', 'linha do tempo', 'mapa simples', 'cartoes CAA', 'tabela comparativa' ou 'personagem lendo'. Para Libras, nao invente sinais; use apoio visual generico. Para Braille, use apenas celula Braille generica quando solicitado. O teacherGuide e separado e contem habilidade BNCC, objeto de conhecimento, objetivos, metodologia, adaptacoes realizadas, principios do DUA, orientacoes pedagogicas, criterios de avaliacao e sugestoes de aplicacao. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
+            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Antes de gerar qualquer atividade, estude profundamente a habilidade BNCC, descritor ou habilidade curricular informada, o objeto de conhecimento e a competencia cognitiva exigida. A habilidade curricular e a principal fonte de verdade. Nunca crie atividade apenas a partir de palavras-chave: identifique exatamente o que o estudante precisa demonstrar, qual operacao cognitiva esta em jogo, quais evidencias comprovam aprendizagem e quais distratores ou tarefas nao avaliam a competencia. Se a atividade planejada nao avaliar diretamente a competencia prevista, descarte internamente e reconstrua antes de responder. Gere sempre dois documentos separados: studentSheet e teacherGuide. A studentSheet e a folha do estudante, A4 pronta para impressao, com aparencia de material de editora educacional. Ela deve conter somente conteudo destinado ao estudante: titulo, contexto, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador visual, intencoes visuais renderizaveis, atividades variadas e questoes com espaco de resposta. Nunca inclua na studentSheet: objetivo da aula, metodologia, adaptacao pedagogica aplicada, criterios de avaliacao, orientacoes ao professor, BNCC, habilidade, objeto de conhecimento ou informacao tecnica. Em visualElements, nunca escreva frases descritivas iniciadas por imagem, icone, pictograma ou desenho seguidas de 'de'. Use nomes semanticos renderizaveis, como 'reta numerica', 'balanca de equacao', 'blocos de contagem', 'ciclo da agua', 'linha do tempo', 'mapa simples', 'cartoes CAA', 'tabela comparativa' ou 'personagem lendo'. Para Libras, nao invente sinais; use apoio visual generico. Para Braille, use apenas celula Braille generica quando solicitado. O teacherGuide e separado e contem habilidade BNCC, objeto de conhecimento, analise curricular, objetivos, metodologia, adaptacoes realizadas, principios do DUA, orientacoes pedagogicas, criterios de avaliacao e sugestoes de aplicacao. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
         },
         {
           role: "user",
           content: JSON.stringify({
             tarefa:
-              "Gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
+              "Analisar primeiro a habilidade curricular e somente depois gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
+            etapaObrigatoriaDeAnaliseCurricular: [
+              "Ler a habilidade BNCC, descritor ou habilidade curricular como fonte principal de verdade.",
+              "Identificar o verbo cognitivo, o objeto de conhecimento, a competencia exigida e a evidencia observavel de aprendizagem.",
+              "Separar tema ou palavra-chave da competencia real que precisa ser avaliada.",
+              "Planejar questoes e tarefas que exijam diretamente essa competencia.",
+              "Descartar internamente qualquer tarefa que apenas mencione o tema sem avaliar a habilidade.",
+              "Reconstruir a atividade antes da resposta final se o alinhamento curricular estiver fraco."
+            ],
             perfilInteligenteDeAdaptacao: adaptationProfile,
             regrasDeAdaptacao: [
               "Preservar sempre o objetivo de aprendizagem e a habilidade curricular.",
@@ -488,6 +497,7 @@ async function callOpenAI(
               teacherGuide: {
                 skillCode: "habilidade BNCC ou curricular",
                 knowledgeObject: "objeto de conhecimento",
+                curricularAnalysis: "array com compreensao da habilidade, competencia exigida, evidencia esperada e checagem de alinhamento",
                 objectives: "array de objetivos pedagogicos",
                 methodology: "array de orientacoes metodologicas",
                 adaptations: "array de adaptacoes realizadas",
@@ -500,6 +510,7 @@ async function callOpenAI(
               worksheetTitle: "string com titulo da atividade",
               skillCode: "string com codigo/texto da habilidade",
               learningObjective: "string com objetivo de aprendizagem",
+              curricularAnalysis: "array de strings com analise da habilidade, competencia exigida e evidencia de aprendizagem",
               context: "string com contexto pedagogico inicial da atividade",
               baseText: "string com texto-base curto quando necessario",
               instructions: "array de strings com instrucoes claras para estudante",
@@ -515,7 +526,7 @@ async function callOpenAI(
               objectives: "array de strings",
               expectedOutputs: "array de strings",
               methodologicalConstraints: "array de strings",
-              validationCriteria: "array de strings",
+              validationCriteria: "array de strings, incluindo criterio explicito de alinhamento direto com a competencia curricular",
               warnings: "array de strings",
               lessonFlow: "array de strings",
               adaptedActivities: "array de strings",
@@ -1057,10 +1068,15 @@ function buildTeacherGuide(
   request: CreateMissionRequest
 ): Record<string, unknown> {
   const source = isRecord(generated.teacherGuide) ? generated.teacherGuide : {};
+  const curricularAnalysis = normalizeStringArray(
+    source.curricularAnalysis,
+    buildCurricularAnalysis(generated, request)
+  );
 
   return {
     skillCode: normalizeString(source.skillCode, normalizeString(generated.skillCode, request.input.skill ?? "")),
     knowledgeObject: normalizeString(source.knowledgeObject, request.input.knowledgeObject ?? ""),
+    curricularAnalysis,
     objectives: normalizeStringArray(
       source.objectives,
       normalizeStringArray(generated.objectives, [
@@ -1083,6 +1099,7 @@ function buildTeacherGuide(
     assessmentCriteria: normalizeStringArray(
       source.assessmentCriteria,
       normalizeStringArray(generated.validationCriteria, [
+        "Confirmar se a resposta do estudante evidencia a competencia exigida pela habilidade curricular.",
         "Observar compreensao dos comandos, participacao e evidencias de aprendizagem."
       ])
     ),
@@ -1093,6 +1110,38 @@ function buildTeacherGuide(
       ])
     )
   };
+}
+
+function buildCurricularAnalysis(
+  generated: Record<string, unknown>,
+  request: CreateMissionRequest
+): string[] {
+  const input = request.input;
+  const skill = normalizeString(generated.skillCode, input.skill ?? "");
+  const knowledgeObject = normalizeString(
+    generated.knowledgeObject,
+    input.knowledgeObject ?? input.theme ?? ""
+  );
+  const learningObjective = normalizeString(
+    generated.learningObjective,
+    input.lessonObjective ?? input.objective ?? ""
+  );
+  const generatedAnalysis = normalizeStringArray(generated.curricularAnalysis, []);
+
+  return [
+    ...generatedAnalysis,
+    skill
+      ? `Habilidade curricular analisada como fonte principal: ${skill}.`
+      : "Habilidade curricular nao informada; a atividade deve explicitar competencia curricular antes de uso oficial.",
+    knowledgeObject
+      ? `Objeto de conhecimento considerado: ${knowledgeObject}.`
+      : "Objeto de conhecimento nao informado; usar o tema apenas como contexto, nao como substituto da competencia.",
+    learningObjective
+      ? `Competencia esperada: ${learningObjective}.`
+      : "Competencia esperada inferida a partir da solicitacao do professor.",
+    "As questoes devem exigir evidencia observavel da habilidade, nao apenas repetir palavras-chave do tema.",
+    "Se uma tarefa nao avaliar diretamente a competencia curricular, ela deve ser descartada e reconstruida antes da entrega."
+  ];
 }
 
 function buildAdaptationProfileText(input: CreateMissionRequest["input"]): string {
