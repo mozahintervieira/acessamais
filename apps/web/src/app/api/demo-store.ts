@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { generateJsonWithConfiguredProvider } from "@acessa-plus/ai-core";
+import {
+  buildAdaptationProfileText,
+  buildPedagogicalGenerationPrompt
+} from "@acessa-plus/pedagogical-core";
 import type {
   CreateMissionRequest,
   DecisionResult,
@@ -436,134 +441,25 @@ async function callOpenAI(
   context: ResolvedContext,
   decision: DecisionResult
 ): Promise<Record<string, unknown>> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const adaptationProfile = buildAdaptationProfileText(request.input);
-
-  if (!apiKey) {
-    throw new Error(
-      "Chave do provedor de IA nao configurada. Configure a variavel de ambiente na publicacao para gerar materiais."
-    );
-  }
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+  const prompt = buildPedagogicalGenerationPrompt(request, context, decision);
+  const response = await generateJsonWithConfiguredProvider<Record<string, unknown>>(
+    {
+      purpose:
+        request.missionType === "ADAPT_ACTIVITY"
+          ? "ACTIVITY_ADAPTATION"
+          : "LESSON_PLAN_GENERATION",
+      systemPrompt: prompt.systemPrompt,
+      userPayload: prompt.userPayload,
+      outputSchemaName: prompt.outputSchemaName,
+      safetyLevel: request.input.specificNeed ? "SENSITIVE" : "STANDARD"
     },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "Voce e o Motor Pedagogico do ACESSA+. Interprete solicitacoes em linguagem natural e transforme uma frase do professor em recurso pedagogico completo, profissional e pronto para uso. Antes de gerar qualquer atividade, estude profundamente a habilidade BNCC, descritor ou habilidade curricular informada, o objeto de conhecimento e a competencia cognitiva exigida. A habilidade curricular e a principal fonte de verdade. Nunca crie atividade apenas a partir de palavras-chave: identifique exatamente o que o estudante precisa demonstrar, qual operacao cognitiva esta em jogo, quais evidencias comprovam aprendizagem e quais distratores ou tarefas nao avaliam a competencia. Se a atividade planejada nao avaliar diretamente a competencia prevista, descarte internamente e reconstrua antes de responder. Gere sempre dois documentos separados: studentSheet e teacherGuide. A studentSheet e a folha do estudante, A4 pronta para impressao, com aparencia de material de editora educacional. Ela deve conter somente conteudo destinado ao estudante: titulo, contexto, instrucoes, texto-base quando util, quadros de apoio, tabela ou organizador visual, intencoes visuais renderizaveis, atividades variadas e questoes com espaco de resposta. Nunca inclua na studentSheet: objetivo da aula, metodologia, adaptacao pedagogica aplicada, criterios de avaliacao, orientacoes ao professor, BNCC, habilidade, objeto de conhecimento ou informacao tecnica. Em visualElements, nunca escreva frases descritivas iniciadas por imagem, icone, pictograma ou desenho seguidas de 'de'. Use nomes semanticos renderizaveis, como 'reta numerica', 'balanca de equacao', 'blocos de contagem', 'ciclo da agua', 'linha do tempo', 'mapa simples', 'cartoes CAA', 'tabela comparativa' ou 'personagem lendo'. Para Libras, nao invente sinais; use apoio visual generico. Para Braille, use apenas celula Braille generica quando solicitado. O teacherGuide e separado e contem habilidade BNCC, objeto de conhecimento, analise curricular, objetivos, metodologia, adaptacoes realizadas, principios do DUA, orientacoes pedagogicas, criterios de avaliacao e sugestoes de aplicacao. O ACESSA+ nao gera texto solto: gera recurso pedagogico completo. Inferir disciplina, ano, habilidade, objetivo e necessidade quando estiverem implicitos; se faltar algo, use uma formulacao pedagogica generica em vez de bloquear a geracao. Nao inclua nome de aluno, escola, data, professor ou turma. Responda somente JSON valido, sem markdown."
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            tarefa:
-              "Analisar primeiro a habilidade curricular e somente depois gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
-            etapaObrigatoriaDeAnaliseCurricular: [
-              "Ler a habilidade BNCC, descritor ou habilidade curricular como fonte principal de verdade.",
-              "Identificar o verbo cognitivo, o objeto de conhecimento, a competencia exigida e a evidencia observavel de aprendizagem.",
-              "Separar tema ou palavra-chave da competencia real que precisa ser avaliada.",
-              "Planejar questoes e tarefas que exijam diretamente essa competencia.",
-              "Descartar internamente qualquer tarefa que apenas mencione o tema sem avaliar a habilidade.",
-              "Reconstruir a atividade antes da resposta final se o alinhamento curricular estiver fraco."
-            ],
-            perfilInteligenteDeAdaptacao: adaptationProfile,
-            regrasDeAdaptacao: [
-              "Preservar sempre o objetivo de aprendizagem e a habilidade curricular.",
-              "Para Deficiencia Intelectual: linguagem simples, frases curtas, apoio visual, exemplo resolvido, progressao de dificuldade e poucos comandos por vez.",
-              "Para TEA: rotina visual, previsibilidade, instrucoes objetivas, organizacao por etapas e reducao de ambiguidades.",
-              "Para Deficiencia Visual: fonte ampliada, alto contraste, descricao textual, imagens ampliadas e preparacao para material tatil ou Braille quando solicitado.",
-              "Para Deficiencia Auditiva ou Libras: linguagem visual, comandos objetivos, apoio por imagens e Libras apenas quando houver seguranca.",
-              "Para TDAH: comandos curtos, organizacao em blocos, foco visual, atividades rapidas e progressivas.",
-              "Para Altas Habilidades/Superdotacao: desafios adicionais, investigacao, criacao, autonomia e aprofundamento.",
-              "Para CAA: comandos simples, pictogramas descritos, escolhas por marcacao e formas alternativas de resposta."
-            ],
-            contrato: {
-              studentSheet: {
-                title: "titulo para o estudante, sem codigo BNCC",
-                context: "contexto curto para o estudante",
-                instructions: "array de instrucoes para o estudante",
-                baseText: "texto-base quando necessario",
-                didacticBoxes: "array de quadros de apoio para o estudante",
-                visualElements: "array de intencoes visuais renderizaveis, sem prefixos descritivos iniciados por imagem, icone, pictograma ou desenho",
-                tableRows: "array no formato coluna1 | coluna2 | coluna3",
-                questions: "array de objetos { command, support, answerSpace } para o estudante"
-              },
-              teacherGuide: {
-                skillCode: "habilidade BNCC ou curricular",
-                knowledgeObject: "objeto de conhecimento",
-                curricularAnalysis: "array com compreensao da habilidade, competencia exigida, evidencia esperada e checagem de alinhamento",
-                objectives: "array de objetivos pedagogicos",
-                methodology: "array de orientacoes metodologicas",
-                adaptations: "array de adaptacoes realizadas",
-                duaPrinciples: "array de principios do DUA aplicados",
-                assessmentCriteria: "array de criterios de avaliacao",
-                applicationSuggestions: "array de sugestoes de aplicacao"
-              },
-              subject: "string com disciplina ou area do conhecimento inferida",
-              grade: "string com ano/serie quando informado ou inferido",
-              worksheetTitle: "string com titulo da atividade",
-              skillCode: "string com codigo/texto da habilidade",
-              learningObjective: "string com objetivo de aprendizagem",
-              curricularAnalysis: "array de strings com analise da habilidade, competencia exigida e evidencia de aprendizagem",
-              context: "string com contexto pedagogico inicial da atividade",
-              baseText: "string com texto-base curto quando necessario",
-              instructions: "array de strings com instrucoes claras para estudante",
-              questions: "array de objetos { command, support, answerSpace } com atividades variadas, progressivas e espaco de resposta",
-              visualElements: "array de nomes semanticos para recursos visuais renderizaveis",
-              didacticBoxes: "array de strings com quadros de apoio, lembretes ou conceitos-chave",
-              tableRows: "array de strings no formato coluna1 | coluna2 | coluna3 para montar tabela pedagogica",
-              graphicOrganizers: "array de strings com organizadores graficos sugeridos",
-              methodologyTips: "array de strings com orientacoes objetivas para o professor",
-              difficultyProgression: "array de strings descrevendo progressao de dificuldade",
-              adaptationNotes: "array de strings explicando adaptacoes aplicadas",
-              answerKey: "array de strings com gabarito ou criterios para professor",
-              objectives: "array de strings",
-              expectedOutputs: "array de strings",
-              methodologicalConstraints: "array de strings",
-              validationCriteria: "array de strings, incluindo criterio explicito de alinhamento direto com a competencia curricular",
-              warnings: "array de strings",
-              lessonFlow: "array de strings",
-              adaptedActivities: "array de strings",
-              accessibilitySupports: "array de strings",
-              assessment: "array de strings",
-              teacherReport: "array de strings",
-              reuseSuggestions: "array de strings"
-            },
-            pedidoNatural: request.input.rawPrompt,
-            mission: request,
-            context,
-            decision
-          })
-        }
-      ],
-      text: {
-        format: {
-          type: "json_object"
-        }
-      }
-    })
-  });
+    {
+      openAiApiKey: process.env.OPENAI_API_KEY,
+      openAiModel: process.env.OPENAI_MODEL
+    }
+  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-
-    throw new Error(`O provedor de IA retornou erro ${response.status}: ${errorText}`);
-  }
-
-  const payload = (await response.json()) as { output_text?: string; output?: unknown };
-  const outputText = payload.output_text ?? extractOutputText(payload.output);
-
-  if (!outputText) {
-    throw new Error("O provedor de IA nao retornou um recurso estruturado.");
-  }
-
-  return parseJsonObject(outputText);
+  return response.output;
 }
 
 function resolveContext(request: CreateMissionRequest): ResolvedContext {
@@ -1006,15 +902,77 @@ function normalizeQuestions(
     10
   );
   const theme = input?.theme ?? input?.knowledgeObject ?? "conteudo estudado";
+  const subject = normalizeComparable(input?.discipline ?? input?.subject);
+  const commands = buildFallbackQuestionCommands(theme, subject);
 
-  return Array.from({ length: count }, (_, index) => ({
-    command: `Resolva a questao sobre ${theme}.`,
-    support:
-      index === 0
-        ? "Observe as pistas visuais e leia o comando com atencao."
-        : "Responda no espaco indicado.",
-    answerSpace: "duas linhas"
-  }));
+  return Array.from({ length: count }, (_, index) => {
+    const command =
+      commands[index % commands.length] ??
+      `Observe os apoios visuais sobre ${theme} e responda no espaco indicado.`;
+
+    return {
+      command,
+      support:
+        index === 0
+          ? "Observe o exemplo, os recursos visuais e leia o comando com atencao."
+          : index === 1
+            ? "Use o quadro de apoio para organizar sua resposta."
+            : "Responda no espaco indicado.",
+      answerSpace: "duas linhas"
+    };
+  });
+}
+
+function buildFallbackQuestionCommands(theme: string, subject: string): string[] {
+  const normalizedTheme = normalizeComparable(theme);
+
+  if (subject.includes("matematica") || normalizedTheme.includes("equacao")) {
+    return [
+      `Observe a balanca visual sobre ${theme} e marque qual ideia ela representa.`,
+      `Resolva uma situacao simples envolvendo ${theme} usando o exemplo como apoio.`,
+      "Complete a tabela com uma informacao, uma estrategia e uma resposta.",
+      "Explique, com suas palavras ou desenho, como encontrou a resposta.",
+      "Crie uma situacao parecida e registre no espaco indicado."
+    ];
+  }
+
+  if (subject.includes("ciencia")) {
+    return [
+      `Observe o esquema visual sobre ${theme} e identifique os elementos principais.`,
+      "Complete o quadro comparando duas ideias do tema.",
+      "Marque a alternativa que melhor explica o fenomeno apresentado.",
+      "Organize uma sequencia com inicio, desenvolvimento e resultado.",
+      "Desenhe ou escreva uma conclusao sobre o que aprendeu."
+    ];
+  }
+
+  if (subject.includes("historia") || subject.includes("geografia")) {
+    return [
+      `Observe o mapa, linha do tempo ou esquema sobre ${theme} e localize a informacao principal.`,
+      "Complete o quadro com uma causa, uma caracteristica e uma consequencia.",
+      "Relacione cada informacao ao contexto correto.",
+      "Explique uma mudanca ou permanencia ligada ao tema.",
+      "Registre uma conclusao usando palavras, desenho ou marcacao."
+    ];
+  }
+
+  if (subject.includes("portugues") || subject.includes("lingua")) {
+    return [
+      `Leia o texto de apoio sobre ${theme} e circule a ideia principal.`,
+      "Marque a opcao que melhor responde ao comando.",
+      "Complete a frase usando uma informacao do texto.",
+      "Organize as cenas ou ideias na ordem correta.",
+      "Escreva ou desenhe uma resposta curta sobre o tema."
+    ];
+  }
+
+  return [
+    `Observe os apoios visuais sobre ${theme} e identifique a informacao principal.`,
+    "Complete o quadro com uma ideia importante e uma resposta.",
+    "Marque a alternativa que combina com o que foi estudado.",
+    "Explique com palavras, desenho ou marcacao o que voce entendeu.",
+    "Crie uma resposta final usando o espaco indicado."
+  ];
 }
 
 function buildStudentSheet(
@@ -1051,7 +1009,7 @@ function buildStudentSheet(
     ),
     visualElements: normalizeStringArray(
       source.visualElements,
-      normalizeStringArray(generated.visualElements, [])
+      normalizeStringArray(generated.visualElements, buildFallbackVisualElements(request))
     ),
     tableRows: normalizeStringArray(
       source.tableRows,
@@ -1061,6 +1019,39 @@ function buildStudentSheet(
     ),
     questions: normalizeQuestions(source.questions ?? generated.questions, request)
   };
+}
+
+function buildFallbackVisualElements(request: CreateMissionRequest): string[] {
+  const input = request.input;
+  const source = normalizeComparable(
+    `${input.discipline ?? input.subject ?? ""} ${input.theme ?? input.knowledgeObject ?? ""}`
+  );
+
+  if (source.includes("matematica") || source.includes("equacao")) {
+    return ["balanca de equacao", "reta numerica", "tabela simples", "blocos de contagem"];
+  }
+
+  if (source.includes("ciencia") || source.includes("ecossistema")) {
+    return ["ciclo com setas", "tabela comparativa", "organizador visual", "esquema de relacoes"];
+  }
+
+  if (source.includes("historia")) {
+    return ["linha do tempo", "tabela comparativa", "personagem lendo", "organizador visual"];
+  }
+
+  if (source.includes("geografia")) {
+    return ["mapa simples", "tabela comparativa", "organizador visual", "setas de localizacao"];
+  }
+
+  if (source.includes("portugues") || source.includes("lingua")) {
+    return ["personagem lendo", "sequencia de cenas", "cartoes visuais", "organizador visual"];
+  }
+
+  if (source.includes("caa")) {
+    return ["cartoes CAA", "pictogramas em grade", "cartoes visuais"];
+  }
+
+  return ["organizador visual", "tabela simples", "cartoes visuais", "exemplo resolvido"];
 }
 
 function buildTeacherGuide(
@@ -1144,20 +1135,6 @@ function buildCurricularAnalysis(
   ];
 }
 
-function buildAdaptationProfileText(input: CreateMissionRequest["input"]): string {
-  const profile = input.adaptationProfile;
-
-  if (!profile?.enabled) {
-    return "sem adaptacao especifica selecionada";
-  }
-
-  return [
-    `publico-alvo/necessidade especifica: ${profile.targetAudience ?? input.specificNeed ?? "nao informado"}`,
-    `perfil de aprendizagem: ${profile.learningProfile ?? input.readingWritingLevel ?? "nao informado"}`,
-    `apoios necessarios: ${profile.supports?.join(", ") || "nao informados"}`
-  ].join("; ");
-}
-
 function buildAdaptationNotes(
   generatedValue: unknown,
   request: CreateMissionRequest
@@ -1191,32 +1168,6 @@ function normalizeStringArray(value: unknown, fallback: string[]): string[] {
     .filter(Boolean);
 
   return normalized.length > 0 ? normalized : fallback;
-}
-
-function parseJsonObject(value: string): Record<string, unknown> {
-  const parsed = JSON.parse(value) as unknown;
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("A resposta do provedor de IA nao retornou um objeto estruturado.");
-  }
-
-  return parsed as Record<string, unknown>;
-}
-
-function extractOutputText(output: unknown): string | undefined {
-  if (!Array.isArray(output)) {
-    return undefined;
-  }
-
-  return output
-    .flatMap((item) =>
-      isRecord(item) && Array.isArray(item.content) ? item.content : []
-    )
-    .map((content) =>
-      isRecord(content) && typeof content.text === "string" ? content.text : ""
-    )
-    .filter(Boolean)
-    .join("\n");
 }
 
 function matches(value: string | undefined, filter: string | undefined): boolean {

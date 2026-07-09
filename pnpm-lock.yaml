@@ -85,6 +85,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@acessa-plus/ai-core':
+        specifier: workspace:*
+        version: link:../../packages/ai-core
+      '@acessa-plus/pedagogical-core':
+        specifier: workspace:*
+        version: link:../../packages/pedagogical-core
       '@acessa-plus/types':
         specifier: workspace:*
         version: link:../../packages/types

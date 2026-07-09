@@ -2,3 +2,8 @@ export * from "./knowledge-registry.js";
 export * from "./context-resolver.js";
 export * from "./decision-engine.js";
 export * from "./minimal-pedagogical-engine.js";
+export * from "./adaptation-rules.js";
+export * from "./generation-contract.js";
+export * from "./generation-contract-registry.js";
+export * from "./generation-system-prompts.js";
+export * from "./ai-prompt-builder.js";

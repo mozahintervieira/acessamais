@@ -3,15 +3,21 @@
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/", label: "Criar" },
-  { href: "/resources", label: "Recursos" }
+  { href: "/", label: "Dashboard" },
+  { href: "/#criar", label: "Criar" },
+  { href: "/profile", label: "Painel do Professor" },
+  { href: "/classes", label: "Turmas" },
+  { href: "/students", label: "Estudantes" },
+  { href: "/resources", label: "Banco Inteligente" },
+  { href: "/missions", label: "Meus Materiais" },
+  { href: "/settings", label: "Configuracoes" }
 ];
 
 export function AppNavigation(): React.ReactElement {
   const pathname = usePathname();
 
   return (
-    <header className="appHeader">
+    <aside className="appHeader">
       <a className="brandMark" href="/" aria-label="Ir para o inicio do ACESSA+">
         <span aria-hidden="true">A+</span>
         <strong>ACESSA+</strong>
@@ -35,6 +41,10 @@ export function AppNavigation(): React.ReactElement {
           );
         })}
       </nav>
-    </header>
+      <div className="sidebarFoot">
+        <strong>MVP demo</strong>
+        <span>Dados locais, sem login real.</span>
+      </div>
+    </aside>
   );
 }

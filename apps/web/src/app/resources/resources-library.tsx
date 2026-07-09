@@ -39,6 +39,9 @@ type Filters = {
   activityType: string;
   specificNeed: string;
   learningLevel: string;
+  teacher: string;
+  favorites: string;
+  mostUsed: string;
 };
 
 const organizationId = "demo-organization";
@@ -53,7 +56,10 @@ export function ResourcesLibrary(): React.ReactElement {
     theme: "",
     activityType: "",
     specificNeed: "",
-    learningLevel: ""
+    learningLevel: "",
+    teacher: "",
+    favorites: "",
+    mostUsed: ""
   });
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -141,12 +147,15 @@ export function ResourcesLibrary(): React.ReactElement {
           <Field label="Busca em texto" value={filters.q} onChange={(value) => updateFilter("q", value)} />
           <Field label="Disciplina" value={filters.discipline} onChange={(value) => updateFilter("discipline", value)} />
           <Field label="Ano/serie" value={filters.gradeYear} onChange={(value) => updateFilter("gradeYear", value)} />
-          <Field label="Habilidade" value={filters.skill} onChange={(value) => updateFilter("skill", value)} />
+          <Field label="BNCC" value={filters.skill} onChange={(value) => updateFilter("skill", value)} />
           <Field label="Objeto de conhecimento" value={filters.knowledgeObject} onChange={(value) => updateFilter("knowledgeObject", value)} />
           <Field label="Tema" value={filters.theme} onChange={(value) => updateFilter("theme", value)} />
-          <Field label="Tipo de atividade" value={filters.activityType} onChange={(value) => updateFilter("activityType", value)} />
-          <Field label="Necessidade especifica" value={filters.specificNeed} onChange={(value) => updateFilter("specificNeed", value)} />
+          <Field label="Tipo de material" value={filters.activityType} onChange={(value) => updateFilter("activityType", value)} />
+          <Field label="Deficiencia/perfil" value={filters.specificNeed} onChange={(value) => updateFilter("specificNeed", value)} />
           <Field label="Nivel de aprendizagem" value={filters.learningLevel} onChange={(value) => updateFilter("learningLevel", value)} />
+          <Field label="Professor" value={filters.teacher} onChange={(value) => updateFilter("teacher", value)} />
+          <Field label="Favoritos" value={filters.favorites} onChange={(value) => updateFilter("favorites", value)} />
+          <Field label="Mais usados" value={filters.mostUsed} onChange={(value) => updateFilter("mostUsed", value)} />
           <button className="primaryButton" type="button" onClick={loadResources}>
             {isLoading ? "Buscando..." : "Buscar materiais"}
           </button>
@@ -243,6 +252,9 @@ function filterLocalResources(
       resource.metadata.activityType,
       resource.metadata.specificNeed,
       resource.metadata.learningLevel,
+      "professor demo",
+      "favorito",
+      "mais usado",
       resource.latestVersion?.contentText
     ]
       .filter(Boolean)
@@ -258,7 +270,10 @@ function filterLocalResources(
       matches(resource.metadata.theme, filters.theme) &&
       matches(resource.metadata.activityType, filters.activityType) &&
       matches(resource.metadata.specificNeed, filters.specificNeed) &&
-      matches(resource.metadata.learningLevel, filters.learningLevel)
+      matches(resource.metadata.learningLevel, filters.learningLevel) &&
+      matches(searchableText, filters.teacher) &&
+      matches(searchableText, filters.favorites) &&
+      matches(searchableText, filters.mostUsed)
     );
   });
 }

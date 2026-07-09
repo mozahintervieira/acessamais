@@ -1,5 +1,5 @@
-import { InstantResourceStudio } from "./instant-resource-studio";
+import { ProductStudio } from "./product-studio";
 
 export default function HomePage(): React.ReactElement {
-  return <InstantResourceStudio />;
+  return <ProductStudio />;
 }
