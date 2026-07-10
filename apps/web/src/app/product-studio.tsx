@@ -68,6 +68,8 @@ type StudioForm = {
   discipline: string;
   grade: string;
   skillOrObjective: string;
+  knowledgeObject: string;
+  curriculumReference: string;
   content: string;
   studentProfile: string;
   supportLevel: string;
@@ -96,6 +98,8 @@ const defaultForm: StudioForm = {
   discipline: "Matematica",
   grade: "6 ano",
   skillOrObjective: "Resolver situacoes-problema com equacoes simples.",
+  knowledgeObject: "Equacoes do primeiro grau",
+  curriculumReference: "BNCC + Curriculo do Espirito Santo / SEDU-ES 2026",
   content: "Equacoes do primeiro grau",
   studentProfile: "Deficiencia Intelectual",
   supportLevel: "Apoio moderado",
@@ -181,6 +185,8 @@ export function ProductStudio(): React.ReactElement {
         discipline: form.discipline,
         gradeYear: form.grade,
         skill: form.skillOrObjective,
+        knowledgeObject: form.knowledgeObject,
+        curriculumReference: form.curriculumReference,
         theme: form.content,
         specificNeed: form.studentProfile,
         expectedProductType: form.materialTypes.join(", "),
@@ -228,7 +234,7 @@ export function ProductStudio(): React.ReactElement {
         contentJson: payload.pedagogicalPlan,
         prompt
       });
-      setMessage("Material gerado e salvo na demonstracao local.");
+      setMessage("Material gerado online e salvo em Meus Materiais.");
       setGenerationStep(3);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Erro inesperado.");
@@ -266,10 +272,10 @@ export function ProductStudio(): React.ReactElement {
             comandos claros e guia do professor.
           </p>
         </div>
-        <div className="dashboardStats" aria-label="Resumo da demonstracao">
+        <div className="dashboardStats" aria-label="Resumo da plataforma">
           <span><strong>{classes.length}</strong> turmas</span>
           <span><strong>{students.length}</strong> estudantes</span>
-          <span><strong>{profile?.name ? "ativo" : "demo"}</strong> perfil</span>
+          <span><strong>{profile?.name ? "ativo" : "online"}</strong> perfil</span>
         </div>
       </section>
 
@@ -304,6 +310,8 @@ export function ProductStudio(): React.ReactElement {
             <Field label="Disciplina" value={form.discipline} onChange={(value) => updateForm("discipline", value)} />
             <Field label="Ano/serie" value={form.grade} onChange={(value) => updateForm("grade", value)} />
             <Field label="Habilidade ou objetivo" value={form.skillOrObjective} onChange={(value) => updateForm("skillOrObjective", value)} wide />
+            <Field label="Objeto de conhecimento" value={form.knowledgeObject} onChange={(value) => updateForm("knowledgeObject", value)} />
+            <Field label="Referencia curricular" value={form.curriculumReference} onChange={(value) => updateForm("curriculumReference", value)} />
             <Field label="Conteudo" value={form.content} onChange={(value) => updateForm("content", value)} />
             <SelectField label="Turma" value={form.selectedClassId} onChange={(value) => updateForm("selectedClassId", value)} options={[["", "Selecionar depois"], ...classes.map((item) => [item.id, `${item.name} - ${item.grade}`] as [string, string])]} />
             <SelectField label="Estudante" value={form.selectedStudentId} onChange={(value) => updateForm("selectedStudentId", value)} options={[["", "Sem estudante vinculado"], ...students.map((item) => [item.id, item.name] as [string, string])]} />
@@ -374,18 +382,20 @@ function buildPrompt(
     `Crie: ${form.materialTypes.join(", ")}.`,
     `Disciplina: ${form.discipline}. Ano/serie: ${form.grade}.`,
     `Habilidade ou objetivo: ${form.skillOrObjective}.`,
+    `Objeto de conhecimento: ${form.knowledgeObject}.`,
+    `Referencia curricular: ${form.curriculumReference}.`,
     `Conteudo: ${form.content}.`,
     `Perfil do estudante: ${selectedStudent?.profile || form.studentProfile}. Nivel de apoio: ${selectedStudent?.supportLevel || form.supportLevel}.`,
     `Quantidade de atividades: ${form.activityCount}.`,
     `Formato de saida: ${form.outputFormat}.`,
     `Elementos visuais: ${form.visualNeed}. Imagens: ${form.includeImages ? "sim" : "nao"}. Pictogramas: ${form.includePictograms ? "sim" : "nao"}. Elementos visuais: ${form.includeVisualElements ? "sim" : "nao"}.`,
     selectedClass ? `Turma: ${selectedClass.name}, ${selectedClass.grade}, turno ${selectedClass.shift}.` : "",
-    selectedStudent ? `Estudante demo: ${selectedStudent.name}, ${selectedStudent.age} anos. Observacoes pedagogicas: ${selectedStudent.notes}. Recursos: ${selectedStudent.resources}. PEI: ${selectedStudent.pei}. Preferencias: ${selectedStudent.preferences}.` : "",
+    selectedStudent ? `Estudante: ${selectedStudent.name}, ${selectedStudent.age} anos. Observacoes pedagogicas: ${selectedStudent.notes}. Recursos: ${selectedStudent.resources}. PEI: ${selectedStudent.pei}. Preferencias: ${selectedStudent.preferences}.` : "",
     profile ? `Preferencias do professor: ${profile.generationPreferences}. Publico atendido: ${profile.audiences.join(", ")}.` : "",
-    "Antes de entregar, pesquise pedagogicamente a habilidade, o objeto de conhecimento e a competencia exigida. A atividade precisa avaliar diretamente essa competencia, nao apenas mencionar o tema.",
+    "Antes de entregar, pesquise pedagogicamente a habilidade, o objeto de conhecimento e a competencia exigida. Use a BNCC como base nacional e considere o Curriculo do Espirito Santo/SEDU-ES quando informado. A atividade precisa avaliar diretamente essa competencia, nao apenas mencionar o tema.",
     "A folha do estudante deve parecer uma folha editorial A4, como material comprado de editora educacional: cabecalho forte, titulo grande, quadro de dica, exemplo resolvido, atividades numeradas, alternativas com caixas de marcacao, linhas para resposta, tabelas, mapas, sequencias, blocos ou esquemas quando fizer sentido.",
     "Escolha a melhor estrutura visual antes de escrever o texto. Para DI use frases curtas, comandos objetivos, exemplo resolvido e progressao pequena. Para DV use alto contraste, fonte ampliada, organizacao limpa e apoio tactil/Braille apenas quando seguro. Para TEA use previsibilidade, etapas e baixa ambiguidade. Para TDAH use blocos curtos e foco visual.",
-    "Nao escreva descricao de imagem na folha. Use nomes de recursos visuais renderizaveis em visualElements, como reta numerica, balanca de equacao, blocos, tabela comparativa, mapa simples, linha do tempo, ciclo, cartoes CAA, personagem lendo, laboratorio, livros, globo ou pictogramas.",
+    "Nao escreva descricao de imagem na folha nem em support. Use nomes de recursos visuais renderizaveis em visualElements, como reta numerica, balanca de equacao, blocos, tabela comparativa, mapa simples, linha do tempo, ciclo, cartoes CAA, personagem lendo, laboratorio, livros, globo ou pictogramas.",
     "O guia do professor deve trazer a analise curricular, habilidade/objetivo, objeto de conhecimento, criterios de avaliacao e justificativa das adaptacoes."
   ]
     .filter(Boolean)
@@ -565,7 +575,8 @@ function A4Sheet({
             <span className="activityNumber">{index + 1}</span>
             <div>
               <p>{question.command}</p>
-              {question.support ? <small>{question.support}</small> : null}
+              {question.support && shouldShowStudentSupport(question.support) ? <small>{question.support}</small> : null}
+              <QuestionVisual command={`${question.command} ${question.support ?? ""}`} subjectKind={theme.kind} />
               <QuestionResponseArea command={question.command} index={index} />
             </div>
           </li>
@@ -573,6 +584,154 @@ function A4Sheet({
       </ol>
       <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
     </article>
+  );
+}
+
+function shouldShowStudentSupport(value: string): boolean {
+  const normalized = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  return ![
+    "imagem",
+    "icone",
+    "pictograma",
+    "desenho",
+    "blocos mostrando",
+    "mapa mostrando",
+    "tabela para preencher",
+    "sequencia ilustrada"
+  ].some((prefix) => normalized.startsWith(prefix));
+}
+
+function QuestionVisual({
+  command,
+  subjectKind
+}: {
+  command: string;
+  subjectKind: SubjectTheme["kind"];
+}): React.ReactElement {
+  const normalized = command.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  if (normalized.includes("tabela") || normalized.includes("preencha")) {
+    return <MiniWorksheetTable />;
+  }
+
+  if (
+    subjectKind === "math" &&
+    (normalized.includes("progressao") || normalized.includes("sequencia") || normalized.includes("razao"))
+  ) {
+    return <SequenceVisual />;
+  }
+
+  if (
+    subjectKind === "math" &&
+    (normalized.includes("equacao") || normalized.includes("valor de x") || normalized.includes("balanca"))
+  ) {
+    return <EquationBalanceVisual />;
+  }
+
+  if (subjectKind === "science" || normalized.includes("reagente") || normalized.includes("produto")) {
+    return <ReactionVisual />;
+  }
+
+  if (subjectKind === "geography" || normalized.includes("mapa") || normalized.includes("territorio")) {
+    return <MapQuestionVisual />;
+  }
+
+  if (subjectKind === "language" || normalized.includes("texto") || normalized.includes("ideia principal")) {
+    return <ReadingChoiceVisual />;
+  }
+
+  return <GenericActivityVisual />;
+}
+
+function EquationBalanceVisual(): React.ReactElement {
+  return (
+    <div className="questionVisual equationVisual" aria-hidden="true">
+      <svg viewBox="0 0 420 120">
+        <line x1="210" y1="16" x2="210" y2="96" />
+        <line x1="90" y1="42" x2="330" y2="42" />
+        <path d="M90 42 L48 96 H132 Z" />
+        <path d="M330 42 L288 96 H372 Z" />
+        <circle cx="210" cy="14" r="10" />
+        <rect x="186" y="96" width="48" height="14" rx="4" />
+        <text x="90" y="82">X + 3</text>
+        <text x="330" y="82">8</text>
+      </svg>
+      <div className="visualCaption">Use a balanca para descobrir o valor que falta.</div>
+    </div>
+  );
+}
+
+function SequenceVisual(): React.ReactElement {
+  return (
+    <div className="questionVisual sequenceVisual" aria-hidden="true">
+      {[2, 5, 8, 11, "?"].map((item, index) => (
+        <span key={`${item}-${index}`}>{item}</span>
+      ))}
+      <b>+3</b>
+    </div>
+  );
+}
+
+function ReactionVisual(): React.ReactElement {
+  return (
+    <div className="questionVisual reactionVisual" aria-hidden="true">
+      <span className="chemBlock blue">A</span>
+      <strong>+</strong>
+      <span className="chemBlock green">B</span>
+      <strong>-&gt;</strong>
+      <span className="chemBlock mixed">AB</span>
+    </div>
+  );
+}
+
+function MapQuestionVisual(): React.ReactElement {
+  return (
+    <div className="questionVisual mapQuestionVisual" aria-hidden="true">
+      <svg viewBox="0 0 420 150">
+        <rect x="10" y="10" width="400" height="130" rx="16" />
+        <path d="M80 96 C106 36 180 26 218 68 C246 100 310 68 342 116 C260 132 166 130 80 96 Z" />
+        <circle cx="286" cy="98" r="9" />
+        <text x="300" y="102">ES</text>
+        <path d="M286 98 L336 74" />
+      </svg>
+    </div>
+  );
+}
+
+function ReadingChoiceVisual(): React.ReactElement {
+  return (
+    <div className="questionVisual readingChoiceVisual" aria-hidden="true">
+      {["PASSEIO", "DOACAO DE LIVROS", "FUTEBOL"].map((label) => (
+        <span key={label}>
+          <i />
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MiniWorksheetTable(): React.ReactElement {
+  return (
+    <div className="questionVisual miniWorksheetTable" aria-hidden="true">
+      <span>PROBLEMA</span>
+      <span>EQUACAO</span>
+      <span>RESPOSTA</span>
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
+function GenericActivityVisual(): React.ReactElement {
+  return (
+    <div className="questionVisual genericActivityVisual" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </div>
   );
 }
 

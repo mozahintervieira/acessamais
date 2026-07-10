@@ -42,8 +42,8 @@ export function AppNavigation(): React.ReactElement {
         })}
       </nav>
       <div className="sidebarFoot">
-        <strong>MVP demo</strong>
-        <span>Dados locais, sem login real.</span>
+        <strong>Ambiente online</strong>
+        <span>Pronto para testes com professores.</span>
       </div>
     </aside>
   );

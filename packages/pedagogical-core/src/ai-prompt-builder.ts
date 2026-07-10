@@ -40,6 +40,8 @@ export function buildPedagogicalGenerationPrompt(
     userPayload: {
       tarefa:
         "Analisar primeiro a habilidade curricular e somente depois gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
+      referenciaCurricular:
+        "Usar a BNCC como referencia nacional e, quando o professor informar Espirito Santo, SEDU-ES, Curriculo do Espirito Santo ou ano 2026, considerar essa referencia curricular na analise. Se a habilidade estadual for informada, preservar seu codigo e interpretar a competencia antes de criar atividades.",
       etapaObrigatoriaDeAnaliseCurricular: CURRICULAR_ANALYSIS_STEPS,
       perfilInteligenteDeAdaptacao: buildAdaptationProfileText(request.input),
       regrasDeAdaptacao: PEDAGOGICAL_ADAPTATION_RULES,

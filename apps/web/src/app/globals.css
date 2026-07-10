@@ -3345,6 +3345,194 @@ body {
   text-transform: uppercase;
 }
 
+.questionVisual {
+  margin: 10px 0;
+  border: 2px solid color-mix(in srgb, var(--subject-border), #ffffff 30%);
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(180deg, #ffffff, var(--subject-soft));
+}
+
+.questionVisual svg {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+}
+
+.questionVisual svg line,
+.questionVisual svg path,
+.questionVisual svg rect,
+.questionVisual svg circle {
+  fill: #ffffff;
+  stroke: var(--subject);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.questionVisual svg text {
+  fill: #111827;
+  font-size: 22px;
+  font-weight: 950;
+  text-anchor: middle;
+}
+
+.visualCaption {
+  margin-top: 5px;
+  color: #111827;
+  font-size: 0.76rem;
+  font-weight: 950;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.sequenceVisual {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.sequenceVisual span {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  border: 2px solid var(--subject);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+.sequenceVisual b {
+  position: absolute;
+  right: 15px;
+  bottom: -3px;
+  color: var(--subject);
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.reactionVisual {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.reactionVisual strong {
+  color: #111827;
+  font-size: 1.4rem;
+  font-weight: 950;
+}
+
+.chemBlock {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 48px;
+  border: 3px solid #111827;
+  border-radius: 12px;
+  color: #111827;
+  font-weight: 950;
+}
+
+.chemBlock.blue {
+  background: #93c5fd;
+}
+
+.chemBlock.green {
+  background: #86efac;
+}
+
+.chemBlock.mixed {
+  background: linear-gradient(90deg, #93c5fd 0 50%, #86efac 50% 100%);
+}
+
+.mapQuestionVisual svg rect {
+  fill: #eff6ff;
+  stroke: #2563eb;
+}
+
+.mapQuestionVisual svg path {
+  fill: #bbf7d0;
+  stroke: #15803d;
+}
+
+.readingChoiceVisual {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.readingChoiceVisual span {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  border: 2px solid var(--subject-border);
+  border-radius: 12px;
+  padding: 8px 6px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 0.7rem;
+  font-weight: 950;
+  text-align: center;
+}
+
+.readingChoiceVisual i {
+  width: 42px;
+  height: 34px;
+  border: 2px solid var(--subject);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, transparent 48%, var(--subject) 49% 51%, transparent 52%),
+    var(--subject-soft);
+}
+
+.miniWorksheetTable {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  padding: 0;
+}
+
+.miniWorksheetTable span,
+.miniWorksheetTable i {
+  min-height: 34px;
+  border-right: 1px solid #111827;
+  border-bottom: 1px solid #111827;
+  padding: 7px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 0.76rem;
+  font-weight: 950;
+  font-style: normal;
+}
+
+.miniWorksheetTable span:nth-child(3),
+.miniWorksheetTable i:nth-child(6) {
+  border-right: 0;
+}
+
+.miniWorksheetTable i {
+  min-height: 42px;
+}
+
+.genericActivityVisual {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.genericActivityVisual span {
+  height: 44px;
+  border: 2px solid var(--subject-border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
 .answerChoiceGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -19,6 +19,7 @@ export type MissionInput = {
   gradeYear?: string;
   skill?: string;
   knowledgeObject?: string;
+  curriculumReference?: string;
   subject?: string;
   stage?: string;
   yearGrade?: string;

@@ -31,7 +31,7 @@ export function TeacherProfilePanel(): React.ReactElement {
 
   function save(): void {
     saveTeacherProfile(profile);
-    setMessage("Perfil demo salvo neste navegador.");
+    setMessage("Perfil salvo para personalizar os materiais.");
   }
 
   return (
@@ -40,7 +40,7 @@ export function TeacherProfilePanel(): React.ReactElement {
         <div>
           <p className="productEyebrow">Painel do Professor</p>
           <h1>Meu Perfil</h1>
-          <p>Cadastre o contexto demo para personalizar a criacao de materiais.</p>
+          <p>Cadastre seu contexto pedagógico para personalizar a criação de materiais.</p>
         </div>
       </section>
       <section className="creatorCard profileGrid">

@@ -24,6 +24,7 @@ type ResourceMetadata = {
   gradeYear?: string;
   skill?: string;
   knowledgeObject?: string;
+  curriculumReference?: string;
   theme?: string;
   specificNeed?: string;
   learningPreference?: string;
@@ -470,6 +471,7 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
     ["gradeYear", input.gradeYear ?? input.yearGrade],
     ["skill", input.skill],
     ["knowledgeObject", input.knowledgeObject],
+    ["curriculumReference", input.curriculumReference],
     ["theme", input.theme],
     ["lessonObjective", input.lessonObjective ?? input.objective],
     ["specificNeed", input.specificNeed ?? input.adaptationProfile?.targetAudience],
@@ -513,6 +515,7 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
       input.rawPrompt ? "entrada:linguagem-natural" : undefined,
       input.discipline ? `disciplina:${input.discipline}` : undefined,
       input.gradeYear ? `serie:${input.gradeYear}` : undefined,
+      input.curriculumReference ? `curriculo:${input.curriculumReference}` : undefined,
       input.specificNeed ? `necessidade:${input.specificNeed}` : undefined,
       input.adaptationProfile?.targetAudience
         ? `perfil-adaptacao:${input.adaptationProfile.targetAudience}`
@@ -736,6 +739,7 @@ function buildMetadata(
   const gradeYear = normalizeText(input.gradeYear ?? input.yearGrade);
   const skill = normalizeText(input.skill);
   const knowledgeObject = normalizeText(input.knowledgeObject);
+  const curriculumReference = normalizeText(input.curriculumReference);
   const theme = normalizeText(input.theme);
   const specificNeed = normalizeText(input.specificNeed);
   const adaptationTarget = normalizeText(input.adaptationProfile?.targetAudience);
@@ -754,6 +758,7 @@ function buildMetadata(
     gradeYear,
     skill,
     knowledgeObject,
+    curriculumReference,
     theme,
     specificNeed: specificNeed ?? adaptationTarget,
     learningPreference,
@@ -769,6 +774,7 @@ function buildMetadata(
       tag("serie", gradeYear),
       tag("habilidade", skill),
       tag("objeto", knowledgeObject),
+      tag("curriculo", curriculumReference),
       tag("tema", theme),
       tag("tipo", activityType),
       tag("dificuldade", difficultyLevel),
@@ -800,6 +806,7 @@ function buildContentText(
     `Serie/ano: ${input.gradeYear ?? input.yearGrade ?? ""}`,
     `Habilidade: ${input.skill ?? ""}`,
     `Objeto de conhecimento: ${input.knowledgeObject ?? ""}`,
+    `Referencia curricular: ${input.curriculumReference ?? ""}`,
     `Tema: ${input.theme ?? ""}`,
     `Objetivo: ${plan.objectives.join("; ")}`,
     `Necessidade especifica: ${input.specificNeed ?? ""}`,
@@ -1262,10 +1269,13 @@ function buildCurricularAnalysis(
     generated.learningObjective,
     input.lessonObjective ?? input.objective ?? ""
   );
+  const curriculumReference = input.curriculumReference ??
+    "BNCC e Curriculo do Espirito Santo/SEDU-ES quando informado pelo professor.";
   const generatedAnalysis = normalizeStringArray(generated.curricularAnalysis, []);
 
   return [
     ...generatedAnalysis,
+    `Referencia curricular usada para orientar a analise: ${curriculumReference}.`,
     skill
       ? `Habilidade curricular analisada como fonte principal: ${skill}.`
       : "Habilidade curricular nao informada; a atividade deve explicitar competencia curricular antes de uso oficial.",
