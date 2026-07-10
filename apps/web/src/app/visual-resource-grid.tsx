@@ -106,9 +106,9 @@ function renderVisual(kind: VisualKind, label: string): React.ReactElement {
       return (
         <div className="cycleVisual" aria-hidden="true">
           <i>1</i>
-          <b>→</b>
+          <b>-&gt;</b>
           <i>2</i>
-          <b>→</b>
+          <b>-&gt;</b>
           <i>3</i>
         </div>
       );
@@ -131,21 +131,21 @@ function renderVisual(kind: VisualKind, label: string): React.ReactElement {
     case "caa":
       return (
         <div className="caaVisual" aria-hidden="true">
-          {["😊", "🍎", "📚", "✅"].map((icon) => (
+          {["SIM", "NAO", "LER", "OK"].map((icon) => (
             <i key={icon}>{icon}</i>
           ))}
         </div>
       );
     case "braille":
       return (
-        <div className="brailleVisual" aria-label="Célula Braille genérica">
+        <div className="brailleVisual" aria-label="Celula Braille generica">
           {[0, 1, 2, 3, 4, 5].map((dot) => (
             <i key={dot} />
           ))}
         </div>
       );
     case "libras":
-      return <div className="emojiVisual" aria-hidden="true">🤟</div>;
+      return <div className="emojiVisual handVisual" aria-hidden="true">LIBRAS</div>;
     case "table":
       return (
         <div className="miniTableVisual" aria-hidden="true">
@@ -158,8 +158,30 @@ function renderVisual(kind: VisualKind, label: string): React.ReactElement {
         </div>
       );
     default:
-      return <div className="emojiVisual" aria-hidden="true">{resolveEmoji(label)}</div>;
+      return <GenericPictureVisual label={label} />;
   }
+}
+
+function GenericPictureVisual({ label }: { label: string }): React.ReactElement {
+  const normalized = normalize(label);
+  const letter = normalized.includes("livro") || normalized.includes("leitura")
+    ? "L"
+    : normalized.includes("escrita") || normalized.includes("lapis")
+      ? "E"
+      : normalized.includes("pessoa") || normalized.includes("personagem")
+        ? "P"
+        : normalized.includes("planta") || normalized.includes("ecossistema")
+          ? "C"
+          : "A";
+
+  return (
+    <svg className="svgVisual genericPictureVisual" viewBox="0 0 160 96" role="img" aria-label={label}>
+      <rect x="18" y="16" width="124" height="64" rx="14" />
+      <circle cx="48" cy="44" r="14" />
+      <path d="M26 72 L60 48 L84 64 L104 42 L136 72 Z" />
+      <text x="112" y="42">{letter}</text>
+    </svg>
+  );
 }
 
 function sanitizeVisualText(value: string): string {
@@ -171,7 +193,7 @@ function sanitizeVisualText(value: string): string {
 }
 
 function resolveVisualKind(label: string): VisualKind {
-  const normalized = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const normalized = normalize(label);
 
   if (normalized.includes("reta numerica") || normalized.includes("linha numerica")) return "numberLine";
   if (normalized.includes("balanca") || normalized.includes("equacao")) return "balance";
@@ -190,15 +212,15 @@ function resolveVisualKind(label: string): VisualKind {
 
 function resolveShortLabel(kind: VisualKind, label: string): string {
   const labels: Record<VisualKind, string> = {
-    numberLine: "Reta numérica",
-    balance: "Balança",
+    numberLine: "Reta numerica",
+    balance: "Balanca",
     blocks: "Blocos",
-    chart: "Gráfico",
+    chart: "Grafico",
     cycle: "Esquema",
     timeline: "Linha do tempo",
     map: "Mapa simples",
-    caa: "Cartões visuais",
-    braille: "Célula Braille",
+    caa: "Cartoes visuais",
+    braille: "Celula Braille",
     libras: "Apoio visual",
     table: "Tabela",
     picture: label
@@ -207,19 +229,6 @@ function resolveShortLabel(kind: VisualKind, label: string): string {
   return labels[kind];
 }
 
-function resolveEmoji(label: string): string {
-  const normalized = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-  if (normalized.includes("livro") || normalized.includes("leitura")) return "📖";
-  if (normalized.includes("escrita") || normalized.includes("lapis")) return "✏️";
-  if (normalized.includes("rosto") || normalized.includes("emocao")) return "😊";
-  if (normalized.includes("crianca") || normalized.includes("pessoa")) return "🧑";
-  if (normalized.includes("danca") || normalized.includes("movimento")) return "🎵";
-  if (normalized.includes("planta") || normalized.includes("ecossistema")) return "🌱";
-  if (normalized.includes("agua")) return "💧";
-  if (normalized.includes("sol")) return "☀️";
-  if (normalized.includes("animal")) return "🐾";
-  if (normalized.includes("casa")) return "🏠";
-
-  return "✦";
+function normalize(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }

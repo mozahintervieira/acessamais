@@ -3056,6 +3056,385 @@ body {
   text-align: center;
 }
 
+.editorialA4 {
+  --subject: #06347a;
+  --subject-soft: #eaf2ff;
+  --subject-border: #1d4ed8;
+  width: min(100%, 794px);
+  min-height: 1123px;
+  padding: 28px 28px 22px;
+  border: 3px solid #0f172a;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 1)),
+    radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.1), transparent 30%);
+  box-shadow: 0 22px 45px rgba(15, 23, 42, 0.16);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.editorialA4.subjectMath {
+  --subject: #08783f;
+  --subject-soft: #e9f8ef;
+  --subject-border: #16a34a;
+}
+
+.editorialA4.subjectScience {
+  --subject: #0a4fba;
+  --subject-soft: #eef6ff;
+  --subject-border: #2563eb;
+}
+
+.editorialA4.subjectGeo {
+  --subject: #047857;
+  --subject-soft: #ecfdf5;
+  --subject-border: #f97316;
+}
+
+.editorialA4.subjectLanguage {
+  --subject: #082c73;
+  --subject-soft: #eff6ff;
+  --subject-border: #f59e0b;
+}
+
+.editorialHeader {
+  align-items: center;
+  border: 0;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.editorialHeader strong,
+.editorialHeader span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 8px 18px;
+  background: var(--subject);
+  color: #ffffff;
+  font-size: 1.14rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.editorialHeader span {
+  background: #061b49;
+  color: #ffffff;
+}
+
+.editorialTitleRow {
+  display: grid;
+  grid-template-columns: 1fr 145px;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.activityRibbon {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  padding: 7px 11px;
+  background: var(--subject);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.editorialA4 h2 {
+  margin: 0;
+  color: #061b49;
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 0.95;
+  text-align: center;
+  text-transform: uppercase;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.editorialTitleRow p {
+  margin: 8px auto 0;
+  max-width: 560px;
+  color: var(--subject);
+  font-size: 1.25rem;
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.worksheetHeroIllustration {
+  width: 145px;
+  height: 112px;
+  color: var(--subject);
+}
+
+.worksheetHeroIllustration rect,
+.worksheetHeroIllustration circle,
+.worksheetHeroIllustration path,
+.worksheetHeroIllustration line {
+  fill: var(--subject-soft);
+  stroke: var(--subject);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.worksheetHeroIllustration text {
+  fill: var(--subject);
+  font-size: 16px;
+  font-weight: 950;
+  text-anchor: middle;
+}
+
+.editorialTipBox {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 14px;
+  align-items: center;
+  margin: 10px 0 16px;
+  border: 2px solid var(--subject-border);
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, #fff7df, #ffffff);
+}
+
+.editorialTipBox span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 3px solid #111827;
+  border-radius: 999px;
+  background: #fde047;
+  color: #111827;
+  font-size: 1.65rem;
+  font-weight: 950;
+}
+
+.editorialTipBox p {
+  margin: 0;
+  color: #111827;
+  font-size: 1.02rem;
+  font-weight: 950;
+  line-height: 1.38;
+  text-transform: uppercase;
+}
+
+.editorialA4 .studentInstructions,
+.editorialA4 .studentBaseText {
+  border: 2px solid #111827;
+  border-radius: 12px;
+  margin: 12px 0;
+  padding: 13px 16px;
+  background: #ffffff;
+}
+
+.editorialA4 .studentInstructions strong,
+.editorialA4 .studentBaseText strong {
+  color: var(--subject);
+}
+
+.editorialA4 .studentInstructions ul,
+.editorialA4 .studentBaseText p {
+  color: #111827;
+  font-weight: 800;
+}
+
+.editorialA4 .visualResourceGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.editorialA4 .visualResourceCard {
+  min-height: 92px;
+  border: 2px solid var(--subject-border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.editorialA4 .visualResourceCard span {
+  color: #111827;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.editorialA4 .worksheetBoxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.editorialA4 .worksheetBoxes div {
+  border: 2px dashed var(--subject-border);
+  border-radius: 12px;
+  padding: 11px;
+  background: var(--subject-soft);
+}
+
+.editorialA4 .worksheetBoxes strong,
+.editorialA4 .worksheetBoxes p {
+  color: #111827;
+  font-weight: 850;
+}
+
+.editorialA4 .studentTable {
+  border: 2px solid #111827;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.editorialA4 .studentTable span {
+  min-height: 34px;
+  color: #111827;
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.editorialActivities {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.activityCard {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 10px;
+  align-items: start;
+  border: 2px solid var(--subject-border);
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.activityNumber {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--subject);
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.editorialActivities p {
+  margin: 0;
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.editorialActivities small {
+  display: block;
+  margin-top: 5px;
+  color: #334155;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.answerChoiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.choiceBox {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px;
+  color: #111827;
+  font-weight: 950;
+}
+
+.choiceBox i {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #111827;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.matchingArea {
+  display: grid;
+  grid-template-columns: 1fr 28px 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.matchingArea span {
+  height: 34px;
+  border: 2px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.matchingArea b {
+  height: 2px;
+  background: #111827;
+}
+
+.fillBlankArea {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.fillBlankArea span {
+  height: 30px;
+  border-bottom: 2px solid #111827;
+}
+
+.editorialA4 footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  margin: 10px -18px -10px;
+  border-radius: 4px;
+  background: #061b49;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 950;
+  text-align: center;
+}
+
+.previewCard .editorialTitleRow {
+  grid-template-columns: 1fr;
+}
+
+.previewCard .worksheetHeroIllustration {
+  justify-self: center;
+  width: 120px;
+  height: 82px;
+}
+
+.previewCard .editorialA4 h2 {
+  font-size: clamp(1.75rem, 3.2vw, 2.45rem);
+  line-height: 1;
+}
+
+.previewCard .editorialTitleRow p {
+  font-size: 1rem;
+}
+
 .productGuide {
   box-shadow: none;
 }

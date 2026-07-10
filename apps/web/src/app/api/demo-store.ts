@@ -926,13 +926,28 @@ function normalizeQuestions(
 function buildFallbackQuestionCommands(theme: string, subject: string): string[] {
   const normalizedTheme = normalizeComparable(theme);
 
-  if (subject.includes("matematica") || normalizedTheme.includes("equacao")) {
+  if (
+    subject.includes("matematica") ||
+    normalizedTheme.includes("equacao") ||
+    normalizedTheme.includes("progressao") ||
+    normalizedTheme.includes("pa")
+  ) {
     return [
-      `Observe a balanca visual sobre ${theme} e marque qual ideia ela representa.`,
-      `Resolva uma situacao simples envolvendo ${theme} usando o exemplo como apoio.`,
-      "Complete a tabela com uma informacao, uma estrategia e uma resposta.",
-      "Explique, com suas palavras ou desenho, como encontrou a resposta.",
-      "Crie uma situacao parecida e registre no espaco indicado."
+      "Observe as sequencias e descubra a razao de cada uma. Depois escreva os tres proximos termos.",
+      "Marque com X a alternativa que mostra uma progressao aritmetica e escreva a razao.",
+      "Verifique se o termo destacado esta correto. Se nao estiver, escreva o valor correto.",
+      "Resolva o problema usando a sequencia visual e registre o calculo.",
+      "Complete a tabela com primeiro termo, razao, posicao e termo pedido."
+    ];
+  }
+
+  if (subject.includes("quimica") || normalizedTheme.includes("reacao")) {
+    return [
+      "Observe a reacao representada por blocos e escreva o nome dos reagentes e do produto.",
+      "Classifique cada reacao: sintese, decomposicao, simples troca ou dupla troca.",
+      "Marque com X a alternativa que representa uma transformacao quimica.",
+      "Ligue cada parte da reacao ao seu nome: reagentes ou produtos.",
+      "Organize as letras e escreva o nome do tipo de reacao representado."
     ];
   }
 
@@ -948,21 +963,21 @@ function buildFallbackQuestionCommands(theme: string, subject: string): string[]
 
   if (subject.includes("historia") || subject.includes("geografia")) {
     return [
-      `Observe o mapa, linha do tempo ou esquema sobre ${theme} e localize a informacao principal.`,
-      "Complete o quadro com uma causa, uma caracteristica e uma consequencia.",
-      "Relacione cada informacao ao contexto correto.",
-      "Explique uma mudanca ou permanencia ligada ao tema.",
-      "Registre uma conclusao usando palavras, desenho ou marcacao."
+      "Observe o mapa simplificado e responda as perguntas sobre localizacao e territorio.",
+      "Marque com X as alternativas corretas sobre o tema estudado.",
+      "Observe as situacoes territoriais e escreva qual conflito ou problema aparece.",
+      "Complete a linha do tempo com as etapas da formacao territorial.",
+      "Escreva duas acoes que ajudam a respeitar as diferencas e cuidar do territorio."
     ];
   }
 
   if (subject.includes("portugues") || subject.includes("lingua")) {
     return [
-      `Leia o texto de apoio sobre ${theme} e circule a ideia principal.`,
-      "Marque a opcao que melhor responde ao comando.",
-      "Complete a frase usando uma informacao do texto.",
-      "Organize as cenas ou ideias na ordem correta.",
-      "Escreva ou desenhe uma resposta curta sobre o tema."
+      "Leia o texto abaixo e circule a ideia principal.",
+      "Observe as imagens e marque qual representa o assunto principal do texto.",
+      "Marque as informacoes que aparecem no texto.",
+      "Complete as frases com palavras do quadro.",
+      "Reescreva as ideias na ordem correta para formar um texto com sentido."
     ];
   }
 
@@ -980,32 +995,31 @@ function buildStudentSheet(
   request: CreateMissionRequest
 ): Record<string, unknown> {
   const source = isRecord(generated.studentSheet) ? generated.studentSheet : {};
+  const fallback = buildFallbackStudentSheetContent(request);
 
   return {
     title: normalizeString(
       source.title,
       normalizeString(
         generated.worksheetTitle,
-        `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
+        fallback.title
       )
     ),
     context: normalizeString(
       source.context,
       normalizeString(
         generated.context,
-        "Leia as informacoes, observe os apoios visuais e realize as atividades com atencao."
+        fallback.context
       )
     ),
     instructions: normalizeStringArray(source.instructions, [
       "Leia cada comando com atencao.",
       "Responda nos espacos indicados."
     ]),
-    baseText: normalizeString(source.baseText, normalizeString(generated.baseText, "")),
+    baseText: normalizeString(source.baseText, normalizeString(generated.baseText, fallback.baseText)),
     didacticBoxes: normalizeStringArray(
       source.didacticBoxes,
-      normalizeStringArray(generated.didacticBoxes, [
-        "Use o exemplo e as pistas visuais para ajudar na resposta."
-      ])
+      normalizeStringArray(generated.didacticBoxes, fallback.didacticBoxes)
     ),
     visualElements: normalizeStringArray(
       source.visualElements,
@@ -1013,11 +1027,133 @@ function buildStudentSheet(
     ),
     tableRows: normalizeStringArray(
       source.tableRows,
-      normalizeStringArray(generated.tableRows, [
-        "Informacao principal | Ideia importante | Minha resposta"
-      ])
+      normalizeStringArray(generated.tableRows, fallback.tableRows)
     ),
     questions: normalizeQuestions(source.questions ?? generated.questions, request)
+  };
+}
+
+function buildFallbackStudentSheetContent(request: CreateMissionRequest): {
+  title: string;
+  context: string;
+  baseText: string;
+  didacticBoxes: string[];
+  tableRows: string[];
+} {
+  const input = request.input;
+  const theme = input.theme ?? input.knowledgeObject ?? "conteudo estudado";
+  const source = normalizeComparable(
+    `${input.discipline ?? input.subject ?? ""} ${theme} ${input.skill ?? ""}`
+  );
+
+  if (
+    source.includes("portugues") ||
+    source.includes("lingua") ||
+    source.includes("coesao") ||
+    source.includes("coerencia")
+  ) {
+    return {
+      title: "Coesao e coerencia: o assunto principal do texto",
+      context:
+        "Ideia principal e o assunto mais importante de um texto. As outras informacoes ajudam a contar a historia.",
+      baseText:
+        "A escola organizou uma campanha para arrecadar livros. Os estudantes participaram levando livros em bom estado. Todos colaboraram com alegria. Ao final, muitos livros foram doados a biblioteca da comunidade.",
+      didacticBoxes: [
+        "Dica: procure quem participou, o que aconteceu e qual foi o resultado.",
+        "Exemplo: se o texto fala sobre doacao de livros, essa e a ideia principal.",
+        "Use as imagens para lembrar as informacoes do texto."
+      ],
+      tableRows: [
+        "Ideia principal | Doacao de livros | Circule no texto",
+        "Informacao secundaria | Estudantes participaram | Marque com X",
+        "Informacao secundaria | Livros em bom estado | Escreva uma frase"
+      ]
+    };
+  }
+
+  if (
+    source.includes("matematica") ||
+    source.includes("progressao") ||
+    source.includes("aritmetica") ||
+    source.includes("pa")
+  ) {
+    return {
+      title: "Progressao aritmetica (PA): identificando regularidades",
+      context:
+        "Uma progressao aritmetica e uma sequencia numerica em que a diferenca entre dois termos consecutivos e sempre a mesma. Essa diferenca e chamada de razao.",
+      baseText: "",
+      didacticBoxes: [
+        "Exemplo resolvido: 2, 5, 8, 11. A razao e 3, porque cada termo aumenta 3.",
+        "Observe as setas entre os numeros para descobrir o padrao.",
+        "Use a tabela para organizar primeiro termo, razao e termo pedido."
+      ],
+      tableRows: [
+        "P.A. | Razao | Proximos termos",
+        "2, 5, 8, 11 | r = 3 | ___, ___, ___",
+        "20, 16, 12, 8 | r = -4 | ___, ___, ___"
+      ]
+    };
+  }
+
+  if (
+    source.includes("quimica") ||
+    source.includes("transformacao") ||
+    source.includes("reacao")
+  ) {
+    return {
+      title: "Transformacoes quimicas: reagentes e produtos",
+      context:
+        "Nas reacoes quimicas, as substancias iniciais se transformam em novas substancias. Antes da seta ficam os reagentes. Depois da seta ficam os produtos.",
+      baseText: "",
+      didacticBoxes: [
+        "Exemplo resolvido: H2 + Cl2 -> 2HCl. H2 e Cl2 sao reagentes. 2HCl e produto.",
+        "Observe os blocos coloridos para perceber se houve transformacao.",
+        "A seta mostra o caminho da reacao: antes da seta e depois da seta."
+      ],
+      tableRows: [
+        "Reacao | Reagentes | Produtos",
+        "H2 + Cl2 -> 2HCl | H2 e Cl2 | 2HCl",
+        "2H2O -> 2H2 + O2 | 2H2O | 2H2 e O2"
+      ]
+    };
+  }
+
+  if (
+    source.includes("geografia") ||
+    source.includes("territorio") ||
+    source.includes("espirito santo") ||
+    source.includes("brasil")
+  ) {
+    return {
+      title: "Brasil e Espirito Santo: territorio e conflitos",
+      context:
+        "O Brasil e formado por estados e pelo Distrito Federal. O Espirito Santo fica na regiao Sudeste e possui diferentes paisagens, cidades, povos e conflitos territoriais.",
+      baseText: "",
+      didacticBoxes: [
+        "Observe o mapa para localizar o Espirito Santo.",
+        "Compare as situacoes: povos tradicionais, crescimento urbano e uso dos recursos naturais.",
+        "Respeitar as diferencas e cuidar do territorio ajuda a promover justica."
+      ],
+      tableRows: [
+        "Localizacao | Espirito Santo | Regiao Sudeste",
+        "Conflito | Terra e recursos naturais | Escreva uma consequencia",
+        "Acao positiva | Respeito e cuidado | Escreva uma atitude"
+      ]
+    };
+  }
+
+  return {
+    title: `Atividade: ${theme}`,
+    context: "Leia as informacoes, observe os apoios visuais e realize as atividades com atencao.",
+    baseText: "",
+    didacticBoxes: [
+      "Use o exemplo e as pistas visuais para ajudar na resposta.",
+      "Leia um comando por vez.",
+      "Responda no espaco indicado."
+    ],
+    tableRows: [
+      "Informacao principal | Ideia importante | Minha resposta"
+    ]
   };
 }
 
@@ -1027,8 +1163,17 @@ function buildFallbackVisualElements(request: CreateMissionRequest): string[] {
     `${input.discipline ?? input.subject ?? ""} ${input.theme ?? input.knowledgeObject ?? ""}`
   );
 
-  if (source.includes("matematica") || source.includes("equacao")) {
+  if (
+    source.includes("matematica") ||
+    source.includes("equacao") ||
+    source.includes("progressao") ||
+    source.includes("aritmetica")
+  ) {
     return ["balanca de equacao", "reta numerica", "tabela simples", "blocos de contagem"];
+  }
+
+  if (source.includes("quimica") || source.includes("reacao") || source.includes("transformacao")) {
+    return ["laboratorio", "blocos de reagentes", "tabela comparativa", "esquema com setas"];
   }
 
   if (source.includes("ciencia") || source.includes("ecossistema")) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { toPng } from "html-to-image";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { CreateMissionRequest } from "@acessa-plus/types";
 import { saveGeneratedMission } from "./demo-local-store";
 import {
@@ -119,6 +120,7 @@ export function ProductStudio(): React.ReactElement {
   const [message, setMessage] = useState<string | null>(null);
   const [showTeacherGuide, setShowTeacherGuide] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
+  const sheetRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setProfile(getTeacherProfile());
@@ -235,6 +237,23 @@ export function ProductStudio(): React.ReactElement {
     }
   }
 
+  async function exportImage(): Promise<void> {
+    if (!sheetRef.current) {
+      return;
+    }
+
+    const dataUrl = await toPng(sheetRef.current, {
+      backgroundColor: "#ffffff",
+      cacheBust: true,
+      pixelRatio: 2
+    });
+    const link = document.createElement("a");
+
+    link.download = "atividade-acessa-plus-a4.png";
+    link.href = dataUrl;
+    link.click();
+  }
+
   return (
     <main className="productShell">
       <section className="productHero">
@@ -327,12 +346,12 @@ export function ProductStudio(): React.ReactElement {
           <div className="exportBar productExport">
             <button disabled={!selectedPlan} type="button" onClick={() => window.print()}>PDF</button>
             <button disabled={!selectedPlan} type="button" onClick={() => exportWord(selectedPlan)}>Word</button>
-            <button disabled={!selectedPlan} type="button" onClick={() => window.print()}>Imagem</button>
+            <button disabled={!selectedPlan} type="button" onClick={() => void exportImage()}>Imagem</button>
             {result ? <a className="saveButton" href={`/missions/${result.missionId}`}>Abrir salvo</a> : null}
           </div>
 
           {selectedPlan ? (
-            showTeacherGuide ? <TeacherGuide plan={selectedPlan} /> : <A4Sheet plan={selectedPlan} />
+            showTeacherGuide ? <TeacherGuide plan={selectedPlan} /> : <A4Sheet plan={selectedPlan} sheetRef={sheetRef} />
           ) : (
             <div className="blankPreview">
               <strong>Seu material aparecera aqui.</strong>
@@ -364,8 +383,9 @@ function buildPrompt(
     selectedStudent ? `Estudante demo: ${selectedStudent.name}, ${selectedStudent.age} anos. Observacoes pedagogicas: ${selectedStudent.notes}. Recursos: ${selectedStudent.resources}. PEI: ${selectedStudent.pei}. Preferencias: ${selectedStudent.preferences}.` : "",
     profile ? `Preferencias do professor: ${profile.generationPreferences}. Publico atendido: ${profile.audiences.join(", ")}.` : "",
     "Antes de entregar, pesquise pedagogicamente a habilidade, o objeto de conhecimento e a competencia exigida. A atividade precisa avaliar diretamente essa competencia, nao apenas mencionar o tema.",
-    "A folha do estudante deve vir completa e pronta para imprimir: titulo, contexto, texto-base quando necessario, exemplo resolvido ou quadro de apoio, recursos visuais renderizaveis, tabela ou esquema quando fizer sentido, questoes variadas, progressao de dificuldade e espacos de resposta.",
-    "Nao escreva descricao de imagem na folha. Use nomes de recursos visuais renderizaveis em visualElements, como reta numerica, balanca de equacao, blocos, tabela comparativa, mapa simples, linha do tempo, ciclo, cartoes CAA ou pictogramas.",
+    "A folha do estudante deve parecer uma folha editorial A4, como material comprado de editora educacional: cabecalho forte, titulo grande, quadro de dica, exemplo resolvido, atividades numeradas, alternativas com caixas de marcacao, linhas para resposta, tabelas, mapas, sequencias, blocos ou esquemas quando fizer sentido.",
+    "Escolha a melhor estrutura visual antes de escrever o texto. Para DI use frases curtas, comandos objetivos, exemplo resolvido e progressao pequena. Para DV use alto contraste, fonte ampliada, organizacao limpa e apoio tactil/Braille apenas quando seguro. Para TEA use previsibilidade, etapas e baixa ambiguidade. Para TDAH use blocos curtos e foco visual.",
+    "Nao escreva descricao de imagem na folha. Use nomes de recursos visuais renderizaveis em visualElements, como reta numerica, balanca de equacao, blocos, tabela comparativa, mapa simples, linha do tempo, ciclo, cartoes CAA, personagem lendo, laboratorio, livros, globo ou pictogramas.",
     "O guia do professor deve trazer a analise curricular, habilidade/objetivo, objeto de conhecimento, criterios de avaliacao e justificativa das adaptacoes."
   ]
     .filter(Boolean)
@@ -422,7 +442,54 @@ function Toggle({ checked, label, onChange }: { checked: boolean; label: string;
   );
 }
 
-function A4Sheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
+type SubjectTheme = {
+  className: string;
+  kind: "language" | "math" | "science" | "geography";
+  label: string;
+};
+
+function resolveSubjectTheme(subject?: string): SubjectTheme {
+  const normalized = (subject ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (
+    normalized.includes("matematica") ||
+    normalized.includes("equacao") ||
+    normalized.includes("progressao")
+  ) {
+    return { className: "subjectMath", kind: "math", label: "Matematica" };
+  }
+
+  if (
+    normalized.includes("quimica") ||
+    normalized.includes("ciencia") ||
+    normalized.includes("biologia") ||
+    normalized.includes("fisica")
+  ) {
+    return { className: "subjectScience", kind: "science", label: subject ?? "Ciencias" };
+  }
+
+  if (
+    normalized.includes("geografia") ||
+    normalized.includes("historia") ||
+    normalized.includes("territorio") ||
+    normalized.includes("brasil")
+  ) {
+    return { className: "subjectGeo", kind: "geography", label: subject ?? "Geografia" };
+  }
+
+  return { className: "subjectLanguage", kind: "language", label: subject ?? "Lingua Portuguesa" };
+}
+
+function A4Sheet({
+  plan,
+  sheetRef
+}: {
+  plan: WorksheetPlan;
+  sheetRef: RefObject<HTMLElement | null>;
+}): React.ReactElement {
   const sheet = plan.studentSheet ?? {};
   const questions = sheet.questions ?? plan.questions ?? [{ command: "Realize a atividade proposta." }];
   const instructions = sheet.instructions ?? plan.instructions ?? [
@@ -438,15 +505,33 @@ function A4Sheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
     resolveDefaultVisual(plan.subject, plan.context ?? sheet.context),
     "tabela simples"
   ];
+  const theme = resolveSubjectTheme(plan.subject ?? sheet.title);
+  const title = sheet.title ?? plan.worksheetTitle ?? "Atividade adaptada";
+  const context =
+    sheet.context ?? plan.context ?? "Leia com atencao, observe os apoios visuais e realize cada etapa.";
+  const supportBox = didacticBoxes[0] ?? "Observe o exemplo antes de responder.";
+  const visibleQuestions = questions.slice(0, 6);
 
   return (
-    <article className="productA4">
-      <header className="studentSheetHeader">
-        <strong>{plan.subject ?? "Atividade"}</strong>
+    <article ref={sheetRef} className={`productA4 editorialA4 ${theme.className}`}>
+      <header className="studentSheetHeader editorialHeader">
+        <strong>{theme.label}</strong>
         <span>{plan.grade ?? "Folha A4 pronta para imprimir"}</span>
       </header>
-      <h2>{sheet.title ?? plan.worksheetTitle ?? "Atividade adaptada"}</h2>
-      <p>{sheet.context ?? plan.context ?? "Leia com atencao, observe os apoios visuais e realize cada etapa."}</p>
+
+      <section className="editorialTitleRow">
+        <div>
+          <span className="activityRibbon">Atividade pronta para imprimir</span>
+          <h2>{title}</h2>
+          <p>{context}</p>
+        </div>
+        <WorksheetHeroIllustration kind={theme.kind} />
+      </section>
+
+      <section className="editorialTipBox">
+        <span aria-hidden="true">!</span>
+        <p>{supportBox}</p>
+      </section>
 
       <section className="studentInstructions">
         <strong>Como realizar</strong>
@@ -467,24 +552,137 @@ function A4Sheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
       <VisualResourceGrid items={visualElements} />
 
       <section className="worksheetBoxes">
-        {didacticBoxes.slice(0, 3).map((box) => (
+        {didacticBoxes.slice(1, 4).map((box) => (
           <div key={box}><strong>Apoio</strong><p>{box}</p></div>
         ))}
       </section>
 
       {tableRows.length > 0 ? <StudentTable rows={tableRows} /> : null}
 
-      <ol className="premiumQuestions">
-        {questions.map((question, index) => (
-          <li key={`${question.command}-${index}`}>
-            <p>{question.command}</p>
-            {question.support ? <small>{question.support}</small> : null}
-            <div className="premiumAnswerLines"><span /><span /><span /></div>
+      <ol className="premiumQuestions editorialActivities">
+        {visibleQuestions.map((question, index) => (
+          <li className="activityCard" key={`${question.command}-${index}`}>
+            <span className="activityNumber">{index + 1}</span>
+            <div>
+              <p>{question.command}</p>
+              {question.support ? <small>{question.support}</small> : null}
+              <QuestionResponseArea command={question.command} index={index} />
+            </div>
           </li>
         ))}
       </ol>
       <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
     </article>
+  );
+}
+
+function QuestionResponseArea({
+  command,
+  index
+}: {
+  command: string;
+  index: number;
+}): React.ReactElement {
+  const normalized = command.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  if (
+    normalized.includes("marque") ||
+    normalized.includes("alternativa") ||
+    normalized.includes("verdadeiro") ||
+    normalized.includes("falso")
+  ) {
+    return (
+      <div className="answerChoiceGrid" aria-hidden="true">
+        {["A", "B", "C"].map((letter) => (
+          <span className="choiceBox" key={`${letter}-${index}`}>
+            <i />
+            {letter}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (normalized.includes("ligue") || normalized.includes("relacione")) {
+    return (
+      <div className="matchingArea" aria-hidden="true">
+        <span />
+        <b />
+        <span />
+        <span />
+        <b />
+        <span />
+      </div>
+    );
+  }
+
+  if (normalized.includes("complete") || normalized.includes("preencha")) {
+    return (
+      <div className="fillBlankArea" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  }
+
+  return <div className="premiumAnswerLines"><span /><span /><span /></div>;
+}
+
+function WorksheetHeroIllustration({ kind }: { kind: SubjectTheme["kind"] }): React.ReactElement {
+  if (kind === "math") {
+    return (
+      <svg className="worksheetHeroIllustration" viewBox="0 0 220 160" role="img" aria-label="Esquema matematico">
+        <rect x="18" y="24" width="184" height="112" rx="22" />
+        {[0, 1, 2, 3].map((item) => (
+          <g key={item} transform={`translate(${42 + item * 38} 55)`}>
+            <rect width="26" height="26" rx="7" />
+            <text x="13" y="18">{item + 2}</text>
+          </g>
+        ))}
+        <path d="M54 102 C78 122 120 122 154 102" />
+        <path d="M154 102 l-10 -4 l4 10" />
+      </svg>
+    );
+  }
+
+  if (kind === "science") {
+    return (
+      <svg className="worksheetHeroIllustration" viewBox="0 0 220 160" role="img" aria-label="Laboratorio">
+        <rect x="20" y="112" width="180" height="18" rx="4" />
+        <path d="M70 28 h34 v20 l34 62 a18 18 0 0 1 -16 26 h-70 a18 18 0 0 1 -16 -26 l34 -62 z" />
+        <path d="M52 104 h70" />
+        <circle cx="77" cy="88" r="7" />
+        <circle cx="96" cy="74" r="5" />
+        <rect x="144" y="40" width="18" height="74" rx="8" />
+        <rect x="170" y="52" width="18" height="62" rx="8" />
+      </svg>
+    );
+  }
+
+  if (kind === "geography") {
+    return (
+      <svg className="worksheetHeroIllustration" viewBox="0 0 220 160" role="img" aria-label="Mapa simplificado">
+        <circle cx="112" cy="76" r="54" />
+        <path d="M72 58 c20 -26 54 -20 72 -6 c-18 12 -20 28 -4 52 c-28 10 -52 2 -70 -18 c12 -6 14 -16 2 -28z" />
+        <path d="M72 116 h82" />
+        <path d="M112 22 v108" />
+        <path d="M58 76 h108" />
+        <circle cx="146" cy="96" r="8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="worksheetHeroIllustration" viewBox="0 0 220 160" role="img" aria-label="Leitura e escrita">
+      <rect x="42" y="78" width="58" height="44" rx="8" />
+      <rect x="120" y="78" width="58" height="44" rx="8" />
+      <path d="M100 82 c16 -12 32 -12 48 0 v44 c-16 -12 -32 -12 -48 0z" />
+      <circle cx="112" cy="42" r="18" />
+      <path d="M76 136 h88" />
+      <path d="M62 96 h26 M132 96 h26" />
+      <path d="M92 52 c-22 10 -34 28 -34 50" />
+    </svg>
   );
 }
 
