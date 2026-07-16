@@ -1581,6 +1581,14 @@ function normalizeQuestionsFromBlueprint(
       generatedQuestion?.taskData,
       plannedTask.actionType
     );
+    const concreteTaskData = taskDataResult.taskData ??
+      buildConcreteGuidedExampleFallback(
+        plannedTask,
+        materialBlueprint,
+        instruction,
+        command,
+        generatedQuestion
+      );
 
     return {
       plannedTaskOrder: plannedTask.order,
@@ -1623,11 +1631,138 @@ function normalizeQuestionsFromBlueprint(
         generatedQuestion?.answerSpace,
         buildAnswerSpaceFromPlannedTask(plannedTask)
       ),
-      ...(taskDataResult.taskData ? { taskData: taskDataResult.taskData } : {}),
-      taskDataStatus: taskDataResult.taskData ? "VALID" : "INVALID",
-      taskDataIssue: taskDataResult.issue
+      ...(concreteTaskData ? { taskData: concreteTaskData } : {}),
+      taskDataStatus: concreteTaskData ? "VALID" : "INVALID",
+      taskDataIssue: concreteTaskData ? "" : taskDataResult.issue
     };
   });
+}
+
+function buildConcreteGuidedExampleFallback(
+  plannedTask: PlannedTask,
+  materialBlueprint: MaterialBlueprint,
+  instruction: string,
+  command: string,
+  generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (plannedTask.actionType !== "CREATE_GUIDED_EXAMPLE") {
+    return undefined;
+  }
+
+  const source = normalizeComparable([
+    materialBlueprint.discipline,
+    materialBlueprint.grade,
+    materialBlueprint.knowledgeObject,
+    materialBlueprint.content,
+    instruction,
+    command,
+    plannedTask.pedagogicalPurpose,
+    plannedTask.responseMode,
+    ...plannedTask.supportRequired
+  ].join(" "));
+
+  if (source.includes("matematica") && (source.includes("equacao") || source.includes("equacoes"))) {
+    return buildEquationGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command);
+  }
+
+  const subject = materialBlueprint.discipline || "conteudo";
+  const content = materialBlueprint.content || materialBlueprint.knowledgeObject || "conteudo estudado";
+  const seed = deterministicSeed(`${subject}|${content}|${plannedTask.order}|${instruction}|${command}`);
+  const first = 2 + (seed % 4);
+  const second = 3 + (Math.floor(seed / 3) % 5);
+
+  return {
+    actionType: "CREATE_GUIDED_EXAMPLE",
+    contextPrompt: `Crie um exemplo curto sobre ${content} usando os apoios disponiveis.`,
+    availableValues: [
+      `${subject}`,
+      `${content}`,
+      plannedTask.responseMode,
+      plannedTask.supportRequired[0] ?? "apoio visual",
+      `passo ${first}`,
+      `resposta ${second}`
+    ],
+    constructionSteps: [
+      "Escolha uma informacao principal.",
+      "Escolha um apoio para organizar a resposta.",
+      "Complete os campos.",
+      "Confira se a resposta combina com o objetivo."
+    ],
+    fieldsToComplete: [
+      "informacao principal",
+      "apoio usado",
+      "resposta final"
+    ],
+    exampleAnswer: `${content}: resposta organizada com ${plannedTask.supportRequired[0] ?? "apoio visual"}.`,
+    sourceInstruction: instruction,
+    sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose,
+    preservedGeneratedTaskData: isRecord(generatedQuestion?.taskData) ? generatedQuestion.taskData : undefined
+  };
+}
+
+function buildEquationGuidedExampleFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): Record<string, unknown> {
+  const seed = deterministicSeed([
+    materialBlueprint.discipline,
+    materialBlueprint.grade,
+    materialBlueprint.knowledgeObject,
+    materialBlueprint.content,
+    plannedTask.order,
+    plannedTask.pedagogicalPurpose,
+    plannedTask.responseMode,
+    plannedTask.supportRequired.join("|"),
+    instruction,
+    command
+  ].join("|"));
+  const unknownValue = 2 + (seed % 7);
+  const knownValue = 2 + (Math.floor(seed / 7) % 6);
+  const useAddition = seed % 2 === 0;
+  const result = useAddition ? unknownValue + knownValue : unknownValue - knownValue;
+  const operation = useAddition ? "+" : "-";
+  const equation = `x ${operation} ${knownValue} = ${result}`;
+
+  return {
+    actionType: "CREATE_GUIDED_EXAMPLE",
+    contextPrompt: "Crie uma equacao simples usando os valores disponiveis.",
+    availableValues: [
+      `valor desconhecido: ${unknownValue}`,
+      `operacao: ${operation}`,
+      `numero conhecido: ${knownValue}`,
+      `resultado: ${result}`,
+      `modelo: ${equation}`
+    ],
+    constructionSteps: [
+      "Escolha o valor desconhecido.",
+      "Escolha a operacao.",
+      "Complete a equacao.",
+      "Resolva para conferir."
+    ],
+    fieldsToComplete: [
+      "valor desconhecido",
+      "operacao",
+      "numero conhecido",
+      "resultado"
+    ],
+    exampleAnswer: `${equation}, entao x = ${unknownValue}`,
+    sourceInstruction: instruction,
+    sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose,
+    sourceResponseMode: plannedTask.responseMode,
+    sourceSupportRequired: plannedTask.supportRequired
+  };
+}
+
+function deterministicSeed(value: string): number {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
 }
 
 function normalizeTaskDataForAction(
@@ -1783,9 +1918,22 @@ function findGeneratedQuestionForTask(
     return generatedQuestions[byAction];
   }
 
-  if (!usedIndexes.has(fallbackIndex) && generatedQuestions[fallbackIndex]) {
+  const fallbackQuestion = generatedQuestions[fallbackIndex];
+  const fallbackHasDifferentOrder =
+    Number.isFinite(Number(fallbackQuestion?.plannedTaskOrder)) &&
+    Number(fallbackQuestion?.plannedTaskOrder) !== plannedTask.order;
+  const fallbackHasDifferentAction =
+    normalizeString(fallbackQuestion?.actionType, "") &&
+    normalizeString(fallbackQuestion?.actionType, "") !== plannedTask.actionType;
+
+  if (
+    !usedIndexes.has(fallbackIndex) &&
+    fallbackQuestion &&
+    !fallbackHasDifferentOrder &&
+    !fallbackHasDifferentAction
+  ) {
     usedIndexes.add(fallbackIndex);
-    return generatedQuestions[fallbackIndex];
+    return fallbackQuestion;
   }
 
   return undefined;

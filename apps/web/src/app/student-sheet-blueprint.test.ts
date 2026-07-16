@@ -116,7 +116,9 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     ]);
     expect(questions.every((question) => question.visualFunction.length > 0)).toBe(true);
     expect(questions.every((question) => question.content.includes("Equacoes"))).toBe(true);
-    expect(questions.every((question) => question.taskDataStatus === "INVALID")).toBe(true);
+    expect(questions.filter((question) => question.taskDataStatus === "VALID").map((question) => question.actionType)).toEqual([
+      "CREATE_GUIDED_EXAMPLE"
+    ]);
   });
 
   it("uses an equations fallback without replacing it with Progressao Aritmetica", () => {
@@ -323,5 +325,246 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(html).not.toContain("paisagem");
     expect(html).not.toContain("SIM");
     expect(html).not.toContain("LER");
+  });
+
+  it("adds a concrete guided example fallback when the AI leaves CREATE_GUIDED_EXAMPLE incomplete", () => {
+    const { request, blueprint } = createBlueprint();
+    const sheet = buildStudentSheet(
+      {
+        studentSheet: {
+          title: "Equacoes do primeiro grau",
+          questions: [
+            {
+              plannedTaskOrder: 5,
+              actionType: "CREATE_GUIDED_EXAMPLE",
+              command: "Crie uma equacao simples.",
+              taskData: {
+                actionType: "CREATE_GUIDED_EXAMPLE",
+                contextPrompt: "Crie sua equacao."
+              }
+            }
+          ]
+        }
+      },
+      request,
+      blueprint
+    );
+    const guided = (sheet.questions as Array<{
+      actionType: string;
+      taskDataStatus: string;
+      taskDataIssue: string;
+      taskData?: {
+        contextPrompt?: string;
+        availableValues?: string[];
+        constructionSteps?: string[];
+        fieldsToComplete?: string[];
+        exampleAnswer?: string;
+      };
+    }>).find((question) => question.actionType === "CREATE_GUIDED_EXAMPLE");
+    const html = renderToStaticMarkup(
+      React.createElement(StudentSheetRenderer, {
+        plan: { subject: "Matematica", grade: "6 ano", studentSheet: sheet as StudentSheetPlan["studentSheet"] }
+      })
+    );
+
+    expect(guided?.taskDataStatus).toBe("VALID");
+    expect(guided?.taskDataIssue).toBe("");
+    expect(guided?.taskData?.contextPrompt).toBe("Crie uma equacao simples usando os valores disponiveis.");
+    expect(guided?.taskData?.availableValues?.length).toBeGreaterThanOrEqual(3);
+    expect(guided?.taskData?.constructionSteps).toEqual([
+      "Escolha o valor desconhecido.",
+      "Escolha a operacao.",
+      "Complete a equacao.",
+      "Resolva para conferir."
+    ]);
+    expect(guided?.taskData?.fieldsToComplete).toEqual([
+      "valor desconhecido",
+      "operacao",
+      "numero conhecido",
+      "resultado"
+    ]);
+    expect(guided?.taskData?.exampleAnswer).toMatch(/x [+-] \d+ = -?\d+, entao x = \d+/);
+    expect(JSON.stringify(guided?.taskData)).not.toMatch(/valor 1|item A|complete aqui|placeholder|paisagem/i);
+    expect(html).toContain("valor desconhecido");
+    expect(html).toContain("numero conhecido");
+    expect(html).toContain("Crie uma equacao simples usando os valores disponiveis.");
+  });
+
+  it("keeps the full equation sequence valid when only CREATE_GUIDED_EXAMPLE is incomplete", () => {
+    const { request, blueprint } = createBlueprint();
+    const sheet = buildStudentSheet(
+      {
+        studentSheet: {
+          title: "Equacoes do primeiro grau",
+          questions: [
+            {
+              plannedTaskOrder: 1,
+              actionType: "OBSERVE",
+              command: "Observe a equacao e marque o valor de x.",
+              taskData: {
+                actionType: "OBSERVE",
+                representation: "3 + x = 7",
+                question: "Qual numero ocupa o lugar de x?",
+                options: ["2", "4", "10"],
+                correctOption: "4",
+                visualDescription: "equacao simples com valor desconhecido"
+              }
+            },
+            {
+              plannedTaskOrder: 2,
+              actionType: "MATCH",
+              command: "Ligue cada equacao ao valor correto.",
+              taskData: {
+                actionType: "MATCH",
+                leftItems: ["x + 2 = 6", "x + 5 = 8", "x - 2 = 5"],
+                rightItems: ["4", "3", "7"],
+                correctPairs: [
+                  { left: "x + 2 = 6", right: "4" },
+                  { left: "x + 5 = 8", right: "3" },
+                  { left: "x - 2 = 5", right: "7" }
+                ],
+                connectionInstruction: "Ligue cada equacao ao valor de x."
+              }
+            },
+            {
+              plannedTaskOrder: 3,
+              actionType: "COMPLETE",
+              command: "Complete as equacoes.",
+              taskData: {
+                actionType: "COMPLETE",
+                statements: ["x + 3 = 9, entao x = ___", "x - 4 = 6, entao x = ___"],
+                blanks: ["x", "x"],
+                expectedAnswers: ["6", "10"],
+                supportSteps: ["Veja o numero que falta.", "Confira substituindo x."]
+              }
+            },
+            {
+              plannedTaskOrder: 4,
+              actionType: "SOLVE",
+              command: "Resolva a situacao-problema.",
+              taskData: {
+                actionType: "SOLVE",
+                problemContext: "Uma caixa tinha algumas canetas. Depois recebeu 3 e ficou com 8.",
+                equation: "x + 3 = 8",
+                guidedSteps: ["Observe o total.", "Retire 3 do total.", "Escreva o valor de x."],
+                answer: "5",
+                calculationSpace: "linhas para calculo"
+              }
+            },
+            {
+              plannedTaskOrder: 5,
+              actionType: "CREATE_GUIDED_EXAMPLE",
+              command: "Crie uma equacao simples.",
+              taskData: {
+                actionType: "CREATE_GUIDED_EXAMPLE",
+                contextPrompt: "Crie sua equacao."
+              }
+            }
+          ]
+        }
+      },
+      request,
+      blueprint
+    );
+    const questions = sheet.questions as Array<{
+      actionType: string;
+      taskDataStatus: string;
+      taskDataIssue: string;
+      taskData?: {
+        availableValues?: string[];
+        exampleAnswer?: string;
+      };
+    }>;
+    const guided = questions.find((question) => question.actionType === "CREATE_GUIDED_EXAMPLE");
+    const html = renderToStaticMarkup(
+      React.createElement(StudentSheetRenderer, {
+        plan: { subject: "Matematica", grade: "6 ano", studentSheet: sheet as StudentSheetPlan["studentSheet"] }
+      })
+    );
+
+    expect(questions.map((question) => question.taskDataStatus)).toEqual([
+      "VALID",
+      "VALID",
+      "VALID",
+      "VALID",
+      "VALID"
+    ]);
+    expect(questions.map((question) => question.taskDataIssue)).toEqual(["", "", "", "", ""]);
+    expect(guided?.taskData?.availableValues?.join(" ")).toMatch(/valor desconhecido: \d+/);
+    expect(guided?.taskData?.availableValues?.join(" ")).toMatch(/numero conhecido: \d+/);
+    expect(guided?.taskData?.exampleAnswer).toMatch(/x [+-] \d+ = -?\d+, entao x = \d+/);
+    expect(html).toContain("Crie uma equacao simples usando os valores disponiveis.");
+    expect(html).not.toContain("Tarefa aguardando dados concretos");
+    expect(html).not.toContain("MISSING_GUIDED_CREATION_DATA");
+    expect(html).not.toContain("Progressao Aritmetica");
+    expect(html).not.toContain("SIM");
+    expect(html).not.toContain("LER");
+  });
+
+  it("preserves complete CREATE_GUIDED_EXAMPLE taskData returned by the AI", () => {
+    const { request, blueprint } = createBlueprint();
+    const aiTaskData = {
+      actionType: "CREATE_GUIDED_EXAMPLE",
+      contextPrompt: "Monte uma equacao sobre figurinhas.",
+      availableValues: ["valor desconhecido: 6", "operacao: +", "numero conhecido: 3", "resultado: 9"],
+      constructionSteps: ["Escolha x.", "Some 3.", "Confira o total."],
+      fieldsToComplete: ["x", "numero somado", "total"],
+      exampleAnswer: "x + 3 = 9, entao x = 6"
+    };
+    const sheet = buildStudentSheet(
+      {
+        studentSheet: {
+          questions: [
+            {
+              plannedTaskOrder: 5,
+              actionType: "CREATE_GUIDED_EXAMPLE",
+              command: "Crie uma equacao simples.",
+              taskData: aiTaskData
+            }
+          ]
+        }
+      },
+      request,
+      blueprint
+    );
+    const guided = (sheet.questions as Array<{
+      actionType: string;
+      taskData?: Record<string, unknown>;
+    }>).find((question) => question.actionType === "CREATE_GUIDED_EXAMPLE");
+
+    expect(guided?.taskData).toEqual(aiTaskData);
+  });
+
+  it("does not apply guided example fallback to other actionTypes", () => {
+    const { request, blueprint } = createBlueprint();
+    const sheet = buildStudentSheet(
+      {
+        studentSheet: {
+          questions: [
+            {
+              plannedTaskOrder: 2,
+              actionType: "MATCH",
+              command: "Ligue cada equacao ao resultado.",
+              taskData: {
+                actionType: "MATCH",
+                leftItems: ["x + 2 = 6"]
+              }
+            }
+          ]
+        }
+      },
+      request,
+      blueprint
+    );
+    const match = (sheet.questions as Array<{
+      actionType: string;
+      taskDataStatus: string;
+      taskDataIssue: string;
+      taskData?: Record<string, unknown>;
+    }>).find((question) => question.actionType === "MATCH");
+
+    expect(match?.taskDataStatus).toBe("INVALID");
+    expect(match?.taskDataIssue).toBe("MISSING_MATCH_PAIRS");
+    expect(match?.taskData).toBeUndefined();
   });
 });
