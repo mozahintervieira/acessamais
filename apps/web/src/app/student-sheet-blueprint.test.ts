@@ -116,9 +116,7 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     ]);
     expect(questions.every((question) => question.visualFunction.length > 0)).toBe(true);
     expect(questions.every((question) => question.content.includes("Equacoes"))).toBe(true);
-    expect(questions.filter((question) => question.taskDataStatus === "VALID").map((question) => question.actionType)).toEqual([
-      "CREATE_GUIDED_EXAMPLE"
-    ]);
+    expect(questions.every((question) => question.taskDataStatus === "VALID")).toBe(true);
   });
 
   it("uses an equations fallback without replacing it with Progressao Aritmetica", () => {
@@ -390,6 +388,94 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(html).toContain("Crie uma equacao simples usando os valores disponiveis.");
   });
 
+  it("adds concrete fallbacks for OBSERVE, MATCH, COMPLETE and SOLVE when AI taskData is incomplete", () => {
+    const { request, blueprint } = createBlueprint();
+    const sheet = buildStudentSheet(
+      {
+        studentSheet: {
+          title: "Equacoes do primeiro grau",
+          questions: [
+            {
+              plannedTaskOrder: 1,
+              actionType: "OBSERVE",
+              command: "Observe a equacao.",
+              taskData: { actionType: "OBSERVE", question: "Qual e o valor de x?" }
+            },
+            {
+              plannedTaskOrder: 2,
+              actionType: "MATCH",
+              command: "Ligue cada equacao ao resultado.",
+              taskData: { actionType: "MATCH", leftItems: ["x + 2 = 6"] }
+            },
+            {
+              plannedTaskOrder: 3,
+              actionType: "COMPLETE",
+              command: "Complete as lacunas.",
+              taskData: { actionType: "COMPLETE", statements: ["x + 3 = 9, entao x = ___"] }
+            },
+            {
+              plannedTaskOrder: 4,
+              actionType: "SOLVE",
+              command: "Resolva a situacao-problema.",
+              taskData: { actionType: "SOLVE", equation: "x + 3 = 8" }
+            }
+          ]
+        }
+      },
+      request,
+      blueprint
+    );
+    const questions = sheet.questions as Array<{
+      actionType: string;
+      taskDataStatus: string;
+      taskDataIssue: string;
+      taskData?: {
+        representation?: string;
+        question?: string;
+        options?: string[];
+        correctOption?: string;
+        leftItems?: string[];
+        rightItems?: string[];
+        correctPairs?: Array<{ left: string; right: string }>;
+        statements?: string[];
+        blanks?: string[];
+        expectedAnswers?: string[];
+        problemContext?: string;
+        equation?: string;
+        guidedSteps?: string[];
+        answer?: string;
+        contextPrompt?: string;
+        exampleAnswer?: string;
+      };
+    }>;
+    const observe = questions.find((question) => question.actionType === "OBSERVE");
+    const match = questions.find((question) => question.actionType === "MATCH");
+    const complete = questions.find((question) => question.actionType === "COMPLETE");
+    const solve = questions.find((question) => question.actionType === "SOLVE");
+
+    expect(questions.map((question) => question.taskDataStatus)).toEqual([
+      "VALID",
+      "VALID",
+      "VALID",
+      "VALID",
+      "VALID"
+    ]);
+    expect(questions.map((question) => question.taskDataIssue)).toEqual(["", "", "", "", ""]);
+    expect(observe?.taskData?.representation).toMatch(/x [+-] \d+ = -?\d+/);
+    expect(observe?.taskData?.question).toBe("Qual numero ocupa o lugar de x?");
+    expect(observe?.taskData?.options).toContain(observe?.taskData?.correctOption);
+    expect(match?.taskData?.leftItems).toHaveLength(3);
+    expect(match?.taskData?.rightItems).toHaveLength(3);
+    expect(match?.taskData?.correctPairs).toHaveLength(3);
+    expect(complete?.taskData?.statements?.join(" ")).toMatch(/___/);
+    expect(complete?.taskData?.expectedAnswers?.length).toBeGreaterThanOrEqual(2);
+    expect(solve?.taskData?.problemContext).toMatch(/caixa/i);
+    expect(solve?.taskData?.equation).toMatch(/x [+-] \d+ = -?\d+/);
+    expect(solve?.taskData?.guidedSteps?.length).toBeGreaterThanOrEqual(3);
+    expect(solve?.taskData?.answer).toMatch(/^\d+$/);
+    expect(JSON.stringify(questions)).not.toMatch(/valor 1|item A|complete aqui|placeholder|paisagem|Progressao|P\.A\.|\bSIM\b|\bNAO\b|\bLER\b|\bOK\b/i);
+  });
+
   it("keeps the full equation sequence valid when only CREATE_GUIDED_EXAMPLE is incomplete", () => {
     const { request, blueprint } = createBlueprint();
     const sheet = buildStudentSheet(
@@ -535,7 +621,7 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(guided?.taskData).toEqual(aiTaskData);
   });
 
-  it("does not apply guided example fallback to other actionTypes", () => {
+  it("uses the planned actionType fallback without crossing actionTypes", () => {
     const { request, blueprint } = createBlueprint();
     const sheet = buildStudentSheet(
       {
@@ -543,11 +629,11 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
           questions: [
             {
               plannedTaskOrder: 2,
-              actionType: "MATCH",
-              command: "Ligue cada equacao ao resultado.",
+              actionType: "OBSERVE",
+              command: "Observe a equacao.",
               taskData: {
-                actionType: "MATCH",
-                leftItems: ["x + 2 = 6"]
+                actionType: "OBSERVE",
+                question: "Qual e o valor de x?"
               }
             }
           ]
@@ -563,8 +649,10 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
       taskData?: Record<string, unknown>;
     }>).find((question) => question.actionType === "MATCH");
 
-    expect(match?.taskDataStatus).toBe("INVALID");
-    expect(match?.taskDataIssue).toBe("MISSING_MATCH_PAIRS");
-    expect(match?.taskData).toBeUndefined();
+    expect(match?.taskDataStatus).toBe("VALID");
+    expect(match?.taskDataIssue).toBe("");
+    expect(match?.taskData?.actionType).toBe("MATCH");
+    expect(match?.taskData).toHaveProperty("leftItems");
+    expect(match?.taskData).not.toHaveProperty("representation");
   });
 });

@@ -1581,14 +1581,19 @@ function normalizeQuestionsFromBlueprint(
       generatedQuestion?.taskData,
       plannedTask.actionType
     );
-    const concreteTaskData = taskDataResult.taskData ??
-      buildConcreteGuidedExampleFallback(
+    const fallbackTaskData = taskDataResult.taskData
+      ? undefined
+      : buildConcreteTaskDataFallback(
         plannedTask,
         materialBlueprint,
         instruction,
         command,
         generatedQuestion
       );
+    const fallbackTaskDataResult = fallbackTaskData
+      ? normalizeTaskDataForAction(fallbackTaskData, plannedTask.actionType)
+      : undefined;
+    const concreteTaskData = taskDataResult.taskData ?? fallbackTaskDataResult?.taskData;
 
     return {
       plannedTaskOrder: plannedTask.order,
@@ -1633,22 +1638,18 @@ function normalizeQuestionsFromBlueprint(
       ),
       ...(concreteTaskData ? { taskData: concreteTaskData } : {}),
       taskDataStatus: concreteTaskData ? "VALID" : "INVALID",
-      taskDataIssue: concreteTaskData ? "" : taskDataResult.issue
+      taskDataIssue: concreteTaskData ? "" : fallbackTaskDataResult?.issue ?? taskDataResult.issue
     };
   });
 }
 
-function buildConcreteGuidedExampleFallback(
+function buildConcreteTaskDataFallback(
   plannedTask: PlannedTask,
   materialBlueprint: MaterialBlueprint,
   instruction: string,
   command: string,
   generatedQuestion: Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined {
-  if (plannedTask.actionType !== "CREATE_GUIDED_EXAMPLE") {
-    return undefined;
-  }
-
   const source = normalizeComparable([
     materialBlueprint.discipline,
     materialBlueprint.grade,
@@ -1662,9 +1663,24 @@ function buildConcreteGuidedExampleFallback(
   ].join(" "));
 
   if (source.includes("matematica") && (source.includes("equacao") || source.includes("equacoes"))) {
-    return buildEquationGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command);
+    return buildEquationTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
   }
 
+  if (plannedTask.actionType === "CREATE_GUIDED_EXAMPLE") {
+    return buildConcreteGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+  }
+
+  return undefined;
+}
+
+function buildConcreteGuidedExampleFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const sourceTaskData = getSafePartialTaskData(generatedQuestion);
   const subject = materialBlueprint.discipline || "conteudo";
   const content = materialBlueprint.content || materialBlueprint.knowledgeObject || "conteudo estudado";
   const seed = deterministicSeed(`${subject}|${content}|${plannedTask.order}|${instruction}|${command}`);
@@ -1673,30 +1689,169 @@ function buildConcreteGuidedExampleFallback(
 
   return {
     actionType: "CREATE_GUIDED_EXAMPLE",
-    contextPrompt: `Crie um exemplo curto sobre ${content} usando os apoios disponiveis.`,
-    availableValues: [
+    contextPrompt: getStringField(
+      sourceTaskData.contextPrompt,
+      `Crie um exemplo curto sobre ${content} usando os apoios disponiveis.`
+    ),
+    availableValues: getStringArrayField(sourceTaskData.availableValues, [
       `${subject}`,
       `${content}`,
       plannedTask.responseMode,
       plannedTask.supportRequired[0] ?? "apoio visual",
       `passo ${first}`,
       `resposta ${second}`
-    ],
-    constructionSteps: [
+    ], 2),
+    constructionSteps: getStringArrayField(sourceTaskData.constructionSteps, [
       "Escolha uma informacao principal.",
       "Escolha um apoio para organizar a resposta.",
       "Complete os campos.",
       "Confira se a resposta combina com o objetivo."
-    ],
-    fieldsToComplete: [
+    ], 1),
+    fieldsToComplete: getStringArrayField(sourceTaskData.fieldsToComplete, [
       "informacao principal",
       "apoio usado",
       "resposta final"
-    ],
-    exampleAnswer: `${content}: resposta organizada com ${plannedTask.supportRequired[0] ?? "apoio visual"}.`,
+    ], 1),
+    exampleAnswer: getStringField(
+      sourceTaskData.exampleAnswer,
+      `${content}: resposta organizada com ${plannedTask.supportRequired[0] ?? "apoio visual"}.`
+    ),
     sourceInstruction: instruction,
     sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose,
-    preservedGeneratedTaskData: isRecord(generatedQuestion?.taskData) ? generatedQuestion.taskData : undefined
+    preservedGeneratedTaskData: sourceTaskData
+  };
+}
+
+function buildEquationTaskDataFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  switch (plannedTask.actionType) {
+    case "OBSERVE":
+      return buildEquationObserveFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    case "MATCH":
+      return buildEquationMatchFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    case "COMPLETE":
+      return buildEquationCompleteFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    case "SOLVE":
+      return buildEquationSolveFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    case "CREATE_GUIDED_EXAMPLE":
+      return buildEquationGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    default:
+      return undefined;
+  }
+}
+
+function buildEquationObserveFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  _generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const equation = buildDeterministicEquation(materialBlueprint, plannedTask, instruction, command, 1);
+  const distractorOne = equation.unknownValue + 2;
+  const distractorTwo = Math.max(0, equation.unknownValue - 2);
+  const options = uniqueStrings([
+    String(distractorTwo),
+    String(equation.unknownValue),
+    String(distractorOne)
+  ]);
+
+  return {
+    actionType: "OBSERVE",
+    representation: equation.equation,
+    question: "Qual numero ocupa o lugar de x?",
+    options,
+    correctOption: String(equation.unknownValue),
+    visualDescription: "equacao simples com numero desconhecido, valores concretos e destaque para x"
+  };
+}
+
+function buildEquationMatchFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  _generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const equations = [2, 3, 4].map((offset) =>
+    buildDeterministicEquation(materialBlueprint, plannedTask, instruction, command, offset)
+  );
+  const leftItems = equations.map((item) => item.equation);
+  const rightItems = equations.map((item) => String(item.unknownValue));
+  const correctPairs = equations.map((item) => ({
+    left: item.equation,
+    right: String(item.unknownValue)
+  }));
+
+  return {
+    actionType: "MATCH",
+    leftItems,
+    rightItems,
+    correctPairs,
+    connectionInstruction: "Ligue cada equacao ao valor correto de x."
+  };
+}
+
+function buildEquationCompleteFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  _generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const firstEquation = buildDeterministicEquation(materialBlueprint, plannedTask, instruction, command, 5);
+  const secondEquation = buildDeterministicEquation(materialBlueprint, plannedTask, instruction, command, 6);
+
+  return {
+    actionType: "COMPLETE",
+    statements: [
+      `${firstEquation.equation}, entao x = ___`,
+      `${secondEquation.equation}, entao x = ___`
+    ],
+    blanks: ["x", "x"],
+    expectedAnswers: [
+      String(firstEquation.unknownValue),
+      String(secondEquation.unknownValue)
+    ],
+    supportSteps: [
+      "Observe o numero que acompanha x.",
+      "Use a operacao inversa para descobrir o valor desconhecido.",
+      "Substitua x para conferir se a igualdade fica correta."
+    ]
+  };
+}
+
+function buildEquationSolveFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  _generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const equation = buildDeterministicEquation(materialBlueprint, plannedTask, instruction, command, 7);
+  const object = equation.operation === "+" ? "canetas" : "figurinhas";
+  const problemContext = equation.operation === "+"
+    ? `Uma caixa tinha algumas ${object}. Depois recebeu ${equation.knownValue} e ficou com ${equation.result}. Quantas havia antes?`
+    : `Uma caixa tinha algumas ${object}. Depois perdeu ${equation.knownValue} e ficou com ${equation.result}. Quantas havia antes?`;
+
+  return {
+    actionType: "SOLVE",
+    problemContext,
+    equation: equation.equation,
+    guidedSteps: [
+      "Identifique o valor desconhecido.",
+      equation.operation === "+"
+        ? `Retire ${equation.knownValue} dos dois lados.`
+        : `Some ${equation.knownValue} aos dois lados.`,
+      "Registre o valor de x e confira na equacao."
+    ],
+    answer: String(equation.unknownValue),
+    calculationSpace: "linhas para calculo e resposta"
   };
 }
 
@@ -1704,36 +1859,20 @@ function buildEquationGuidedExampleFallback(
   materialBlueprint: MaterialBlueprint,
   plannedTask: PlannedTask,
   instruction: string,
-  command: string
+  command: string,
+  _generatedQuestion: Record<string, unknown> | undefined
 ): Record<string, unknown> {
-  const seed = deterministicSeed([
-    materialBlueprint.discipline,
-    materialBlueprint.grade,
-    materialBlueprint.knowledgeObject,
-    materialBlueprint.content,
-    plannedTask.order,
-    plannedTask.pedagogicalPurpose,
-    plannedTask.responseMode,
-    plannedTask.supportRequired.join("|"),
-    instruction,
-    command
-  ].join("|"));
-  const unknownValue = 2 + (seed % 7);
-  const knownValue = 2 + (Math.floor(seed / 7) % 6);
-  const useAddition = seed % 2 === 0;
-  const result = useAddition ? unknownValue + knownValue : unknownValue - knownValue;
-  const operation = useAddition ? "+" : "-";
-  const equation = `x ${operation} ${knownValue} = ${result}`;
+  const equation = buildDeterministicEquation(materialBlueprint, plannedTask, instruction, command, 8);
 
   return {
     actionType: "CREATE_GUIDED_EXAMPLE",
     contextPrompt: "Crie uma equacao simples usando os valores disponiveis.",
     availableValues: [
-      `valor desconhecido: ${unknownValue}`,
-      `operacao: ${operation}`,
-      `numero conhecido: ${knownValue}`,
-      `resultado: ${result}`,
-      `modelo: ${equation}`
+      `valor desconhecido: ${equation.unknownValue}`,
+      `operacao: ${equation.operation}`,
+      `numero conhecido: ${equation.knownValue}`,
+      `resultado: ${equation.result}`,
+      `modelo: ${equation.equation}`
     ],
     constructionSteps: [
       "Escolha o valor desconhecido.",
@@ -1747,12 +1886,77 @@ function buildEquationGuidedExampleFallback(
       "numero conhecido",
       "resultado"
     ],
-    exampleAnswer: `${equation}, entao x = ${unknownValue}`,
+    exampleAnswer: `${equation.equation}, entao x = ${equation.unknownValue}`,
     sourceInstruction: instruction,
     sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose,
     sourceResponseMode: plannedTask.responseMode,
     sourceSupportRequired: plannedTask.supportRequired
   };
+}
+
+function buildDeterministicEquation(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  offset: number
+): {
+  equation: string;
+  unknownValue: number;
+  knownValue: number;
+  result: number;
+  operation: "+" | "-";
+} {
+  const seed = deterministicSeed([
+    materialBlueprint.discipline,
+    materialBlueprint.grade,
+    materialBlueprint.knowledgeObject,
+    materialBlueprint.content,
+    plannedTask.order,
+    plannedTask.actionType,
+    plannedTask.pedagogicalPurpose,
+    plannedTask.responseMode,
+    plannedTask.visualFunction,
+    plannedTask.supportRequired.join("|"),
+    instruction,
+    command,
+    offset
+  ].join("|"));
+  const unknownValue = 2 + (seed % 8);
+  const knownValue = 2 + (Math.floor(seed / 8) % 7);
+  const useAddition = seed % 2 === 0;
+  const result = useAddition ? unknownValue + knownValue : unknownValue - knownValue;
+  const operation = useAddition ? "+" : "-";
+
+  return {
+    equation: `x ${operation} ${knownValue} = ${result}`,
+    unknownValue,
+    knownValue,
+    result,
+    operation
+  };
+}
+
+function getSafePartialTaskData(generatedQuestion: Record<string, unknown> | undefined): Record<string, unknown> {
+  const taskData = generatedQuestion?.taskData;
+
+  if (!isRecord(taskData) || containsGenericPlaceholder(taskData)) {
+    return {};
+  }
+
+  return taskData;
+}
+
+function getStringField(value: unknown, fallback: string): string {
+  return hasString(value) ? value : fallback;
+}
+
+function getStringArrayField(value: unknown, fallback: string[], minLength: number): string[] {
+  return hasStringArray(value, minLength) ? value : fallback;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return values.filter((value, index) => value.trim() && values.indexOf(value) === index);
 }
 
 function deterministicSeed(value: string): number {
