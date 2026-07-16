@@ -5,7 +5,8 @@ import {
   buildMaterialBlueprint,
   ContextResolver,
   DecisionEngine,
-  KnowledgeRegistry
+  KnowledgeRegistry,
+  PedagogicalValidator
 } from "@acessa-plus/pedagogical-core";
 import type { CreateMissionRequest } from "@acessa-plus/types";
 import { buildStudentSheet } from "./api/demo-store";
@@ -101,6 +102,7 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
       actionType: string;
       visualFunction: string;
       content: string;
+      taskDataStatus: string;
     }>;
 
     expect(questions).toHaveLength(5);
@@ -114,6 +116,7 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     ]);
     expect(questions.every((question) => question.visualFunction.length > 0)).toBe(true);
     expect(questions.every((question) => question.content.includes("Equacoes"))).toBe(true);
+    expect(questions.every((question) => question.taskDataStatus === "INVALID")).toBe(true);
   });
 
   it("uses an equations fallback without replacing it with Progressao Aritmetica", () => {
@@ -154,7 +157,16 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
             responseMode: "responder em linha curta",
             supportRequired: ["pista visual"],
             answerSpace: "duas linhas",
-            pedagogicalPurpose: "reconhecer o valor desconhecido"
+            pedagogicalPurpose: "reconhecer o valor desconhecido",
+            taskDataStatus: "VALID",
+            taskData: {
+              actionType: "OBSERVE",
+              representation: "3 + x = 7",
+              question: "Qual numero ocupa o lugar de x?",
+              options: ["2", "4", "10"],
+              correctOption: "4",
+              visualDescription: "equacao simples com valor desconhecido"
+            }
           },
           {
             plannedTaskOrder: 2,
@@ -165,17 +177,30 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
             responseMode: "ligar pares",
             supportRequired: ["cartoes do backend"],
             answerSpace: "pares para ligar",
-            pedagogicalPurpose: "relacionar representacoes"
+            pedagogicalPurpose: "relacionar representacoes",
+            taskDataStatus: "VALID",
+            taskData: {
+              actionType: "MATCH",
+              leftItems: ["x + 2 = 6", "x + 5 = 8", "x - 2 = 5"],
+              rightItems: ["4", "3", "7"],
+              correctPairs: [
+                { left: "x + 2 = 6", right: "4" },
+                { left: "x + 5 = 8", right: "3" },
+                { left: "x - 2 = 5", right: "7" }
+              ],
+              connectionInstruction: "Ligue cada equacao ao valor de x."
+            }
           }
         ]
       }
     };
     const html = renderToStaticMarkup(React.createElement(StudentSheetRenderer, { plan }));
 
-    expect(html).toContain("representar igualdade com apoio visual");
-    expect(html).toContain("ligar pares");
-    expect(html).toContain("duas linhas");
-    expect(html).toContain("reconhecer o valor desconhecido");
+    expect(html).toContain("3 + x");
+    expect(html).toContain("Qual numero ocupa o lugar de x?");
+    expect(html).toContain("x + 2 = 6");
+    expect(html).toContain("x + 5 = 8");
+    expect(html).toContain("x - 2 = 5");
     expect(html).not.toContain("Progressao aritmetica");
     expect(html).not.toContain("P.A.");
     expect(html).not.toContain("2, 5, 8, 11");
@@ -183,8 +208,120 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(html).not.toContain("NAO");
     expect(html).not.toContain("LER");
     expect(html).not.toContain("OK");
-    expect(html).not.toContain("x + 2 = 6");
     expect(html).not.toContain("PROBLEMA");
     expect(html).not.toContain("EQUACAO</span><span>RESPOSTA");
+  });
+
+  it("keeps concrete taskData for the required equation sequence and validates it", () => {
+    const { request, blueprint } = createBlueprint();
+    const sheet = buildStudentSheet(
+      {
+        studentSheet: {
+          title: "Equacoes do primeiro grau",
+          questions: [
+            {
+              plannedTaskOrder: 1,
+              actionType: "OBSERVE",
+              command: "Observe a equacao e marque o valor de x.",
+              taskData: {
+                actionType: "OBSERVE",
+                representation: "3 + x = 7",
+                question: "Qual numero ocupa o lugar de x?",
+                options: ["2", "4", "10"],
+                correctOption: "4",
+                visualDescription: "equacao simples com valor desconhecido"
+              }
+            },
+            {
+              plannedTaskOrder: 2,
+              actionType: "MATCH",
+              command: "Ligue cada equacao ao valor correto.",
+              taskData: {
+                actionType: "MATCH",
+                leftItems: ["x + 2 = 6", "x + 5 = 8", "x - 2 = 5"],
+                rightItems: ["4", "3", "7"],
+                correctPairs: [
+                  { left: "x + 2 = 6", right: "4" },
+                  { left: "x + 5 = 8", right: "3" },
+                  { left: "x - 2 = 5", right: "7" }
+                ],
+                connectionInstruction: "Ligue cada equacao ao valor de x."
+              }
+            },
+            {
+              plannedTaskOrder: 3,
+              actionType: "COMPLETE",
+              command: "Complete as equacoes.",
+              taskData: {
+                actionType: "COMPLETE",
+                statements: ["x + 3 = 9, entao x = ___", "x - 4 = 6, entao x = ___"],
+                blanks: ["x", "x"],
+                expectedAnswers: ["6", "10"],
+                supportSteps: ["Veja o numero que falta.", "Confira substituindo x."]
+              }
+            },
+            {
+              plannedTaskOrder: 4,
+              actionType: "SOLVE",
+              command: "Resolva a situacao-problema.",
+              taskData: {
+                actionType: "SOLVE",
+                problemContext: "Uma caixa tinha algumas canetas. Depois recebeu 3 e ficou com 8.",
+                equation: "x + 3 = 8",
+                guidedSteps: ["Observe o total.", "Retire 3 do total.", "Escreva o valor de x."],
+                answer: "5",
+                calculationSpace: "linhas para calculo"
+              }
+            },
+            {
+              plannedTaskOrder: 5,
+              actionType: "CREATE_GUIDED_EXAMPLE",
+              command: "Crie uma equacao simples.",
+              taskData: {
+                actionType: "CREATE_GUIDED_EXAMPLE",
+                contextPrompt: "Monte uma equacao com um numero inicial, uma quantidade acrescentada e um total.",
+                availableValues: ["2", "3", "5", "7", "10"],
+                constructionSteps: ["Escolha x.", "Escolha quanto somar.", "Escreva o total."],
+                fieldsToComplete: ["valor inicial", "quantidade acrescentada", "total"],
+                exampleAnswer: "x + 2 = 7, entao x = 5"
+              }
+            }
+          ]
+        },
+        teacherGuide: {
+          curricularAnalysis: ["A atividade trabalha equacoes do primeiro grau."],
+          methodology: ["Mediacao com apoios visuais."],
+          adaptations: ["Apoio moderado para DI."],
+          assessmentCriteria: ["Criterio de sucesso: identifica valor de x."],
+          applicationSuggestions: ["Aplicar com leitura mediada."]
+        },
+        visualElements: ["equacao com balanca", "pares de equacao e resultado"]
+      },
+      request,
+      blueprint
+    );
+    const questions = sheet.questions as Array<{ taskDataStatus: string }>;
+    const report = new PedagogicalValidator().validate(
+      { studentSheet: sheet },
+      blueprint
+    );
+    const html = renderToStaticMarkup(
+      React.createElement(StudentSheetRenderer, {
+        plan: { subject: "Matematica", grade: "6 ano", studentSheet: sheet as StudentSheetPlan["studentSheet"] }
+      })
+    );
+
+    expect(questions.every((question) => question.taskDataStatus === "VALID")).toBe(true);
+    expect(report.issues.map((issue) => issue.code)).not.toContain("INCOMPLETE_TASK_DATA");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("MISSING_MATCH_PAIRS");
+    expect(html).toContain("3 + x");
+    expect(html).toContain("x + 2 = 6");
+    expect(html).toContain("x + 3 = 9");
+    expect(html).toContain("Uma caixa tinha algumas canetas");
+    expect(html).toContain("valor inicial");
+    expect(html).not.toContain("Progressao Aritmetica");
+    expect(html).not.toContain("paisagem");
+    expect(html).not.toContain("SIM");
+    expect(html).not.toContain("LER");
   });
 });

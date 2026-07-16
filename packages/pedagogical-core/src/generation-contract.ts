@@ -22,6 +22,41 @@ export const RESOURCE_GENERATION_TYPES = [
   "ACCESSIBLE_RESOURCE"
 ] as const satisfies readonly ResourceGenerationType[];
 
+export const TASK_DATA_OUTPUT_CONTRACT = {
+  regraGeral:
+    "Cada objeto em studentSheet.questions deve conter taskData completo e concreto conforme actionType. O frontend nao inventa conteudo; se taskData vier incompleto, a tarefa sera invalidada.",
+  proibicoes: [
+    "nao usar imagem de paisagem como recurso pedagogico",
+    "nao usar placeholder visual sem relacao com o conceito",
+    "nao criar alternativas vazias",
+    "nao pedir pareamento sem itens reais dos dois lados",
+    "nao pedir lacunas sem enunciado matematico completo",
+    "nao pedir uso de blocos, balanca ou pictogramas sem dados concretos para renderizacao",
+    "nao repetir a mesma representacao em varias tarefas",
+    "nao inserir Progressao Aritmetica quando o objeto for equacoes"
+  ],
+  porActionType: {
+    OBSERVE:
+      "{ actionType: 'OBSERVE', representation, question, options, correctOption, visualDescription }",
+    MATCH:
+      "{ actionType: 'MATCH', leftItems, rightItems, correctPairs, connectionInstruction }",
+    COMPLETE:
+      "{ actionType: 'COMPLETE', statements, blanks, expectedAnswers, supportSteps }",
+    SOLVE:
+      "{ actionType: 'SOLVE', problemContext, equation, guidedSteps, answer, calculationSpace }",
+    CLASSIFY:
+      "{ actionType: 'CLASSIFY', items, categories, expectedClassification }",
+    ORDER:
+      "{ actionType: 'ORDER', items, correctOrder }",
+    CONNECT:
+      "{ actionType: 'CONNECT', sourceItems, targetItems, correctConnections }",
+    CREATE_GUIDED_EXAMPLE:
+      "{ actionType: 'CREATE_GUIDED_EXAMPLE', contextPrompt, availableValues, constructionSteps, fieldsToComplete, exampleAnswer }"
+  },
+  regraParaEquacoesSimples:
+    "Quando o conteudo for equacoes do primeiro grau, usar equacoes simples e corretas, como x + 3 = 7, x + 2 = 6, x - 2 = 5, sempre com resultado verificavel e adequado ao ano, perfil e apoio solicitado."
+} as const;
+
 export const ADAPTED_ACTIVITY_OUTPUT_CONTRACT = {
   studentSheet: {
     title: "titulo para o estudante, sem codigo BNCC",
@@ -33,7 +68,7 @@ export const ADAPTED_ACTIVITY_OUTPUT_CONTRACT = {
       "array de intencoes visuais renderizaveis, sem prefixos descritivos iniciados por imagem, icone, pictograma ou desenho",
     tableRows: "array no formato coluna1 | coluna2 | coluna3",
     questions:
-      "array de objetos, um para cada plannedTask do MaterialBlueprint, preservando a mesma ordem. Cada objeto deve conter { plannedTaskOrder, actionType, pedagogicalPurpose, cognitiveDemand, responseMode, supportRequired, visualFunction, successCriterion, instruction, content, command, support, answerSpace }. command e instruction devem ser apropriados ao estudante; support deve ser pista pedagogica curta, nunca descricao de imagem, icone, desenho, bloco ou pictograma"
+      "array de objetos, um para cada plannedTask do MaterialBlueprint, preservando a mesma ordem. Cada objeto deve conter { plannedTaskOrder, actionType, pedagogicalPurpose, cognitiveDemand, responseMode, supportRequired, visualFunction, successCriterion, instruction, content, command, support, answerSpace, taskData }. taskData e obrigatorio e deve seguir TASK_DATA_OUTPUT_CONTRACT para o actionType. command e instruction devem ser apropriados ao estudante; support deve ser pista pedagogica curta, nunca descricao de imagem, icone, desenho, bloco ou pictograma"
   },
   teacherGuide: {
     skillCode: "habilidade BNCC ou curricular",
@@ -58,7 +93,7 @@ export const ADAPTED_ACTIVITY_OUTPUT_CONTRACT = {
   baseText: "string com texto-base curto quando necessario",
   instructions: "array de strings com instrucoes claras para estudante",
   questions:
-    "array de objetos, um para cada plannedTask do MaterialBlueprint, com { plannedTaskOrder, actionType, pedagogicalPurpose, cognitiveDemand, responseMode, supportRequired, visualFunction, successCriterion, instruction, content, command, support, answerSpace }. Nao trocar o conteudo informado pelo professor por outro tema. support deve ser pista pedagogica curta, nunca descricao textual de imagem",
+    "array de objetos, um para cada plannedTask do MaterialBlueprint, com { plannedTaskOrder, actionType, pedagogicalPurpose, cognitiveDemand, responseMode, supportRequired, visualFunction, successCriterion, instruction, content, command, support, answerSpace, taskData }. taskData e obrigatorio e deve seguir TASK_DATA_OUTPUT_CONTRACT para o actionType. Nao trocar o conteudo informado pelo professor por outro tema. support deve ser pista pedagogica curta, nunca descricao textual de imagem",
   visualElements:
     "array de nomes semanticos para recursos visuais renderizaveis",
   didacticBoxes:

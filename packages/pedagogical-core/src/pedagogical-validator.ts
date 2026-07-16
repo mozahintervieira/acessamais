@@ -26,6 +26,14 @@ export type PedagogicalValidationIssue = {
     | "LANGUAGE_INADEQUATE"
     | "SEVERE_INFANTILIZATION"
     | "DECORATIVE_VISUALS"
+    | "INCOMPLETE_TASK_DATA"
+    | "GENERIC_PLACEHOLDER"
+    | "MISSING_MATCH_PAIRS"
+    | "MISSING_COMPLETION_DATA"
+    | "MISSING_PROBLEM_CONTEXT"
+    | "MISSING_GUIDED_CREATION_DATA"
+    | "INVALID_MATH_CONTENT"
+    | "VISUAL_CONTENT_MISMATCH"
     | "PROFILE_IGNORED"
     | "CURRICULAR_MISALIGNMENT"
     | "UNCLEAR_INSTRUCTIONS"
@@ -57,6 +65,9 @@ type GeneratedQuestion = {
   command: string;
   support?: string;
   answerSpace?: string;
+  taskData?: Record<string, unknown>;
+  taskDataStatus?: "VALID" | "INVALID";
+  taskDataIssue?: string;
 };
 
 type GeneratedStudentSheet = {
@@ -114,6 +125,7 @@ export class PedagogicalValidator {
       issues,
       recommendations
     );
+    validateConcreteTaskData(questions, blueprint, issues, recommendations);
     const scores: PedagogicalValidationScores = {
       curricularAlignment: scoreCurricularAlignment(material, blueprint, issues, recommendations),
       activityVariety: scoreActivityVariety(questions, detectedActions, blueprint, issues, recommendations),
@@ -159,9 +171,109 @@ function resolveQuestions(material: GeneratedPedagogicalMaterial): GeneratedQues
       content: normalizeOptionalString(question.content),
       command: normalizeString(question.command),
       support: normalizeOptionalString(question.support),
-      answerSpace: normalizeOptionalString(question.answerSpace)
+      answerSpace: normalizeOptionalString(question.answerSpace),
+      taskData: isRecord(question.taskData) ? question.taskData : undefined,
+      taskDataStatus: question.taskDataStatus === "VALID" || question.taskDataStatus === "INVALID"
+        ? question.taskDataStatus
+        : undefined,
+      taskDataIssue: normalizeOptionalString(question.taskDataIssue)
     }))
     .filter((question) => question.command.length > 0);
+}
+
+function validateConcreteTaskData(
+  questions: GeneratedQuestion[],
+  blueprint: MaterialBlueprint,
+  issues: PedagogicalValidationIssue[],
+  recommendations: Set<string>
+): void {
+  const expectsVisuals = blueprint.visualRequirements.length > 0;
+
+  questions.forEach((question, index) => {
+    const actionType = question.actionType ?? inferActionType(question.command);
+    const taskData = question.taskData;
+    const taskNumber = question.plannedTaskOrder ?? index + 1;
+
+    if (question.taskDataStatus === "INVALID" && question.taskDataIssue) {
+      addIssue(
+        issues,
+        asConcreteIssueCode(question.taskDataIssue),
+        "BLOCKER",
+        `A tarefa ${taskNumber} possui taskData incompleto ou invalido para ${actionType}.`
+      );
+      recommendations.add("Solicitar taskData concreto para cada actionType, sem preencher com fallback generico.");
+      return;
+    }
+
+    if (!taskData) {
+      addIssue(
+        issues,
+        "INCOMPLETE_TASK_DATA",
+        "BLOCKER",
+        `A tarefa ${taskNumber} nao possui taskData concreto.`
+      );
+      recommendations.add("Cada tarefa precisa carregar dados reais para o renderer montar a folha A4.");
+      return;
+    }
+
+    if (containsGenericPlaceholder(taskData)) {
+      addIssue(
+        issues,
+        "GENERIC_PLACEHOLDER",
+        "BLOCKER",
+        `A tarefa ${taskNumber} contem placeholder ou visual generico.`
+      );
+      recommendations.add("Substituir placeholders por conteudo curricular concreto.");
+    }
+
+    if (expectsVisuals && visualContentMismatch(question, taskData)) {
+      addIssue(
+        issues,
+        "VISUAL_CONTENT_MISMATCH",
+        "HIGH",
+        `A tarefa ${taskNumber} tem instrucao visual sem dados renderizaveis correspondentes.`
+      );
+      recommendations.add("Adicionar representacoes, itens, lacunas, pares ou valores que o renderer consiga desenhar.");
+    }
+
+    switch (actionType) {
+      case "OBSERVE":
+        if (!hasString(taskData.representation) || !hasString(taskData.question) || !hasStringArray(taskData.options, 2)) {
+          addIssue(issues, "INCOMPLETE_TASK_DATA", "BLOCKER", `OBSERVE da tarefa ${taskNumber} nao tem representacao, pergunta e opcoes reais.`);
+        }
+        break;
+      case "MATCH":
+        if (!hasStringArray(taskData.leftItems, 2) || !hasStringArray(taskData.rightItems, 2) || !hasPairArray(taskData.correctPairs, "left", "right")) {
+          addIssue(issues, "MISSING_MATCH_PAIRS", "BLOCKER", `MATCH da tarefa ${taskNumber} nao possui pares reais dos dois lados.`);
+        }
+        break;
+      case "COMPLETE":
+        if (!hasStringArray(taskData.statements, 1) || !hasStringArray(taskData.blanks, 1) || !hasStringArray(taskData.expectedAnswers, 1)) {
+          addIssue(issues, "MISSING_COMPLETION_DATA", "BLOCKER", `COMPLETE da tarefa ${taskNumber} nao possui lacunas e respostas esperadas.`);
+        }
+        break;
+      case "SOLVE":
+        if (!hasString(taskData.problemContext) || !hasString(taskData.equation) || !hasString(taskData.answer)) {
+          addIssue(issues, "MISSING_PROBLEM_CONTEXT", "BLOCKER", `SOLVE da tarefa ${taskNumber} nao possui problema, equacao e resposta.`);
+        }
+        break;
+      case "CREATE_GUIDED_EXAMPLE":
+        if (!hasString(taskData.contextPrompt) || !hasStringArray(taskData.availableValues, 2) || !hasStringArray(taskData.fieldsToComplete, 1)) {
+          addIssue(issues, "MISSING_GUIDED_CREATION_DATA", "BLOCKER", `CREATE_GUIDED_EXAMPLE da tarefa ${taskNumber} nao possui campos orientados.`);
+        }
+        break;
+    }
+
+    if (isEquationRequest(blueprint) && !hasValidEquationMath(taskData)) {
+      addIssue(
+        issues,
+        "INVALID_MATH_CONTENT",
+        "BLOCKER",
+        `A tarefa ${taskNumber} nao apresenta conteudo matematico verificavel para equacoes simples.`
+      );
+      recommendations.add("Usar equacoes simples corretas, com resposta verificavel e coerente com o enunciado.");
+    }
+  });
 }
 
 function resolveVisualElements(material: GeneratedPedagogicalMaterial): string[] {
@@ -809,7 +921,9 @@ function materialText(material: GeneratedPedagogicalMaterial): string {
       question.content,
       question.command,
       question.support,
-      question.answerSpace
+      question.answerSpace,
+      question.taskData ? JSON.stringify(question.taskData) : undefined,
+      question.taskDataIssue
     ]),
     guide.skillCode,
     guide.knowledgeObject,
@@ -859,4 +973,127 @@ function normalizeComparable(value: string | undefined): string {
 
 function wordCount(value: string): number {
   return value.split(/\s+/g).filter(Boolean).length;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasStringArray(value: unknown, minLength: number): value is string[] {
+  return Array.isArray(value) &&
+    value.filter((item) => typeof item === "string" && item.trim()).length >= minLength;
+}
+
+function hasPairArray(value: unknown, leftKey: string, rightKey: string): boolean {
+  return Array.isArray(value) &&
+    value.some((item) =>
+      isRecord(item) &&
+      hasString(item[leftKey]) &&
+      hasString(item[rightKey])
+    );
+}
+
+function containsGenericPlaceholder(value: unknown): boolean {
+  const text = normalizeComparable(JSON.stringify(value));
+
+  return [
+    "placeholder",
+    "imagem de paisagem",
+    "paisagem",
+    "visual generico",
+    "visual genérico",
+    "icone generico",
+    "opcao 1",
+    "opção 1",
+    "alternativa a",
+    "cartao generico"
+  ].some((term) => text.includes(normalizeComparable(term)));
+}
+
+function visualContentMismatch(question: GeneratedQuestion, taskData: Record<string, unknown>): boolean {
+  const text = normalizeComparable(
+    `${question.visualFunction ?? ""} ${question.command} ${JSON.stringify(taskData)}`
+  );
+  const asksBlocks = text.includes("bloco");
+  const asksBalance = text.includes("balanca");
+  const asksCards = text.includes("cartao") || text.includes("pare");
+  const asksBlanks =
+    question.actionType === "COMPLETE" &&
+    (text.includes("lacuna") || text.includes("complete"));
+
+  if (asksBlocks && !text.includes("availablevalues") && !text.includes("representation") && !text.includes("equation")) {
+    return true;
+  }
+
+  if (asksBalance && !text.includes("=") && !text.includes("equation") && !text.includes("representation")) {
+    return true;
+  }
+
+  if (asksCards && !text.includes("leftitems") && !text.includes("sourceitems") && !text.includes("options")) {
+    return true;
+  }
+
+  if (asksBlanks && !text.includes("statements") && !text.includes("blanks")) {
+    return true;
+  }
+
+  return false;
+}
+
+function isEquationRequest(blueprint: MaterialBlueprint): boolean {
+  const source = normalizeComparable(`${blueprint.discipline} ${blueprint.knowledgeObject} ${blueprint.content}`);
+
+  return source.includes("equacao") || source.includes("equacoes");
+}
+
+function hasValidEquationMath(taskData: Record<string, unknown>): boolean {
+  const text = JSON.stringify(taskData);
+  const xFirstEquations = [...text.matchAll(/x\s*([+-])\s*(-?\d+)\s*=\s*(-?\d+)/gi)];
+  const xSecondEquations = [...text.matchAll(/(-?\d+)\s*\+\s*x\s*=\s*(-?\d+)/gi)];
+
+  if (xFirstEquations.length === 0 && xSecondEquations.length === 0) {
+    return false;
+  }
+
+  const answerText = normalizeComparable(text);
+
+  const xFirstIsValid = xFirstEquations.some((match) => {
+    const operator = match[1];
+    const value = Number(match[2]);
+    const total = Number(match[3]);
+    const answer = operator === "+" ? total - value : total + value;
+
+    return answerText.includes(String(answer));
+  });
+
+  const xSecondIsValid = xSecondEquations.some((match) => {
+    const value = Number(match[1]);
+    const total = Number(match[2]);
+    const answer = total - value;
+
+    return answerText.includes(String(answer));
+  });
+
+  return xFirstIsValid || xSecondIsValid;
+}
+
+function asConcreteIssueCode(value: string): PedagogicalValidationIssue["code"] {
+  const allowed: Array<PedagogicalValidationIssue["code"]> = [
+    "INCOMPLETE_TASK_DATA",
+    "GENERIC_PLACEHOLDER",
+    "MISSING_MATCH_PAIRS",
+    "MISSING_COMPLETION_DATA",
+    "MISSING_PROBLEM_CONTEXT",
+    "MISSING_GUIDED_CREATION_DATA",
+    "INVALID_MATH_CONTENT",
+    "VISUAL_CONTENT_MISMATCH"
+  ];
+
+  return allowed.includes(value as PedagogicalValidationIssue["code"])
+    ? value as PedagogicalValidationIssue["code"]
+    : "INCOMPLETE_TASK_DATA";
 }

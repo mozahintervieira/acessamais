@@ -9,6 +9,7 @@ import {
 } from "./adaptation-rules.js";
 import {
   CURRICULAR_ANALYSIS_STEPS,
+  TASK_DATA_OUTPUT_CONTRACT,
   type ResourceGenerationType
 } from "./generation-contract.js";
 import { resolveGenerationContract } from "./generation-contract-registry.js";
@@ -49,6 +50,9 @@ export function buildPedagogicalGenerationPrompt(
         "Analisar primeiro a habilidade curricular e somente depois gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
       materialBlueprintObrigatorio:
         "O MaterialBlueprint abaixo e obrigatorio. Cada atividade da studentSheet deve corresponder a uma plannedTask, respeitando ordem, actionType, intencao pedagogica, forma de resposta, apoio necessario, funcao visual e criterio de sucesso. Nao substitua o blueprint por lista generica de perguntas.",
+      taskDataObrigatorio:
+        "Cada atividade deve conter taskData completo e concreto conforme o actionType. Nao use placeholders, alternativas vazias, pares ausentes, lacunas sem enunciado, visuais decorativos ou instrucao sem recurso correspondente.",
+      contratoTaskDataPorActionType: TASK_DATA_OUTPUT_CONTRACT,
       materialBlueprint: blueprint,
       referenciaCurricular:
         "Usar a BNCC como referencia nacional e, quando o professor informar Espirito Santo, SEDU-ES, Curriculo do Espirito Santo ou ano 2026, considerar essa referencia curricular na analise. Se a habilidade estadual for informada, preservar seu codigo e interpretar a competencia antes de criar atividades.",

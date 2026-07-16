@@ -209,6 +209,46 @@ function buildCorrectionInstructions(
           "Ajustar a quantidade de tarefas para corresponder exatamente ao requestedTaskCount do MaterialBlueprint."
         );
         break;
+      case "INCOMPLETE_TASK_DATA":
+        instructions.add(
+          "Completar taskData de cada tarefa de acordo com seu actionType, usando conteudo concreto do tema, sem placeholders."
+        );
+        break;
+      case "GENERIC_PLACEHOLDER":
+        instructions.add(
+          "Remover placeholders, imagens de paisagem e descricoes genericas; substituir por dados renderizaveis relacionados ao conteudo curricular."
+        );
+        break;
+      case "MISSING_MATCH_PAIRS":
+        instructions.add(
+          "Para tarefas MATCH, preencher leftItems, rightItems e correctPairs com pelo menos tres pares reais, coerentes e verificaveis."
+        );
+        break;
+      case "MISSING_COMPLETION_DATA":
+        instructions.add(
+          "Para tarefas COMPLETE, preencher statements, blanks, expectedAnswers e supportSteps com lacunas reais e respostas esperadas."
+        );
+        break;
+      case "MISSING_PROBLEM_CONTEXT":
+        instructions.add(
+          "Para tarefas SOLVE, preencher problemContext, equation, guidedSteps, answer e calculationSpace com uma situacao-problema concreta."
+        );
+        break;
+      case "MISSING_GUIDED_CREATION_DATA":
+        instructions.add(
+          "Para tarefas CREATE_GUIDED_EXAMPLE, preencher contextPrompt, availableValues, constructionSteps, fieldsToComplete e exampleAnswer."
+        );
+        break;
+      case "INVALID_MATH_CONTENT":
+        instructions.add(
+          "Corrigir os numeros das equacoes simples para que cada equacao tenha resultado matematicamente correto e verificavel."
+        );
+        break;
+      case "VISUAL_CONTENT_MISMATCH":
+        instructions.add(
+          "Alinhar instrucao visual e taskData: se pedir blocos, balanca, cartoes, lacunas ou pares, fornecer os dados concretos para renderizar esse recurso."
+        );
+        break;
       case "CURRICULAR_MISALIGNMENT":
         instructions.add(
           "Reforcar alinhamento direto com habilidade, objetivo e objeto de conhecimento, sem trocar o conteudo central."

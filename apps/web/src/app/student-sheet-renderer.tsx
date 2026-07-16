@@ -17,6 +17,9 @@ export type StudentSheetQuestion = {
   command: string;
   support?: string;
   answerSpace?: string;
+  taskData?: Record<string, unknown>;
+  taskDataStatus?: "VALID" | "INVALID";
+  taskDataIssue?: string;
 };
 
 export type RenderableStudentSheet = {
@@ -168,106 +171,203 @@ function QuestionByAction({ question }: { question: StudentSheetQuestion }): Rea
 }
 
 function ObservationRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const representation = textValue(data.representation);
+  const prompt = textValue(data.question);
+  const options = stringList(data.options);
+
+  if (!representation || !prompt || options.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <VisualFunctionPanel question={question} variant="observe" />
-      <AnswerArea question={question} />
+      <div className="questionVisual dynamicTaskVisual observe">
+        <EquationVisual expression={representation} />
+        <strong>{prompt}</strong>
+      </div>
+      <div className="answerChoiceGrid">
+        {options.map((option) => (
+          <span className="choiceBox" key={option}>
+            <i />
+            {option}
+          </span>
+        ))}
+      </div>
     </QuestionFrame>
   );
 }
 
 function MatchingRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const leftItems = stringList(data.leftItems);
+  const rightItems = stringList(data.rightItems);
+  const instruction = textValue(data.connectionInstruction);
+
+  if (leftItems.length === 0 || rightItems.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <div className="matchingArea dynamicTaskVisual" aria-hidden="true">
-        <span>{shortText(question.content, "Item")}</span>
-        <b />
-        <span>{shortText(question.responseMode, "Resposta")}</span>
-        <span>{shortText(question.visualFunction, "Pista visual")}</span>
-        <b />
-        <span>{shortText(question.successCriterion, "Criterio")}</span>
+      {instruction ? <small>{instruction}</small> : null}
+      <div className="matchingArea dynamicTaskVisual">
+        {leftItems.slice(0, 4).map((left, index) => (
+          <React.Fragment key={`${left}-${index}`}>
+            <span>{left}</span>
+            <b />
+            <span>{rightItems[index] ?? ""}</span>
+          </React.Fragment>
+        ))}
       </div>
-      <AnswerArea question={question} />
     </QuestionFrame>
   );
 }
 
 function CompletionRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const statements = stringList(data.statements);
+  const supportSteps = stringList(data.supportSteps);
+
+  if (statements.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <div className="fillBlankArea dynamicTaskVisual" aria-hidden="true">
-        <span>{shortText(question.content, "Conteudo")}</span>
-        <span>{shortText(question.visualFunction, "Apoio visual")}</span>
-        <span>{shortText(question.answerSpace, "Resposta")}</span>
+      {supportSteps.length > 0 ? (
+        <div className="studentMiniSteps">
+          {supportSteps.slice(0, 3).map((step) => <span key={step}>{step}</span>)}
+        </div>
+      ) : null}
+      <div className="fillBlankArea dynamicTaskVisual">
+        {statements.slice(0, 4).map((statement) => (
+          <span key={statement}>{statement}</span>
+        ))}
       </div>
-      <AnswerArea question={question} />
     </QuestionFrame>
   );
 }
 
 function SolveRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const problemContext = textValue(data.problemContext);
+  const equation = textValue(data.equation);
+  const steps = stringList(data.guidedSteps);
+
+  if (!problemContext || !equation) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <VisualFunctionPanel question={question} variant="solve" />
-      <AnswerArea question={question} />
+      <div className="questionVisual dynamicTaskVisual solve">
+        <p>{problemContext}</p>
+        <EquationVisual expression={equation} />
+      </div>
+      {steps.length > 0 ? (
+        <div className="studentMiniSteps">
+          {steps.slice(0, 3).map((step) => <span key={step}>{step}</span>)}
+        </div>
+      ) : null}
+      <div className="premiumAnswerLines"><span /><span /><span /></div>
     </QuestionFrame>
   );
 }
 
 function ClassificationRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const items = stringList(data.items);
+  const categories = stringList(data.categories);
+
+  if (items.length === 0 || categories.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <div className="answerChoiceGrid dynamicTaskVisual" aria-hidden="true">
-        {buildDynamicLabels(question, 3).map((label) => (
+      <div className="answerChoiceGrid dynamicTaskVisual">
+        {categories.map((label) => (
           <span className="choiceBox" key={label}>
             <i />
             {label}
           </span>
         ))}
       </div>
-      <AnswerArea question={question} />
+      <div className="studentMiniSteps">
+        {items.slice(0, 5).map((item) => <span key={item}>{item}</span>)}
+      </div>
     </QuestionFrame>
   );
 }
 
 function GuidedCreationRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const contextPrompt = textValue(data.contextPrompt);
+  const values = stringList(data.availableValues);
+  const steps = stringList(data.constructionSteps);
+  const fields = stringList(data.fieldsToComplete);
+
+  if (!contextPrompt || values.length === 0 || fields.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <div className="guidedExampleVisual dynamicTaskVisual" aria-hidden="true">
-        <span>{shortText(question.pedagogicalPurpose, "Modelo")}</span>
-        <span>{shortText(question.responseMode, "Como responder")}</span>
-        <span>{shortText(question.successCriterion, "Como conferir")}</span>
+      <div className="guidedExampleVisual dynamicTaskVisual">
+        <strong>{contextPrompt}</strong>
+        {values.slice(0, 6).map((value) => <span key={value}>{value}</span>)}
       </div>
-      <AnswerArea question={question} />
+      {steps.length > 0 ? (
+        <div className="studentMiniSteps">
+          {steps.slice(0, 3).map((step) => <span key={step}>{step}</span>)}
+        </div>
+      ) : null}
+      <div className="fillBlankArea">
+        {fields.slice(0, 4).map((field) => <span key={field}>{field}: ______</span>)}
+      </div>
     </QuestionFrame>
   );
 }
 
 function OrderingRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const items = stringList(question.taskData?.items);
+
+  if (items.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <div className="sequenceVisual dynamicTaskVisual" aria-hidden="true">
-        {buildDynamicLabels(question, 4).map((label) => (
+      <div className="sequenceVisual dynamicTaskVisual">
+        {items.slice(0, 5).map((label) => (
           <span key={label}>{label}</span>
         ))}
       </div>
-      <AnswerArea question={question} />
     </QuestionFrame>
   );
 }
 
 function ConnectionRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  const data = question.taskData ?? {};
+  const sourceItems = stringList(data.sourceItems);
+  const targetItems = stringList(data.targetItems);
+
+  if (sourceItems.length === 0 || targetItems.length === 0) {
+    return <InvalidTaskRenderer question={question} />;
+  }
+
   return (
     <QuestionFrame question={question}>
-      <div className="matchingArea dynamicTaskVisual" aria-hidden="true">
-        <span>{shortText(question.content, "Informacao")}</span>
-        <b />
-        <span>{shortText(question.visualFunction, "Relacao")}</span>
-        <span>{shortText(question.pedagogicalPurpose, "Ideia")}</span>
-        <b />
-        <span>{shortText(question.responseMode, "Resposta")}</span>
+      <div className="matchingArea dynamicTaskVisual">
+        {sourceItems.slice(0, 4).map((source, index) => (
+          <React.Fragment key={`${source}-${index}`}>
+            <span>{source}</span>
+            <b />
+            <span>{targetItems[index] ?? ""}</span>
+          </React.Fragment>
+        ))}
       </div>
-      <AnswerArea question={question} />
     </QuestionFrame>
   );
 }
@@ -275,9 +375,17 @@ function ConnectionRenderer({ question }: { question: StudentSheetQuestion }): R
 function GenericTaskRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
   return (
     <QuestionFrame question={question}>
-      <VisualFunctionPanel question={question} variant="generic" />
-      <AnswerArea question={question} />
+      <InvalidTaskRenderer question={question} />
     </QuestionFrame>
+  );
+}
+
+function InvalidTaskRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
+  return (
+    <div className="studentTaskIssue" data-task-issue={question.taskDataIssue ?? "INCOMPLETE_TASK_DATA"}>
+      <strong>Tarefa aguardando dados concretos.</strong>
+      <span>{question.taskDataIssue ?? "INCOMPLETE_TASK_DATA"}</span>
+    </div>
   );
 }
 
@@ -302,68 +410,27 @@ function QuestionFrame({
   );
 }
 
-function VisualFunctionPanel({
-  question,
-  variant
-}: {
-  question: StudentSheetQuestion;
-  variant: string;
-}): React.ReactElement {
+function EquationVisual({ expression }: { expression: string }): React.ReactElement {
+  const parts = expression.split("=");
+
   return (
-    <div className={`questionVisual dynamicTaskVisual ${variant}`} aria-hidden="true">
-      <svg viewBox="0 0 420 120">
-        <rect x="18" y="18" width="384" height="84" rx="18" />
-        <path d="M54 78 C96 36 142 36 184 78" />
-        <path d="M218 78 C260 36 306 36 348 78" />
-        <circle cx="210" cy="60" r="10" />
-      </svg>
-      <div className="visualCaption">
-        {shortText(question.visualFunction, question.responseMode ?? question.pedagogicalPurpose ?? "Apoio visual")}
-      </div>
+    <div className="equationVisual" aria-label={expression}>
+      <span>{parts[0]?.trim() ?? expression}</span>
+      <b>=</b>
+      <span>{parts[1]?.trim() ?? ""}</span>
     </div>
   );
 }
 
-function AnswerArea({ question }: { question: StudentSheetQuestion }): React.ReactElement {
-  const mode = normalize(`${question.answerSpace ?? ""} ${question.responseMode ?? ""}`);
-
-  if (mode.includes("marcar") || mode.includes("alternativa") || mode.includes("escolha")) {
-    return (
-      <div className="answerChoiceGrid" aria-hidden="true">
-        {buildDynamicLabels(question, 3).map((label) => (
-          <span className="choiceBox" key={label}>
-            <i />
-            {label}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  if (mode.includes("ligar") || mode.includes("parear") || mode.includes("pares")) {
-    return (
-      <div className="matchingArea" aria-hidden="true">
-        <span />
-        <b />
-        <span />
-        <span />
-        <b />
-        <span />
-      </div>
-    );
-  }
-
-  if (mode.includes("lacuna") || mode.includes("caixa") || mode.includes("completar")) {
-    return (
-      <div className="fillBlankArea" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-    );
-  }
-
-  return <div className="premiumAnswerLines"><span /><span /><span /></div>;
+function ConceptVisual({ label }: { label: string }): React.ReactElement {
+  return (
+    <svg className="svgVisual conceptVisual" viewBox="0 0 160 96" role="img" aria-label={label}>
+      <rect x="18" y="20" width="124" height="56" rx="14" />
+      <path d="M48 48 H112" />
+      <path d="M92 36 L112 48 L92 60" />
+      <circle cx="42" cy="48" r="9" />
+    </svg>
+  );
 }
 
 function StudentVisualResources({ items }: { items: string[] }): React.ReactElement {
@@ -371,11 +438,7 @@ function StudentVisualResources({ items }: { items: string[] }): React.ReactElem
     <section className="visualResourceGrid" aria-label="Recursos visuais da atividade">
       {items.slice(0, 4).map((item) => (
         <div className="visualResourceCard picture" aria-label={item} key={item}>
-          <svg className="svgVisual genericPictureVisual" viewBox="0 0 160 96" role="img" aria-label={item}>
-            <rect x="18" y="16" width="124" height="64" rx="14" />
-            <path d="M32 68 L62 42 L88 58 L112 34 L136 68 Z" />
-            <circle cx="48" cy="38" r="10" />
-          </svg>
+          <ConceptVisual label={item} />
           <span>{item}</span>
         </div>
       ))}
@@ -461,29 +524,14 @@ function resolveSubjectTheme(subject?: string): { className: string; label: stri
   return { className: "subjectLanguage", label: subject ?? "Lingua Portuguesa" };
 }
 
-function buildDynamicLabels(question: StudentSheetQuestion, count: number): string[] {
-  const candidates = [
-    question.content,
-    question.visualFunction,
-    question.responseMode,
-    question.answerSpace,
-    question.pedagogicalPurpose,
-    question.successCriterion
-  ]
-    .map((item) => shortText(item, ""))
-    .filter(Boolean);
-
-  return Array.from({ length: count }, (_, index) => candidates[index] ?? `Opcao ${index + 1}`);
+function textValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function shortText(value: string | undefined, fallback: string): string {
-  const clean = value?.trim();
-
-  if (!clean) {
-    return fallback;
-  }
-
-  return clean.length > 38 ? `${clean.slice(0, 35).trim()}...` : clean;
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
 }
 
 function normalize(value: string): string {

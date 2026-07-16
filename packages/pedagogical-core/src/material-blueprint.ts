@@ -15,6 +15,71 @@ export type ActivityActionType =
   | "PRODUCE"
   | "CREATE_GUIDED_EXAMPLE";
 
+export type ObserveTaskData = {
+  representation: string;
+  question: string;
+  options: string[];
+  correctOption: string;
+  visualDescription: string;
+};
+
+export type MatchTaskData = {
+  leftItems: string[];
+  rightItems: string[];
+  correctPairs: Array<{ left: string; right: string }>;
+  connectionInstruction: string;
+};
+
+export type CompleteTaskData = {
+  statements: string[];
+  blanks: string[];
+  expectedAnswers: string[];
+  supportSteps: string[];
+};
+
+export type SolveTaskData = {
+  problemContext: string;
+  equation: string;
+  guidedSteps: string[];
+  answer: string;
+  calculationSpace: string;
+};
+
+export type ClassifyTaskData = {
+  items: string[];
+  categories: string[];
+  expectedClassification: Array<{ item: string; category: string }>;
+};
+
+export type OrderTaskData = {
+  items: string[];
+  correctOrder: string[];
+};
+
+export type ConnectTaskData = {
+  sourceItems: string[];
+  targetItems: string[];
+  correctConnections: Array<{ source: string; target: string }>;
+};
+
+export type GuidedExampleTaskData = {
+  contextPrompt: string;
+  availableValues: string[];
+  constructionSteps: string[];
+  fieldsToComplete: string[];
+  exampleAnswer: string;
+};
+
+export type ConcreteTaskData =
+  | ({ actionType: "OBSERVE" } & ObserveTaskData)
+  | ({ actionType: "MATCH" } & MatchTaskData)
+  | ({ actionType: "COMPLETE" } & CompleteTaskData)
+  | ({ actionType: "SOLVE" } & SolveTaskData)
+  | ({ actionType: "CLASSIFY" } & ClassifyTaskData)
+  | ({ actionType: "ORDER" } & OrderTaskData)
+  | ({ actionType: "CONNECT" } & ConnectTaskData)
+  | ({ actionType: "CREATE_GUIDED_EXAMPLE" } & GuidedExampleTaskData);
+
 export type FunctionalLearningLevel = {
   schoolStage: string;
   grade: string;

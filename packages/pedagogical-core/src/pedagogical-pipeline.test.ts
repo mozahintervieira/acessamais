@@ -126,6 +126,8 @@ function createApprovedMathDiMaterial() {
       successCriterion: task.successCriterion,
       instruction: question.command,
       content: blueprint.content,
+      taskDataStatus: "VALID" as const,
+      taskData: buildEquationTaskData(task.actionType),
       ...question
     };
   };
@@ -212,6 +214,63 @@ function createApprovedMathDiMaterial() {
         "Manter mediacao docente, retirar apoios gradualmente e registrar quais apoios favoreceram autonomia."
       ]
     }
+  };
+}
+
+function buildEquationTaskData(actionType: string): Record<string, unknown> {
+  if (actionType === "OBSERVE") {
+    return {
+      actionType: "OBSERVE",
+      representation: "3 + x = 7",
+      question: "Qual numero ocupa o lugar de x?",
+      options: ["2", "4", "10"],
+      correctOption: "4",
+      visualDescription: "equacao simples com valor desconhecido"
+    };
+  }
+
+  if (actionType === "MATCH") {
+    return {
+      actionType: "MATCH",
+      leftItems: ["x + 2 = 6", "x + 5 = 8", "x - 2 = 5"],
+      rightItems: ["4", "3", "7"],
+      correctPairs: [
+        { left: "x + 2 = 6", right: "4" },
+        { left: "x + 5 = 8", right: "3" },
+        { left: "x - 2 = 5", right: "7" }
+      ],
+      connectionInstruction: "Ligue cada equacao ao valor de x."
+    };
+  }
+
+  if (actionType === "COMPLETE") {
+    return {
+      actionType: "COMPLETE",
+      statements: ["x + 3 = 9, entao x = ___", "x - 4 = 6, entao x = ___"],
+      blanks: ["x", "x"],
+      expectedAnswers: ["6", "10"],
+      supportSteps: ["Veja o numero que falta.", "Confira substituindo x."]
+    };
+  }
+
+  if (actionType === "SOLVE") {
+    return {
+      actionType: "SOLVE",
+      problemContext: "Uma caixa tinha algumas canetas. Depois recebeu 3 e ficou com 8.",
+      equation: "x + 3 = 8",
+      guidedSteps: ["Observe o total.", "Retire 3 do total.", "Escreva o valor de x."],
+      answer: "5",
+      calculationSpace: "linhas para calculo"
+    };
+  }
+
+  return {
+    actionType: "CREATE_GUIDED_EXAMPLE",
+    contextPrompt: "Monte uma equacao com um numero inicial, uma quantidade acrescentada e um total.",
+    availableValues: ["2", "3", "5", "7", "10"],
+    constructionSteps: ["Escolha x.", "Escolha quanto somar.", "Escreva o total."],
+    fieldsToComplete: ["valor inicial", "quantidade acrescentada", "total"],
+    exampleAnswer: "x + 2 = 7, entao x = 5"
   };
 }
 

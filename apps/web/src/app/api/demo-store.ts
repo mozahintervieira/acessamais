@@ -1360,6 +1360,9 @@ type BlueprintAlignedQuestion = {
   command: string;
   support?: string;
   answerSpace?: string;
+  taskData?: Record<string, unknown>;
+  taskDataStatus?: "VALID" | "INVALID";
+  taskDataIssue?: string;
 };
 
 function normalizeQuestions(
@@ -1574,6 +1577,11 @@ function normalizeQuestionsFromBlueprint(
       instruction
     );
 
+    const taskDataResult = normalizeTaskDataForAction(
+      generatedQuestion?.taskData,
+      plannedTask.actionType
+    );
+
     return {
       plannedTaskOrder: plannedTask.order,
       actionType: plannedTask.actionType,
@@ -1614,9 +1622,123 @@ function normalizeQuestionsFromBlueprint(
       answerSpace: normalizeString(
         generatedQuestion?.answerSpace,
         buildAnswerSpaceFromPlannedTask(plannedTask)
-      )
+      ),
+      ...(taskDataResult.taskData ? { taskData: taskDataResult.taskData } : {}),
+      taskDataStatus: taskDataResult.taskData ? "VALID" : "INVALID",
+      taskDataIssue: taskDataResult.issue
     };
   });
+}
+
+function normalizeTaskDataForAction(
+  value: unknown,
+  actionType: ActivityActionType
+): { taskData?: Record<string, unknown>; issue: string } {
+  if (!isRecord(value)) {
+    return { issue: "INCOMPLETE_TASK_DATA" };
+  }
+
+  const taskData: Record<string, unknown> = {
+    ...value,
+    actionType
+  };
+
+  if (containsGenericPlaceholder(taskData)) {
+    return { issue: "GENERIC_PLACEHOLDER" };
+  }
+
+  switch (actionType) {
+    case "OBSERVE":
+      return hasString(taskData.representation) &&
+        hasString(taskData.question) &&
+        hasStringArray(taskData.options, 2) &&
+        hasString(taskData.correctOption) &&
+        hasString(taskData.visualDescription)
+        ? { taskData, issue: "" }
+        : { issue: "INCOMPLETE_TASK_DATA" };
+    case "MATCH":
+      return hasStringArray(taskData.leftItems, 2) &&
+        hasStringArray(taskData.rightItems, 2) &&
+        hasPairArray(taskData.correctPairs, "left", "right") &&
+        hasString(taskData.connectionInstruction)
+        ? { taskData, issue: "" }
+        : { issue: "MISSING_MATCH_PAIRS" };
+    case "COMPLETE":
+      return hasStringArray(taskData.statements, 1) &&
+        hasStringArray(taskData.blanks, 1) &&
+        hasStringArray(taskData.expectedAnswers, 1) &&
+        hasStringArray(taskData.supportSteps, 1)
+        ? { taskData, issue: "" }
+        : { issue: "MISSING_COMPLETION_DATA" };
+    case "SOLVE":
+      return hasString(taskData.problemContext) &&
+        hasString(taskData.equation) &&
+        hasStringArray(taskData.guidedSteps, 1) &&
+        hasString(taskData.answer) &&
+        hasString(taskData.calculationSpace)
+        ? { taskData, issue: "" }
+        : { issue: "MISSING_PROBLEM_CONTEXT" };
+    case "CLASSIFY":
+      return hasStringArray(taskData.items, 2) &&
+        hasStringArray(taskData.categories, 2) &&
+        hasPairArray(taskData.expectedClassification, "item", "category")
+        ? { taskData, issue: "" }
+        : { issue: "INCOMPLETE_TASK_DATA" };
+    case "ORDER":
+      return hasStringArray(taskData.items, 2) &&
+        hasStringArray(taskData.correctOrder, 2)
+        ? { taskData, issue: "" }
+        : { issue: "INCOMPLETE_TASK_DATA" };
+    case "CONNECT":
+      return hasStringArray(taskData.sourceItems, 2) &&
+        hasStringArray(taskData.targetItems, 2) &&
+        hasPairArray(taskData.correctConnections, "source", "target")
+        ? { taskData, issue: "" }
+        : { issue: "INCOMPLETE_TASK_DATA" };
+    case "CREATE_GUIDED_EXAMPLE":
+      return hasString(taskData.contextPrompt) &&
+        hasStringArray(taskData.availableValues, 2) &&
+        hasStringArray(taskData.constructionSteps, 1) &&
+        hasStringArray(taskData.fieldsToComplete, 1) &&
+        hasString(taskData.exampleAnswer)
+        ? { taskData, issue: "" }
+        : { issue: "MISSING_GUIDED_CREATION_DATA" };
+    default:
+      return { issue: "INCOMPLETE_TASK_DATA" };
+  }
+}
+
+function hasString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasStringArray(value: unknown, minLength: number): value is string[] {
+  return Array.isArray(value) &&
+    value.filter((item) => typeof item === "string" && item.trim()).length >= minLength;
+}
+
+function hasPairArray(value: unknown, leftKey: string, rightKey: string): boolean {
+  return Array.isArray(value) &&
+    value.some((item) =>
+      isRecord(item) &&
+      hasString(item[leftKey]) &&
+      hasString(item[rightKey])
+    );
+}
+
+function containsGenericPlaceholder(value: unknown): boolean {
+  const text = JSON.stringify(value).toLowerCase();
+
+  return [
+    "placeholder",
+    "imagem de paisagem",
+    "paisagem",
+    "opcao 1",
+    "opção 1",
+    "alternativa a",
+    "visual generico",
+    "visual genérico"
+  ].some((term) => text.includes(term));
 }
 
 function normalizeGeneratedQuestionRecords(value: unknown): Array<Record<string, unknown>> {
