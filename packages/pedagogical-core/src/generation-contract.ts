@@ -33,7 +33,7 @@ export const ADAPTED_ACTIVITY_OUTPUT_CONTRACT = {
       "array de intencoes visuais renderizaveis, sem prefixos descritivos iniciados por imagem, icone, pictograma ou desenho",
     tableRows: "array no formato coluna1 | coluna2 | coluna3",
     questions:
-      "array de objetos { command, support, answerSpace } para o estudante; support deve ser pista pedagogica curta, nunca descricao de imagem, icone, desenho, bloco ou pictograma"
+      "array de objetos, um para cada plannedTask do MaterialBlueprint, preservando a mesma ordem. Cada objeto deve conter { plannedTaskOrder, actionType, pedagogicalPurpose, cognitiveDemand, responseMode, supportRequired, visualFunction, successCriterion, instruction, content, command, support, answerSpace }. command e instruction devem ser apropriados ao estudante; support deve ser pista pedagogica curta, nunca descricao de imagem, icone, desenho, bloco ou pictograma"
   },
   teacherGuide: {
     skillCode: "habilidade BNCC ou curricular",
@@ -58,7 +58,7 @@ export const ADAPTED_ACTIVITY_OUTPUT_CONTRACT = {
   baseText: "string com texto-base curto quando necessario",
   instructions: "array de strings com instrucoes claras para estudante",
   questions:
-    "array de objetos { command, support, answerSpace } com atividades variadas, progressivas e espaco de resposta; support deve ser pista pedagogica curta, nunca descricao textual de imagem",
+    "array de objetos, um para cada plannedTask do MaterialBlueprint, com { plannedTaskOrder, actionType, pedagogicalPurpose, cognitiveDemand, responseMode, supportRequired, visualFunction, successCriterion, instruction, content, command, support, answerSpace }. Nao trocar o conteudo informado pelo professor por outro tema. support deve ser pista pedagogica curta, nunca descricao textual de imagem",
   visualElements:
     "array de nomes semanticos para recursos visuais renderizaveis",
   didacticBoxes:

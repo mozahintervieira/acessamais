@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ProductStudio } from "../../product-studio";
 
 export default function NewPlanningPage(): React.ReactElement {
-  redirect("/");
+  return <ProductStudio />;
 }

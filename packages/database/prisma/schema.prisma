@@ -91,11 +91,113 @@ model User {
   role           UserRole
   missions       Mission[]
   resources      Resource[]
+  teacherProfile TeacherProfile?
+  schools         School[]
+  classrooms      Classroom[]
+  students        Student[]
+  sessions        AuthSession[]
+  usageEvents     UsageEvent[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
   @@index([role])
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model TeacherProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professionalRole      String?
+  schoolStage           String?
+  subjects              String[]
+  audiences             String[]
+  municipality          String?
+  state                 String?
+  profileImageUrl       String?
+  generationPreferences String?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model School {
+  id          String      @id @default(cuid())
+  name        String
+  municipality String?
+  state       String?
+  networkType String?
+  ownerUserId String
+  owner       User        @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  classrooms  Classroom[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([ownerUserId])
+}
+
+model Classroom {
+  id          String    @id @default(cuid())
+  name        String
+  grade       String?
+  shift       String?
+  schoolId    String?
+  school      School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  ownerUserId String
+  owner       User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  students    Student[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerUserId])
+  @@index([schoolId])
+}
+
+model Student {
+  id                 String     @id @default(cuid())
+  displayName        String
+  age                Int?
+  classroomId        String?
+  classroom          Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  pedagogicalProfile String?
+  supportLevel       String?
+  observations       String?
+  interests          String?
+  preferences        String?
+  createdBy          String
+  creator            User       @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([createdBy])
+  @@index([classroomId])
+}
+
+model UsageEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType  String
+  resourceId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([resourceId])
 }
 
 model Mission {

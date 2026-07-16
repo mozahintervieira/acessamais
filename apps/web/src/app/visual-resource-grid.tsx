@@ -10,6 +10,7 @@ type VisualKind =
   | "cycle"
   | "timeline"
   | "map"
+  | "matchCards"
   | "caa"
   | "braille"
   | "libras"
@@ -128,12 +129,18 @@ function renderVisual(kind: VisualKind, label: string): React.ReactElement {
           <path d="M98 34 C92 44 88 50 84 58" />
         </svg>
       );
+    case "matchCards":
+      return (
+        <div className="matchCardsVisual" aria-hidden="true">
+          <i>{label}</i>
+          <b>-&gt;</b>
+          <i>{label}</i>
+        </div>
+      );
     case "caa":
       return (
         <div className="caaVisual" aria-hidden="true">
-          {["SIM", "NAO", "LER", "OK"].map((icon) => (
-            <i key={icon}>{icon}</i>
-          ))}
+          <i>{label}</i>
         </div>
       );
     case "braille":
@@ -202,7 +209,8 @@ function resolveVisualKind(label: string): VisualKind {
   if (normalized.includes("ciclo") || normalized.includes("fluxo") || normalized.includes("seta")) return "cycle";
   if (normalized.includes("linha do tempo") || normalized.includes("tempo historico")) return "timeline";
   if (normalized.includes("mapa") || normalized.includes("territorio")) return "map";
-  if (normalized.includes("caa") || normalized.includes("cartao") || normalized.includes("pictograma")) return "caa";
+  if (normalized.includes("cartao") && (normalized.includes("equacao") || normalized.includes("resultado") || normalized.includes("pare"))) return "matchCards";
+  if (normalized.includes("caa") || normalized.includes("pictograma")) return "caa";
   if (normalized.includes("braille")) return "braille";
   if (normalized.includes("libras")) return "libras";
   if (normalized.includes("tabela") || normalized.includes("quadro comparativo")) return "table";
@@ -219,6 +227,7 @@ function resolveShortLabel(kind: VisualKind, label: string): string {
     cycle: "Esquema",
     timeline: "Linha do tempo",
     map: "Mapa simples",
+    matchCards: "Pares",
     caa: "Cartoes visuais",
     braille: "Celula Braille",
     libras: "Apoio visual",

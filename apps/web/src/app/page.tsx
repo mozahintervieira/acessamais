@@ -1,5 +1,5 @@
-import { ProductStudio } from "./product-studio";
+import { HomeDashboard } from "./home-dashboard";
 
 export default function HomePage(): React.ReactElement {
-  return <ProductStudio />;
+  return <HomeDashboard />;
 }

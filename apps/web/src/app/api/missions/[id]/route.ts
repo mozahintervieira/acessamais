@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMissionDetail } from "../../demo-store";
+import { getCurrentUser } from "../../../server/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +9,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const organizationId = new URL(request.url).searchParams.get("organizationId");
+  const currentUser = await getCurrentUser();
+  const organizationId =
+    currentUser?.organizationId ?? new URL(request.url).searchParams.get("organizationId");
   const { id } = await context.params;
 
   if (!organizationId) {
@@ -18,7 +21,7 @@ export async function GET(
     );
   }
 
-  const mission = await getMissionDetail(organizationId, id);
+  const mission = await getMissionDetail(organizationId, id, currentUser?.id);
 
   if (!mission) {
     return NextResponse.json(

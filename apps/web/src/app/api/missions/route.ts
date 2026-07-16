@@ -3,13 +3,24 @@ import {
   executeMission,
   listMissions
 } from "../demo-store";
+import { getCurrentUser } from "../../server/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const result = await executeMission(await request.json());
+    const currentUser = await getCurrentUser();
+    const body = await request.json();
+    const result = await executeMission(
+      currentUser
+        ? {
+            ...body,
+            userId: currentUser.id,
+            organizationId: currentUser.organizationId
+          }
+        : body
+    );
 
     return NextResponse.json(result);
   } catch (error) {
@@ -26,7 +37,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const organizationId = new URL(request.url).searchParams.get("organizationId");
+  const currentUser = await getCurrentUser();
+  const organizationId =
+    currentUser?.organizationId ?? new URL(request.url).searchParams.get("organizationId");
 
   if (!organizationId) {
     return NextResponse.json(
@@ -35,5 +48,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     );
   }
 
-  return NextResponse.json(await listMissions(organizationId));
+  return NextResponse.json(await listMissions(organizationId, currentUser?.id));
 }

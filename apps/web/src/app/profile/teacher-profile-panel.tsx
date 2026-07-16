@@ -13,7 +13,34 @@ export function TeacherProfilePanel(): React.ReactElement {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    setProfile(getTeacherProfile());
+    async function load(): Promise<void> {
+      try {
+        const response = await fetch("/api/teacher/profile");
+
+        if (!response.ok) {
+          throw new Error("fallback");
+        }
+
+        const payload = (await response.json()) as ApiProfile;
+
+        setProfile({
+          name: payload.name,
+          photoUrl: payload.profileImageUrl,
+          email: payload.email,
+          school: "",
+          city: payload.municipality,
+          state: payload.state,
+          teachingStage: payload.schoolStage,
+          subjects: payload.subjects.join(", "),
+          audiences: payload.audiences,
+          generationPreferences: payload.generationPreferences
+        });
+      } catch {
+        setProfile(getTeacherProfile());
+      }
+    }
+
+    void load();
   }, []);
 
   function update<TKey extends keyof TeacherProfile>(field: TKey, value: TeacherProfile[TKey]): void {
@@ -29,9 +56,33 @@ export function TeacherProfilePanel(): React.ReactElement {
     }));
   }
 
-  function save(): void {
-    saveTeacherProfile(profile);
-    setMessage("Perfil salvo para personalizar os materiais.");
+  async function save(): Promise<void> {
+    try {
+      const response = await fetch("/api/teacher/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profile.name,
+          profileImageUrl: profile.photoUrl,
+          schoolStage: profile.teachingStage,
+          subjects: profile.subjects.split(",").map((item) => item.trim()).filter(Boolean),
+          audiences: profile.audiences,
+          municipality: profile.city,
+          state: profile.state,
+          generationPreferences: profile.generationPreferences,
+          onboardingCompleted: true
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("fallback");
+      }
+
+      setMessage("Perfil salvo com persistencia real.");
+    } catch {
+      saveTeacherProfile(profile);
+      setMessage("Perfil salvo no modo local de desenvolvimento.");
+    }
   }
 
   return (
@@ -40,7 +91,7 @@ export function TeacherProfilePanel(): React.ReactElement {
         <div>
           <p className="productEyebrow">Painel do Professor</p>
           <h1>Meu Perfil</h1>
-          <p>Cadastre seu contexto pedagógico para personalizar a criação de materiais.</p>
+          <p>Cadastre seu contexto pedagogico para personalizar a criacao de materiais.</p>
         </div>
       </section>
       <section className="creatorCard profileGrid">
@@ -67,11 +118,23 @@ export function TeacherProfilePanel(): React.ReactElement {
           </div>
         </div>
         {message ? <p className="successMessage proWide">{message}</p> : null}
-        <button className="primaryButton" type="button" onClick={save}>Salvar perfil</button>
+        <button className="primaryButton" type="button" onClick={() => void save()}>Salvar perfil</button>
       </section>
     </main>
   );
 }
+
+type ApiProfile = {
+  name: string;
+  email: string;
+  schoolStage: string;
+  subjects: string[];
+  audiences: string[];
+  municipality: string;
+  state: string;
+  profileImageUrl: string;
+  generationPreferences: string;
+};
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): React.ReactElement {
   return (

@@ -2,11 +2,23 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { Prisma } from "@acessa-plus/database";
 import { generateJsonWithConfiguredProvider } from "@acessa-plus/ai-core";
 import {
   buildAdaptationProfileText,
-  buildPedagogicalGenerationPrompt
+  buildMaterialBlueprint,
+  type ActivityActionType,
+  type MaterialBlueprint,
+  type PlannedTask,
+  PedagogicalValidator,
+  type PedagogicalValidationReport,
+  buildPedagogicalGenerationPrompt,
+  RegenerationPolicy,
+  selectRegenerationOutput,
+  type PedagogicalCorrectionPrompt
 } from "@acessa-plus/pedagogical-core";
+import { getPrisma, hasDatabaseUrl } from "../server/db";
+import { recordUsageEvent } from "../server/usage-events";
 import type {
   CreateMissionRequest,
   DecisionResult,
@@ -17,6 +29,26 @@ import type {
 } from "@acessa-plus/types";
 
 type MissionStatus = "COMPLETED" | "NEEDS_REVIEW";
+
+const INTERNAL_PEDAGOGICAL_VALIDATION = Symbol(
+  "acessa-plus.internal-pedagogical-validation"
+);
+
+type InternallyValidatedGeneration = Record<string, unknown> & {
+  [INTERNAL_PEDAGOGICAL_VALIDATION]?: InternalPedagogicalValidationState;
+};
+
+type InternalPedagogicalValidationAttempt = {
+  attempt: number;
+  report: PedagogicalValidationReport;
+  correctionApplied: boolean;
+};
+
+type InternalPedagogicalValidationState = {
+  attempts: InternalPedagogicalValidationAttempt[];
+  selectedAttempt: number;
+  belowStandard: boolean;
+};
 
 type ResourceMetadata = {
   missionType?: string;
@@ -161,11 +193,31 @@ export async function executeMission(
     createdAt: now,
     resources: [resource]
   };
-  const db = await readStore();
+  if (hasDatabaseUrl()) {
+    await writeMissionToPrisma(mission, resource, version);
+  } else {
+    const db = await readStore();
 
-  db.missions.unshift(mission);
-  db.resources.unshift(resource);
-  await writeStore(db);
+    db.missions.unshift(mission);
+    db.resources.unshift(resource);
+    await writeStore(db);
+  }
+
+  await recordUsageEvent({
+    userId: request.userId,
+    eventType: "MATERIAL_GENERATED",
+    resourceId,
+    metadata: {
+      missionType: request.missionType,
+      discipline: request.input.discipline,
+      gradeYear: request.input.gradeYear
+    }
+  });
+  await recordUsageEvent({
+    userId: request.userId,
+    eventType: "MATERIAL_SAVED",
+    resourceId
+  });
 
   return {
     missionId,
@@ -179,11 +231,32 @@ export async function executeMission(
   };
 }
 
-export async function listMissions(organizationId: string) {
+export async function listMissions(organizationId: string, userId?: string) {
+  if (hasDatabaseUrl()) {
+    const missions = await getPrisma().mission.findMany({
+      where: {
+        organizationId,
+        ...(userId ? { createdByUserId: userId } : {})
+      },
+      include: { resources: true },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return missions.map((mission) => ({
+      id: mission.id,
+      missionType: mission.type,
+      status: mission.status === "COMPLETED" ? "COMPLETED" : mission.status,
+      title: mission.resources[0]?.title ?? "Missao sem recurso",
+      resourceId: mission.resources[0]?.id,
+      createdAt: mission.createdAt.toISOString()
+    }));
+  }
+
   const db = await readStore();
 
   return db.missions
     .filter((mission) => mission.organizationId === organizationId)
+    .filter((mission) => (userId ? mission.createdByUserId === userId : true))
     .map((mission) => ({
       id: mission.id,
       missionType: mission.missionType,
@@ -196,11 +269,72 @@ export async function listMissions(organizationId: string) {
 
 export async function getMissionDetail(
   organizationId: string,
-  missionId: string
+  missionId: string,
+  userId?: string
 ) {
+  if (hasDatabaseUrl()) {
+    const mission = await getPrisma().mission.findFirst({
+      where: {
+        id: missionId,
+        organizationId,
+        ...(userId ? { createdByUserId: userId } : {})
+      },
+      include: {
+        resources: {
+          include: {
+            versions: {
+              orderBy: { versionNumber: "desc" }
+            }
+          }
+        }
+      }
+    });
+
+    if (!mission) {
+      return null;
+    }
+
+    if (userId) {
+      await recordUsageEvent({
+        userId,
+        eventType: "MATERIAL_OPENED",
+        resourceId: mission.resources[0]?.id
+      });
+    }
+
+    return {
+      id: mission.id,
+      organizationId: mission.organizationId,
+      createdByUserId: mission.createdByUserId,
+      missionType: mission.type,
+      status: mission.status,
+      input: mission.input,
+      createdAt: mission.createdAt.toISOString(),
+      resources: mission.resources.map((resource) => ({
+        id: resource.id,
+        type: resource.type,
+        title: resource.title,
+        status: resource.status,
+        metadata: resource.metadata,
+        versions: resource.versions.map((version) => ({
+          id: version.id,
+          resourceId: version.resourceId,
+          versionNumber: version.versionNumber,
+          contentJson: version.contentJson,
+          contentText: version.contentText,
+          validationStatus: version.validationStatus,
+          createdAt: version.createdAt.toISOString()
+        }))
+      }))
+    };
+  }
+
   const db = await readStore();
   const mission = db.missions.find(
-    (item) => item.id === missionId && item.organizationId === organizationId
+    (item) =>
+      item.id === missionId &&
+      item.organizationId === organizationId &&
+      (userId ? item.createdByUserId === userId : true)
   );
 
   if (!mission) {
@@ -230,6 +364,7 @@ export async function getMissionDetail(
 
 export async function listResources(input: {
   organizationId: string;
+  userId?: string;
   discipline?: string;
   gradeYear?: string;
   skill?: string;
@@ -240,10 +375,65 @@ export async function listResources(input: {
   learningLevel?: string;
   q?: string;
 }): Promise<ResourceListItem[]> {
+  if (hasDatabaseUrl()) {
+    const resources = await getPrisma().resource.findMany({
+      where: {
+        organizationId: input.organizationId,
+        ...(input.userId ? { createdByUserId: input.userId } : {})
+      },
+      include: {
+        versions: {
+          orderBy: { versionNumber: "desc" }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return resources
+      .map((resource) => ({
+        id: resource.id,
+        missionId: resource.missionId ?? undefined,
+        type: resource.type,
+        title: resource.title,
+        status: resource.status,
+        metadata: resource.metadata as ResourceMetadata,
+        latestVersion: resource.versions[0]
+          ? {
+              id: resource.versions[0].id,
+              resourceId: resource.versions[0].resourceId,
+              versionNumber: resource.versions[0].versionNumber,
+              contentJson: resource.versions[0].contentJson as Record<string, unknown>,
+              contentText: resource.versions[0].contentText,
+              validationStatus: "PENDING" as const,
+              createdAt: resource.versions[0].createdAt.toISOString()
+            }
+          : undefined,
+        createdAt: resource.createdAt.toISOString()
+      }))
+      .filter((resource) => matches(resource.metadata.discipline, input.discipline))
+      .filter((resource) => matches(resource.metadata.gradeYear, input.gradeYear))
+      .filter((resource) => matches(resource.metadata.skill, input.skill))
+      .filter((resource) =>
+        matches(resource.metadata.knowledgeObject, input.knowledgeObject)
+      )
+      .filter((resource) => matches(resource.metadata.theme, input.theme))
+      .filter((resource) => matches(resource.metadata.activityType, input.activityType))
+      .filter((resource) => matches(resource.metadata.specificNeed, input.specificNeed))
+      .filter((resource) => matches(resource.metadata.learningLevel, input.learningLevel))
+      .filter((resource) =>
+        input.q
+          ? normalizeComparable(resource.latestVersion?.contentText).includes(
+              normalizeComparable(input.q)
+            )
+          : true
+      );
+  }
+
   const db = await readStore();
 
   return db.resources
     .filter((resource) => resource.organizationId === input.organizationId)
+    .filter((resource) => (input.userId ? resource.createdByUserId === input.userId : true))
     .filter((resource) => matches(resource.metadata.discipline, input.discipline))
     .filter((resource) => matches(resource.metadata.gradeYear, input.gradeYear))
     .filter((resource) => matches(resource.metadata.skill, input.skill))
@@ -277,8 +467,8 @@ export async function listResources(input: {
     }));
 }
 
-export async function listVersions(organizationId: string, resourceId: string) {
-  const resource = await findResource(organizationId, resourceId);
+export async function listVersions(organizationId: string, resourceId: string, userId?: string) {
+  const resource = await findResource(organizationId, resourceId, userId);
 
   return resource
     ? [...resource.versions].sort(
@@ -289,10 +479,64 @@ export async function listVersions(organizationId: string, resourceId: string) {
 
 export async function createVersion(input: {
   organizationId: string;
+  userId?: string;
   resourceId: string;
   contentJson: Record<string, unknown>;
   contentText?: string;
 }) {
+  if (hasDatabaseUrl()) {
+    const prisma = getPrisma();
+    const resource = await prisma.resource.findFirst({
+      where: {
+        id: input.resourceId,
+        organizationId: input.organizationId,
+        ...(input.userId ? { createdByUserId: input.userId } : {})
+      },
+      include: { versions: true }
+    });
+
+    if (!resource) {
+      return null;
+    }
+
+    const latestNumber = resource.versions.reduce(
+      (latest, version) => Math.max(latest, version.versionNumber),
+      0
+    );
+    const version = await prisma.resourceVersion.create({
+      data: {
+        resourceId: resource.id,
+        versionNumber: latestNumber + 1,
+        contentJson: toPrismaJson(input.contentJson),
+        contentText: input.contentText?.trim() || buildVersionText(input.contentJson),
+        validationStatus: "PENDING"
+      }
+    });
+
+    await prisma.resource.update({
+      where: { id: resource.id },
+      data: { updatedAt: new Date() }
+    });
+
+    if (input.userId) {
+      await recordUsageEvent({
+        userId: input.userId,
+        eventType: "MATERIAL_SAVED",
+        resourceId: resource.id
+      });
+    }
+
+    return {
+      id: version.id,
+      resourceId: version.resourceId,
+      versionNumber: version.versionNumber,
+      contentJson: version.contentJson,
+      contentText: version.contentText,
+      validationStatus: "PENDING",
+      createdAt: version.createdAt.toISOString()
+    };
+  }
+
   const db = await readStore();
   const resource = db.resources.find(
     (item) =>
@@ -334,11 +578,46 @@ export async function createVersion(input: {
   return version;
 }
 
-async function findResource(organizationId: string, resourceId: string) {
+async function findResource(organizationId: string, resourceId: string, userId?: string) {
+  if (hasDatabaseUrl()) {
+    const resource = await getPrisma().resource.findFirst({
+      where: {
+        id: resourceId,
+        organizationId,
+        ...(userId ? { createdByUserId: userId } : {})
+      },
+      include: { versions: true }
+    });
+
+    return resource
+      ? {
+          ...resource,
+          missionId: resource.missionId ?? undefined,
+          type: resource.type as Resource["type"],
+          status: resource.status as Resource["status"],
+          metadata: resource.metadata as ResourceMetadata,
+          createdAt: resource.createdAt.toISOString(),
+          updatedAt: resource.updatedAt.toISOString(),
+          versions: resource.versions.map((version) => ({
+            id: version.id,
+            resourceId: version.resourceId,
+            versionNumber: version.versionNumber,
+            contentJson: version.contentJson as Record<string, unknown>,
+            contentText: version.contentText,
+            validationStatus: "PENDING" as const,
+            createdAt: version.createdAt.toISOString()
+          }))
+        }
+      : undefined;
+  }
+
   const db = await readStore();
 
   return db.resources.find(
-    (resource) => resource.id === resourceId && resource.organizationId === organizationId
+    (resource) =>
+      resource.id === resourceId &&
+      resource.organizationId === organizationId &&
+      (userId ? resource.createdByUserId === userId : true)
   );
 }
 
@@ -347,7 +626,13 @@ async function generatePedagogicalPlan(
   context: ResolvedContext,
   decision: DecisionResult
 ): Promise<PedagogicalPlan & Record<string, unknown>> {
-  const generated = await callOpenAI(request, context, decision);
+  const materialBlueprint = buildMaterialBlueprint(request, context, decision);
+  const generated = await generateAndSelectPedagogicalOutput(
+    request,
+    context,
+    decision,
+    materialBlueprint
+  );
   const fallback = buildGeneratedFallbacks(request);
 
   return {
@@ -370,8 +655,8 @@ async function generatePedagogicalPlan(
     ]),
     curricularAnalysis: buildCurricularAnalysis(generated, request),
     warnings: normalizeStringArray(generated.warnings, []),
-    studentSheet: buildStudentSheet(generated, request),
-    teacherGuide: buildTeacherGuide(generated, request),
+    studentSheet: buildStudentSheet(generated, request, materialBlueprint),
+    teacherGuide: buildTeacherGuide(generated, request, materialBlueprint),
     worksheetTitle: normalizeString(
       generated.worksheetTitle,
       `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
@@ -440,9 +725,16 @@ async function generatePedagogicalPlan(
 async function callOpenAI(
   request: CreateMissionRequest,
   context: ResolvedContext,
-  decision: DecisionResult
-): Promise<Record<string, unknown>> {
-  const prompt = buildPedagogicalGenerationPrompt(request, context, decision);
+  decision: DecisionResult,
+  materialBlueprint: MaterialBlueprint
+): Promise<InternallyValidatedGeneration> {
+  const prompt = buildPedagogicalGenerationPrompt(
+    request,
+    context,
+    decision,
+    undefined,
+    materialBlueprint
+  );
   const response = await generateJsonWithConfiguredProvider<Record<string, unknown>>(
     {
       purpose:
@@ -461,6 +753,139 @@ async function callOpenAI(
   );
 
   return response.output;
+}
+
+async function generateAndSelectPedagogicalOutput(
+  request: CreateMissionRequest,
+  context: ResolvedContext,
+  decision: DecisionResult,
+  materialBlueprint: MaterialBlueprint
+): Promise<InternallyValidatedGeneration> {
+  const validator = new PedagogicalValidator();
+  const firstOutput = await callOpenAI(request, context, decision, materialBlueprint);
+  const firstReport = validateGeneratedOutput(
+    validator,
+    buildNormalizedValidationCandidate(firstOutput, request, materialBlueprint),
+    materialBlueprint
+  );
+  const regenerationDecision = new RegenerationPolicy().decide({
+    materialBlueprint,
+    originalOutput: buildNormalizedValidationCandidate(
+      firstOutput,
+      request,
+      materialBlueprint
+    ) as Parameters<PedagogicalValidator["validate"]>[0],
+    validationReport: firstReport,
+    attempt: 0
+  });
+
+  if (!regenerationDecision.shouldRegenerate || !regenerationDecision.correctionPrompt) {
+    attachInternalPedagogicalValidation(firstOutput, {
+      attempts: [
+        {
+          attempt: 0,
+          report: firstReport,
+          correctionApplied: false
+        }
+      ],
+      selectedAttempt: 0,
+      belowStandard: !firstReport.approved
+    });
+
+    return firstOutput;
+  }
+
+  const correctedOutput = await callOpenAIWithCorrectionPrompt(
+    request,
+    regenerationDecision.correctionPrompt
+  );
+  const correctedReport = validateGeneratedOutput(
+    validator,
+    buildNormalizedValidationCandidate(correctedOutput, request, materialBlueprint),
+    materialBlueprint
+  );
+  const selection = selectRegenerationOutput(
+    {
+      attempt: 0,
+      output: firstOutput,
+      report: firstReport
+    },
+    {
+      attempt: 1,
+      output: correctedOutput,
+      report: correctedReport
+    }
+  );
+
+  attachInternalPedagogicalValidation(selection.selected.output, {
+    attempts: selection.attempts.map((attempt) => ({
+      attempt: attempt.attempt,
+      report: attempt.report,
+      correctionApplied: attempt.attempt > 0
+    })),
+    selectedAttempt: selection.selected.attempt,
+    belowStandard: selection.belowStandard
+  });
+
+  return selection.selected.output;
+}
+
+async function callOpenAIWithCorrectionPrompt(
+  request: CreateMissionRequest,
+  correctionPrompt: PedagogicalCorrectionPrompt
+): Promise<InternallyValidatedGeneration> {
+  const response = await generateJsonWithConfiguredProvider<Record<string, unknown>>(
+    {
+      purpose:
+        request.missionType === "ADAPT_ACTIVITY"
+          ? "ACTIVITY_ADAPTATION"
+          : "LESSON_PLAN_GENERATION",
+      systemPrompt: correctionPrompt.systemPrompt,
+      userPayload: correctionPrompt.userPayload,
+      outputSchemaName: correctionPrompt.outputSchemaName,
+      safetyLevel: request.input.specificNeed ? "SENSITIVE" : "STANDARD"
+    },
+    {
+      openAiApiKey: process.env.OPENAI_API_KEY,
+      openAiModel: process.env.OPENAI_MODEL
+    }
+  );
+
+  return response.output;
+}
+
+function validateGeneratedOutput(
+  validator: PedagogicalValidator,
+  generated: InternallyValidatedGeneration,
+  materialBlueprint: MaterialBlueprint
+): PedagogicalValidationReport {
+  return validator.validate(
+    generated as Parameters<PedagogicalValidator["validate"]>[0],
+    materialBlueprint
+  );
+}
+
+function buildNormalizedValidationCandidate(
+  generated: InternallyValidatedGeneration,
+  request: CreateMissionRequest,
+  materialBlueprint: MaterialBlueprint
+): InternallyValidatedGeneration {
+  return {
+    ...generated,
+    studentSheet: buildStudentSheet(generated, request, materialBlueprint),
+    teacherGuide: buildTeacherGuide(generated, request, materialBlueprint)
+  };
+}
+
+function attachInternalPedagogicalValidation(
+  generated: InternallyValidatedGeneration,
+  validationState: InternalPedagogicalValidationState
+): void {
+  Object.defineProperty(generated, INTERNAL_PEDAGOGICAL_VALIDATION, {
+    value: validationState,
+    enumerable: false,
+    configurable: false
+  });
 }
 
 function resolveContext(request: CreateMissionRequest): ResolvedContext {
@@ -728,6 +1153,59 @@ async function writeStore(db: DemoDatabase): Promise<void> {
   }
 }
 
+async function writeMissionToPrisma(
+  mission: Mission,
+  resource: Resource,
+  version: ResourceVersion
+): Promise<void> {
+  const prisma = getPrisma();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.mission.create({
+      data: {
+        id: mission.id,
+        organizationId: mission.organizationId,
+        createdByUserId: mission.createdByUserId,
+        type: mission.missionType,
+        status: mission.status === "COMPLETED" ? "COMPLETED" : "FAILED",
+        input: toPrismaJson(mission.input),
+        profileContext: toPrismaJson({
+          context: mission.context,
+          decision: mission.decision
+        }),
+        createdAt: new Date(mission.createdAt)
+      }
+    });
+
+    await tx.resource.create({
+      data: {
+        id: resource.id,
+        organizationId: resource.organizationId,
+        createdByUserId: resource.createdByUserId,
+        missionId: resource.missionId,
+        type: resource.type,
+        title: resource.title,
+        status: resource.status,
+        metadata: toPrismaJson(resource.metadata),
+        createdAt: new Date(resource.createdAt),
+        updatedAt: new Date(resource.updatedAt)
+      }
+    });
+
+    await tx.resourceVersion.create({
+      data: {
+        id: version.id,
+        resourceId: version.resourceId,
+        versionNumber: version.versionNumber,
+        contentJson: toPrismaJson(version.contentJson),
+        contentText: version.contentText,
+        validationStatus: version.validationStatus,
+        createdAt: new Date(version.createdAt)
+      }
+    });
+  });
+}
+
 function buildMetadata(
   request: CreateMissionRequest,
   context: ResolvedContext,
@@ -868,6 +1346,22 @@ function resolveTitle(request: CreateMissionRequest): string {
   return request.input.theme ? `${prefix}: ${request.input.theme}` : prefix;
 }
 
+type BlueprintAlignedQuestion = {
+  plannedTaskOrder: number;
+  actionType: ActivityActionType;
+  pedagogicalPurpose: string;
+  cognitiveDemand: string;
+  responseMode: string;
+  supportRequired: string[];
+  visualFunction: string;
+  successCriterion: string;
+  instruction: string;
+  content: string;
+  command: string;
+  support?: string;
+  answerSpace?: string;
+};
+
 function normalizeQuestions(
   value: unknown,
   request: CreateMissionRequest | undefined
@@ -933,9 +1427,18 @@ function normalizeQuestions(
 function buildFallbackQuestionCommands(theme: string, subject: string): string[] {
   const normalizedTheme = normalizeComparable(theme);
 
+  if (subject.includes("matematica") && normalizedTheme.includes("equacao")) {
+    return [
+      "Observe a representacao de equilibrio e identifique qual numero deixa os dois lados iguais.",
+      "Pareie cada equacao simples ao resultado correto.",
+      "Complete as lacunas da tabela para descobrir o valor de x.",
+      "Resolva a situacao-problema usando os passos indicados.",
+      "Crie uma equacao simples com apoio do modelo."
+    ];
+  }
+
   if (
     subject.includes("matematica") ||
-    normalizedTheme.includes("equacao") ||
     normalizedTheme.includes("progressao") ||
     normalizedTheme.includes("pa")
   ) {
@@ -997,12 +1500,17 @@ function buildFallbackQuestionCommands(theme: string, subject: string): string[]
   ];
 }
 
-function buildStudentSheet(
+export function buildStudentSheet(
   generated: Record<string, unknown>,
-  request: CreateMissionRequest
+  request: CreateMissionRequest,
+  materialBlueprint: MaterialBlueprint
 ): Record<string, unknown> {
   const source = isRecord(generated.studentSheet) ? generated.studentSheet : {};
-  const fallback = buildFallbackStudentSheetContent(request);
+  const fallback = buildFallbackStudentSheetContent(request, materialBlueprint);
+  const questions = normalizeQuestionsFromBlueprint(
+    source.questions ?? generated.questions,
+    materialBlueprint
+  );
 
   return {
     title: normalizeString(
@@ -1030,17 +1538,200 @@ function buildStudentSheet(
     ),
     visualElements: normalizeStringArray(
       source.visualElements,
-      normalizeStringArray(generated.visualElements, buildFallbackVisualElements(request))
+      normalizeStringArray(
+        generated.visualElements,
+        buildBlueprintVisualElements(materialBlueprint)
+      )
     ),
     tableRows: normalizeStringArray(
       source.tableRows,
       normalizeStringArray(generated.tableRows, fallback.tableRows)
     ),
-    questions: normalizeQuestions(source.questions ?? generated.questions, request)
+    questions
   };
 }
 
-function buildFallbackStudentSheetContent(request: CreateMissionRequest): {
+function normalizeQuestionsFromBlueprint(
+  value: unknown,
+  materialBlueprint: MaterialBlueprint
+): BlueprintAlignedQuestion[] {
+  const generatedQuestions = normalizeGeneratedQuestionRecords(value);
+  const usedIndexes = new Set<number>();
+
+  return materialBlueprint.plannedTasks.map((plannedTask, index) => {
+    const generatedQuestion = findGeneratedQuestionForTask(
+      generatedQuestions,
+      plannedTask,
+      index,
+      usedIndexes
+    );
+    const instruction = normalizeString(
+      generatedQuestion?.instruction,
+      normalizeString(generatedQuestion?.command, buildInstructionFromPlannedTask(plannedTask, materialBlueprint))
+    );
+    const command = normalizeString(
+      generatedQuestion?.command,
+      instruction
+    );
+
+    return {
+      plannedTaskOrder: plannedTask.order,
+      actionType: plannedTask.actionType,
+      pedagogicalPurpose: normalizeString(
+        generatedQuestion?.pedagogicalPurpose,
+        plannedTask.pedagogicalPurpose
+      ),
+      cognitiveDemand: normalizeString(
+        generatedQuestion?.cognitiveDemand,
+        plannedTask.cognitiveDemand
+      ),
+      responseMode: normalizeString(
+        generatedQuestion?.responseMode,
+        plannedTask.responseMode
+      ),
+      supportRequired: normalizeStringArray(
+        generatedQuestion?.supportRequired,
+        plannedTask.supportRequired
+      ),
+      visualFunction: normalizeString(
+        generatedQuestion?.visualFunction,
+        plannedTask.visualFunction
+      ),
+      successCriterion: normalizeString(
+        generatedQuestion?.successCriterion,
+        plannedTask.successCriterion
+      ),
+      instruction,
+      content: normalizeString(
+        generatedQuestion?.content,
+        materialBlueprint.content
+      ),
+      command,
+      support: normalizeString(
+        generatedQuestion?.support,
+        buildSupportFromPlannedTask(plannedTask)
+      ),
+      answerSpace: normalizeString(
+        generatedQuestion?.answerSpace,
+        buildAnswerSpaceFromPlannedTask(plannedTask)
+      )
+    };
+  });
+}
+
+function normalizeGeneratedQuestionRecords(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") {
+        return { command: item };
+      }
+
+      return isRecord(item) ? item : undefined;
+    })
+    .filter((item): item is Record<string, unknown> => Boolean(item));
+}
+
+function findGeneratedQuestionForTask(
+  generatedQuestions: Array<Record<string, unknown>>,
+  plannedTask: PlannedTask,
+  fallbackIndex: number,
+  usedIndexes: Set<number>
+): Record<string, unknown> | undefined {
+  const byOrder = generatedQuestions.findIndex((question, index) =>
+    !usedIndexes.has(index) &&
+    Number(question.plannedTaskOrder) === plannedTask.order
+  );
+
+  if (byOrder >= 0) {
+    usedIndexes.add(byOrder);
+    return generatedQuestions[byOrder];
+  }
+
+  const byAction = generatedQuestions.findIndex((question, index) =>
+    !usedIndexes.has(index) &&
+    normalizeString(question.actionType, "") === plannedTask.actionType
+  );
+
+  if (byAction >= 0) {
+    usedIndexes.add(byAction);
+    return generatedQuestions[byAction];
+  }
+
+  if (!usedIndexes.has(fallbackIndex) && generatedQuestions[fallbackIndex]) {
+    usedIndexes.add(fallbackIndex);
+    return generatedQuestions[fallbackIndex];
+  }
+
+  return undefined;
+}
+
+function buildInstructionFromPlannedTask(
+  plannedTask: PlannedTask,
+  materialBlueprint: MaterialBlueprint
+): string {
+  const content = materialBlueprint.content || materialBlueprint.knowledgeObject;
+
+  switch (plannedTask.actionType) {
+    case "OBSERVE":
+      return `Observe o recurso visual sobre ${content} e responda a pergunta principal.`;
+    case "MATCH":
+      return `Pareie cada representacao de ${content} ao resultado ou significado correto.`;
+    case "COMPLETE":
+      return `Complete as lacunas usando as pistas visuais e os passos indicados.`;
+    case "SOLVE":
+      return `Resolva uma situacao-problema sobre ${content} e registre o calculo.`;
+    case "CREATE_GUIDED_EXAMPLE":
+      return `Crie um exemplo simples de ${content} seguindo o modelo.`;
+    case "CLASSIFY":
+      return `Classifique os exemplos nos grupos corretos.`;
+    case "ORDER":
+      return `Organize os itens na ordem correta.`;
+    case "COMPARE":
+      return `Compare as representacoes e marque semelhancas ou diferencas importantes.`;
+    case "CONNECT":
+      return `Ligue as informacoes que representam a mesma ideia.`;
+    default:
+      return `${plannedTask.pedagogicalPurpose}.`;
+  }
+}
+
+function buildSupportFromPlannedTask(plannedTask: PlannedTask): string {
+  const support = plannedTask.supportRequired.slice(0, 2).join("; ");
+
+  return support || plannedTask.instructionStyle;
+}
+
+function buildAnswerSpaceFromPlannedTask(plannedTask: PlannedTask): string {
+  if (plannedTask.actionType === "MATCH" || plannedTask.responseMode.includes("ligar")) {
+    return "pares para ligar";
+  }
+
+  if (plannedTask.actionType === "COMPLETE" || plannedTask.responseMode.includes("completar")) {
+    return "lacunas e caixas";
+  }
+
+  if (plannedTask.actionType === "SOLVE") {
+    return "espaco para calculo e resposta";
+  }
+
+  if (plannedTask.actionType === "CREATE_GUIDED_EXAMPLE") {
+    return "campos guiados";
+  }
+
+  return "duas linhas";
+}
+
+function buildBlueprintVisualElements(materialBlueprint: MaterialBlueprint): string[] {
+  return materialBlueprint.plannedTasks
+    .map((task) => task.visualFunction)
+    .filter((visual, index, visuals) => visual && visuals.indexOf(visual) === index);
+}
+
+function buildFallbackStudentSheetContent(request: CreateMissionRequest, materialBlueprint: MaterialBlueprint): {
   title: string;
   context: string;
   baseText: string;
@@ -1052,6 +1743,25 @@ function buildFallbackStudentSheetContent(request: CreateMissionRequest): {
   const source = normalizeComparable(
     `${input.discipline ?? input.subject ?? ""} ${theme} ${input.skill ?? ""}`
   );
+
+  if (source.includes("matematica") && source.includes("equacao")) {
+    return {
+      title: "Equacoes do primeiro grau: descobrindo o valor desconhecido",
+      context:
+        "Uma equacao mostra uma igualdade. O valor desconhecido precisa deixar os dois lados com o mesmo resultado.",
+      baseText: "",
+      didacticBoxes: [
+        "Exemplo resolvido: se x + 3 = 8, entao x = 5, porque 5 + 3 = 8.",
+        "Use caixas, setas e tabela para organizar cada passo.",
+        "Leia uma etapa por vez e registre somente o necessario."
+      ],
+      tableRows: [
+        "Problema | Equacao | Valor de x",
+        "x + 2 = 6 | O que falta para 2 chegar a 6? | ___",
+        "x + 4 = 9 | O que falta para 4 chegar a 9? | ___"
+      ]
+    };
+  }
 
   if (
     source.includes("portugues") ||
@@ -1079,7 +1789,6 @@ function buildFallbackStudentSheetContent(request: CreateMissionRequest): {
   }
 
   if (
-    source.includes("matematica") ||
     source.includes("progressao") ||
     source.includes("aritmetica") ||
     source.includes("pa")
@@ -1098,6 +1807,78 @@ function buildFallbackStudentSheetContent(request: CreateMissionRequest): {
         "P.A. | Razao | Proximos termos",
         "2, 5, 8, 11 | r = 3 | ___, ___, ___",
         "20, 16, 12, 8 | r = -4 | ___, ___, ___"
+      ]
+    };
+  }
+
+  if (source.includes("matematica") && source.includes("geometria")) {
+    return {
+      title: `${theme}: observando formas e medidas`,
+      context: "A geometria ajuda a observar formas, medidas, posicoes e relacoes no espaco.",
+      baseText: "",
+      didacticBoxes: [
+        "Observe as formas antes de responder.",
+        "Compare lados, vertices, medidas ou posicoes.",
+        "Use desenhos e marcas para organizar sua resposta."
+      ],
+      tableRows: [
+        "Forma | Caracteristica | Minha resposta",
+        "Quadrado | 4 lados iguais | ___",
+        "Triangulo | 3 lados | ___"
+      ]
+    };
+  }
+
+  if (source.includes("matematica") && source.includes("porcent")) {
+    return {
+      title: `${theme}: partes de 100`,
+      context: "Porcentagem representa uma parte de cada 100 partes iguais.",
+      baseText: "",
+      didacticBoxes: [
+        "Use o quadro de 100 partes para visualizar a porcentagem.",
+        "Relacione porcentagem com parte e todo.",
+        "Resolva uma etapa por vez."
+      ],
+      tableRows: [
+        "Total | Porcentagem | Parte",
+        "100 | 25% | ___",
+        "100 | 50% | ___"
+      ]
+    };
+  }
+
+  if (source.includes("matematica") && source.includes("funcao")) {
+    return {
+      title: `${theme}: relacionando valores`,
+      context: "Uma funcao relaciona um valor de entrada a um valor de saida por uma regra.",
+      baseText: "",
+      didacticBoxes: [
+        "Observe a regra antes de completar a tabela.",
+        "Compare entrada e saida.",
+        "Use setas para acompanhar a transformacao."
+      ],
+      tableRows: [
+        "Entrada | Regra | Saida",
+        "1 | + 2 | ___",
+        "2 | + 2 | ___"
+      ]
+    };
+  }
+
+  if (source.includes("matematica") && source.includes("operac")) {
+    return {
+      title: `${theme}: resolvendo operacoes`,
+      context: "As operacoes ajudam a juntar, retirar, repartir ou comparar quantidades.",
+      baseText: "",
+      didacticBoxes: [
+        "Use material concreto ou desenhos para representar as quantidades.",
+        "Resolva da esquerda para a direita quando indicado.",
+        "Confira sua resposta no final."
+      ],
+      tableRows: [
+        "Situacao | Operacao | Resultado",
+        "Juntar quantidades | ___ | ___",
+        "Retirar quantidades | ___ | ___"
       ]
     };
   }
@@ -1151,15 +1932,15 @@ function buildFallbackStudentSheetContent(request: CreateMissionRequest): {
 
   return {
     title: `Atividade: ${theme}`,
-    context: "Leia as informacoes, observe os apoios visuais e realize as atividades com atencao.",
+    context: `Leia as informacoes sobre ${materialBlueprint.content}, observe os apoios visuais e realize as atividades com atencao.`,
     baseText: "",
     didacticBoxes: [
-      "Use o exemplo e as pistas visuais para ajudar na resposta.",
-      "Leia um comando por vez.",
+      `Use o exemplo e as pistas visuais para estudar ${materialBlueprint.knowledgeObject}.`,
+      materialBlueprint.plannedTasks[0]?.supportRequired[0] ?? "Leia um comando por vez.",
       "Responda no espaco indicado."
     ],
     tableRows: [
-      "Informacao principal | Ideia importante | Minha resposta"
+      `${materialBlueprint.knowledgeObject} | Apoio visual | Minha resposta`
     ]
   };
 }
@@ -1170,13 +1951,16 @@ function buildFallbackVisualElements(request: CreateMissionRequest): string[] {
     `${input.discipline ?? input.subject ?? ""} ${input.theme ?? input.knowledgeObject ?? ""}`
   );
 
-  if (
-    source.includes("matematica") ||
-    source.includes("equacao") ||
-    source.includes("progressao") ||
-    source.includes("aritmetica")
-  ) {
-    return ["balanca de equacao", "reta numerica", "tabela simples", "blocos de contagem"];
+  if (source.includes("equacao")) {
+    return ["balanca de equacao", "pares de equacoes e resultados", "tabela de passos", "caixas de calculo"];
+  }
+
+  if (source.includes("progressao") || source.includes("aritmetica")) {
+    return ["reta numerica", "setas de regularidade", "tabela simples", "sequencia visual"];
+  }
+
+  if (source.includes("matematica")) {
+    return ["tabela simples", "blocos de contagem", "caixas de resposta", "organizador visual"];
   }
 
   if (source.includes("quimica") || source.includes("reacao") || source.includes("transformacao")) {
@@ -1208,7 +1992,8 @@ function buildFallbackVisualElements(request: CreateMissionRequest): string[] {
 
 function buildTeacherGuide(
   generated: Record<string, unknown>,
-  request: CreateMissionRequest
+  request: CreateMissionRequest,
+  materialBlueprint?: MaterialBlueprint
 ): Record<string, unknown> {
   const source = isRecord(generated.teacherGuide) ? generated.teacherGuide : {};
   const curricularAnalysis = normalizeStringArray(
@@ -1242,6 +2027,7 @@ function buildTeacherGuide(
     assessmentCriteria: normalizeStringArray(
       source.assessmentCriteria,
       normalizeStringArray(generated.validationCriteria, [
+        ...(materialBlueprint?.successCriteria ?? []),
         "Confirmar se a resposta do estudante evidencia a competencia exigida pela habilidade curricular.",
         "Observar compreensao dos comandos, participacao e evidencias de aprendizagem."
       ])
@@ -1350,6 +2136,10 @@ function tag(prefix: string, value: string | undefined): string | undefined {
 
 function uniqueTags(tags: Array<string | undefined>): string[] {
   return [...new Set(tags.filter((item): item is string => Boolean(item)))];
+}
+
+function toPrismaJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

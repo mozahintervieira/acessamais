@@ -3,6 +3,7 @@ import {
   createVersion,
   listVersions
 } from "../../../demo-store";
+import { getCurrentUser } from "../../../../server/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ resourceId: string }> }
 ): Promise<NextResponse> {
-  const organizationId = new URL(request.url).searchParams.get("organizationId");
+  const currentUser = await getCurrentUser();
+  const organizationId =
+    currentUser?.organizationId ?? new URL(request.url).searchParams.get("organizationId");
   const { resourceId } = await context.params;
 
   if (!organizationId) {
@@ -21,7 +24,7 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(await listVersions(organizationId, resourceId));
+  return NextResponse.json(await listVersions(organizationId, resourceId, currentUser?.id));
 }
 
 export async function POST(
@@ -30,13 +33,16 @@ export async function POST(
 ): Promise<NextResponse> {
   try {
     const { resourceId } = await context.params;
+    const currentUser = await getCurrentUser();
     const body = (await request.json()) as {
       organizationId?: string;
       contentJson?: unknown;
       contentText?: unknown;
     };
 
-    if (!body.organizationId) {
+    const organizationId = currentUser?.organizationId ?? body.organizationId;
+
+    if (!organizationId) {
       return NextResponse.json(
         { message: "organizationId e obrigatorio." },
         { status: 400 }
@@ -51,7 +57,8 @@ export async function POST(
     }
 
     const version = await createVersion({
-      organizationId: body.organizationId,
+      organizationId,
+      userId: currentUser?.id,
       resourceId,
       contentJson: body.contentJson,
       contentText:

@@ -3,9 +3,19 @@
 import { useMemo, useState } from "react";
 import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
 import { saveGeneratedMission } from "./demo-local-store";
-import { VisualResourceGrid } from "./visual-resource-grid";
+import { StudentSheetRenderer } from "./student-sheet-renderer";
 
 type WorksheetQuestion = {
+  plannedTaskOrder?: number;
+  actionType?: string;
+  pedagogicalPurpose?: string;
+  cognitiveDemand?: string;
+  responseMode?: string;
+  supportRequired?: string[];
+  visualFunction?: string;
+  successCriterion?: string;
+  instruction?: string;
+  content?: string;
   command: string;
   support?: string;
   answerSpace?: string;
@@ -705,105 +715,7 @@ function MultiChipGroup({
 }
 
 function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
-  const sheet = resolveStudentSheet(plan);
-  const questions =
-    sheet.questions && sheet.questions.length > 0
-      ? sheet.questions
-      : [{ command: "Responda a questao proposta no espaco indicado." }];
-
-  return (
-    <article className="premiumA4Sheet">
-      <section className="worksheetTitleBlock">
-        <h2>{sheet.title ?? "Atividade pronta para impressao"}</h2>
-      </section>
-
-      <section className="worksheetContext">
-        <strong>Contexto da atividade</strong>
-        <p>
-          {sheet.context ??
-            sheet.baseText ??
-            "Observe as informacoes, leia os apoios visuais e realize cada etapa no seu ritmo."}
-        </p>
-      </section>
-
-      {(sheet.instructions ?? []).length > 0 ? (
-        <section className="worksheetInstructions">
-          <strong>Instrucoes</strong>
-          <ul>
-            {(sheet.instructions ?? []).map((instruction) => (
-              <li key={instruction}>{instruction}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {sheet.baseText ? (
-        <section className="worksheetBaseText">
-          <strong>Texto-base</strong>
-          <p>{sheet.baseText}</p>
-        </section>
-      ) : null}
-
-      <section className="worksheetBoxes">
-        {(sheet.didacticBoxes && sheet.didacticBoxes.length > 0
-          ? sheet.didacticBoxes
-          : ["Lembrete importante: leia o comando, observe o exemplo e responda no espaco indicado."]
-        )
-          .slice(0, 2)
-          .map((box) => (
-            <div key={box}>
-              <strong>Quadro de apoio</strong>
-              <p>{box}</p>
-            </div>
-          ))}
-      </section>
-
-      <VisualResourceGrid items={sheet.visualElements ?? []} />
-
-      <section className="worksheetTable" aria-label="Tabela da atividade">
-        <div>
-          <strong>Observe</strong>
-          <strong>Organize</strong>
-          <strong>Responda</strong>
-        </div>
-        {(sheet.tableRows && sheet.tableRows.length > 0
-          ? sheet.tableRows
-          : ["Informacao principal | Ideia importante | Minha resposta"]
-        )
-          .slice(0, 3)
-          .map((row) => {
-            const cells = row
-              .split("|")
-              .map((cell) => cell.trim())
-              .filter(Boolean);
-
-            return (
-              <div key={row}>
-                <span>{cells[0] ?? row}</span>
-                <span>{cells[1] ?? ""}</span>
-                <span>{cells[2] ?? ""}</span>
-              </div>
-            );
-          })}
-      </section>
-
-      <ol className="premiumQuestions">
-        {questions.map((question, index) => (
-          <li key={`${question.command}-${index}`}>
-            <p>{question.command}</p>
-            {question.support ? <small>{question.support}</small> : null}
-            <div className="premiumAnswerLines" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
-    </article>
-  );
+  return <StudentSheetRenderer plan={plan} />;
 }
 
 function buildCopyText(plan: WorksheetPlan): string {

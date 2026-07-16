@@ -6,7 +6,7 @@ import {
   saveLocalResourceVersion,
   type LocalContentJson
 } from "../../demo-local-store";
-import { VisualResourceGrid } from "../../visual-resource-grid";
+import { StudentSheetRenderer } from "../../student-sheet-renderer";
 
 type MissionDetail = {
   id: string;
@@ -36,10 +36,25 @@ type MissionDetail = {
         teacherReport?: string[];
         reuseSuggestions?: string[];
         worksheetTitle?: string;
+        subject?: string;
+        grade?: string;
+        context?: string;
         skillCode?: string;
         baseText?: string;
         instructions?: string[];
+        didacticBoxes?: string[];
+        tableRows?: string[];
         questions?: Array<{
+          plannedTaskOrder?: number;
+          actionType?: string;
+          pedagogicalPurpose?: string;
+          cognitiveDemand?: string;
+          responseMode?: string;
+          supportRequired?: string[];
+          visualFunction?: string;
+          successCriterion?: string;
+          instruction?: string;
+          content?: string;
           command: string;
           support?: string;
           answerSpace?: string;
@@ -65,6 +80,16 @@ type StudentSheet = {
   visualElements?: string[];
   tableRows?: string[];
   questions?: Array<{
+    plannedTaskOrder?: number;
+    actionType?: string;
+    pedagogicalPurpose?: string;
+    cognitiveDemand?: string;
+    responseMode?: string;
+    supportRequired?: string[];
+    visualFunction?: string;
+    successCriterion?: string;
+    instruction?: string;
+    content?: string;
     command: string;
     support?: string;
     answerSpace?: string;
@@ -382,70 +407,7 @@ function StudentSheetView({
   content: MissionDetail["resources"][number]["versions"][number]["contentJson"];
   title: string;
 }): React.ReactElement {
-  const sheet = resolveStudentSheet(content, title);
-
-  return (
-    <article className="a4Sheet savedDocument">
-      <header className="a4Header">
-        <strong>Atividade</strong>
-        <span>Pronta para imprimir</span>
-      </header>
-      <h2>{sheet.title}</h2>
-      {sheet.context ? <p className="a4Instruction">{sheet.context}</p> : null}
-      {sheet.instructions.length > 0 ? (
-        <section className="baseText">
-          <strong>Como fazer</strong>
-          <ul>
-            {sheet.instructions.map((instruction) => (
-              <li key={instruction}>{instruction}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      {sheet.baseText ? (
-        <section className="baseText">
-          <strong>Texto-base</strong>
-          <p>{sheet.baseText}</p>
-        </section>
-      ) : null}
-      {sheet.didacticBoxes.length > 0 ? (
-        <section className="adaptationBox">
-          <strong>Quadro de apoio</strong>
-          <ul>
-            {sheet.didacticBoxes.map((box) => (
-              <li key={box}>{box}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      <VisualResourceGrid compact items={sheet.visualElements} />
-      {sheet.tableRows.length > 0 ? (
-        <table className="worksheetTable">
-          <tbody>
-            {sheet.tableRows.map((row) => (
-              <tr key={row}>
-                <td>{row}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
-      <ol className="questionList">
-        {sheet.questions.map((question, index) => (
-          <li key={`${question.command}-${index}`}>
-            <p>{question.command}</p>
-            {question.support ? <small>{question.support}</small> : null}
-            <div className="answerLines" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          </li>
-        ))}
-      </ol>
-      <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
-    </article>
-  );
+  return <StudentSheetRenderer compact plan={{ ...content, worksheetTitle: content.worksheetTitle ?? title }} />;
 }
 
 function TeacherGuideView({

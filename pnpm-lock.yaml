@@ -88,6 +88,9 @@ importers:
       '@acessa-plus/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
+      '@acessa-plus/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@acessa-plus/pedagogical-core':
         specifier: workspace:*
         version: link:../../packages/pedagogical-core

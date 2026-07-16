@@ -2,19 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   ADAPTED_ACTIVITY_OUTPUT_CONTRACT,
   ADAPTED_ACTIVITY_SYSTEM_PROMPT,
+  ActivityVarietyPlanner,
+  BarrierAndAccessResolver,
+  buildMaterialBlueprint,
   buildPedagogicalGenerationPrompt,
   ContextResolver,
   DecisionEngine,
   getDefaultResourceGenerationType,
   KnowledgeRegistry,
+  LearningLevelResolver,
   MinimalPedagogicalEngine,
   PEDAGOGICAL_ADAPTATION_RULES,
   PEDAGOGICAL_GENERATION_SYSTEM_PROMPT,
   PEDAGOGICAL_RESOURCE_OUTPUT_CONTRACT,
   PEI_SYSTEM_PROMPT,
   PEI_OUTPUT_CONTRACT,
+  PedagogicalValidator,
+  RegenerationPolicy,
+  buildPedagogicalCorrectionPrompt,
   resolveGenerationContract,
-  resolveGenerationSystemPrompt
+  resolveGenerationSystemPrompt,
+  selectRegenerationOutput
 } from "./index.js";
 
 function createRegistry(): KnowledgeRegistry {
@@ -39,6 +47,188 @@ function createRegistry(): KnowledgeRegistry {
   });
 
   return registry;
+}
+
+function createMathDiRequest() {
+  return {
+    userId: "professor-demo",
+    organizationId: "organizacao-demo",
+    missionType: "ADAPT_ACTIVITY" as const,
+    input: {
+      rawPrompt:
+        "Criar atividade A4 de Matematica sobre equacoes do primeiro grau para estudante com Deficiencia Intelectual.",
+      discipline: "Matematica",
+      gradeYear: "1ª serie do Ensino Medio",
+      skill: "Resolver e elaborar problemas que possam ser representados por equacoes do primeiro grau.",
+      knowledgeObject: "Equacoes do primeiro grau",
+      theme: "Equacoes do primeiro grau",
+      lessonObjective:
+        "Resolver equacoes simples identificando o valor desconhecido.",
+      specificNeed: "Deficiencia Intelectual",
+      readingWritingLevel: "Leitor inicial",
+      expectedProductType: "Atividade Adaptada",
+      activityType: "Atividade Adaptada",
+      questionCount: "5",
+      outputFormat: "Folha A4 e Guia do Professor",
+      learningPreference: "recursos visuais funcionais",
+      adaptationProfile: {
+        enabled: true,
+        targetAudience: "Deficiencia Intelectual",
+        learningProfile: "Leitor inicial",
+        supports: [
+          "apoio moderado",
+          "imagens educativas",
+          "elementos visuais",
+          "exemplo resolvido"
+        ]
+      }
+    }
+  };
+}
+
+function createMathDiBlueprint() {
+  const request = createMathDiRequest();
+  const context = new ContextResolver().resolve({
+    missionType: request.missionType,
+    rawInput: request.input,
+    organizationId: request.organizationId,
+    userId: request.userId,
+    availableKnowledgeIds: ["metodo-acessa"]
+  });
+  const decision = new DecisionEngine(createRegistry()).decide({
+    context,
+    activeKnowledgeIds: context.availableKnowledgeIds
+  });
+
+  return buildMaterialBlueprint(request, context, decision);
+}
+
+function createApprovedMathDiMaterial() {
+  const blueprint = createMathDiBlueprint();
+  const withTask = (
+    index: number,
+    question: { command: string; support: string; answerSpace: string }
+  ) => {
+    const task = blueprint.plannedTasks[index];
+
+    if (!task) {
+      return question;
+    }
+
+    return {
+      plannedTaskOrder: task.order,
+      actionType: task.actionType,
+      pedagogicalPurpose: task.pedagogicalPurpose,
+      cognitiveDemand: task.cognitiveDemand,
+      responseMode: task.responseMode,
+      supportRequired: task.supportRequired,
+      visualFunction: task.visualFunction,
+      successCriterion: task.successCriterion,
+      instruction: question.command,
+      content: blueprint.content,
+      ...question
+    };
+  };
+
+  return {
+    studentSheet: {
+      title: "Equacoes do primeiro grau: encontrando o valor desconhecido",
+      context:
+        "Nesta atividade, voce vai resolver equacoes simples e descobrir o valor desconhecido.",
+      instructions: [
+        "Leia um comando por vez.",
+        "Use o exemplo resolvido, a balanca e as caixas de resposta."
+      ],
+      didacticBoxes: [
+        "Exemplo resolvido: x + 3 = 7. O valor de x e 4, porque 4 + 3 = 7.",
+        "Passos numerados ajudam a organizar o calculo.",
+        "Use apoio visual funcional quando precisar."
+      ],
+      visualElements: [
+        "balanca de equacao",
+        "cartoes de equacoes e resultados",
+        "tabela de passos",
+        "caixas de calculo",
+        "setas para indicar equilibrio"
+      ],
+      questions: [
+        withTask(0, {
+          command:
+            "Observe a balanca de equacao e identifique o valor desconhecido.",
+          support: "Use a igualdade dos dois lados da balanca.",
+          answerSpace: "caixa de resposta"
+        }),
+        withTask(1, {
+          command:
+            "Pareie cada equacao do primeiro grau ao resultado correto.",
+          support: "Use os cartoes de equacoes e resultados.",
+          answerSpace: "ligar ou parear"
+        }),
+        withTask(2, {
+          command:
+            "Complete as lacunas seguindo os passos numerados da tabela.",
+          support: "Veja o exemplo resolvido antes de responder.",
+          answerSpace: "tabela com lacunas"
+        }),
+        withTask(3, {
+          command:
+            "Resolva a situacao-problema e registre o calculo nas caixas.",
+          support: "Use as caixas de calculo para encontrar o valor de x.",
+          answerSpace: "tres linhas"
+        }),
+        withTask(4, {
+          command:
+            "Crie um exemplo guiado de equacao simples com valor desconhecido.",
+          support: "Use o modelo: x + numero = resultado.",
+          answerSpace: "duas linhas"
+        })
+      ]
+    },
+    teacherGuide: {
+      skillCode:
+        "Resolver e elaborar problemas que possam ser representados por equacoes do primeiro grau.",
+      knowledgeObject: "Equacoes do primeiro grau",
+      curricularAnalysis: [
+        "A atividade trabalha equacoes do primeiro grau, valor desconhecido e igualdade.",
+        "O objetivo e resolver equacoes simples com evidencia observavel de aprendizagem."
+      ],
+      objectives: [
+        "Resolver equacoes simples identificando o valor desconhecido."
+      ],
+      methodology: [
+        "Apresentar as barreiras de abstracao e memoria de trabalho com mediacao planejada.",
+        "Usar apoios visuais, exemplo resolvido, passos numerados e reducao de carga textual."
+      ],
+      adaptations: [
+        "Para Deficiencia Intelectual, usar comandos curtos, apoio visual funcional e alternativas de resposta por marcar, ligar, completar e resolver."
+      ],
+      duaPrinciples: [
+        "Oferecer multiplas formas de acesso, participacao e expressao."
+      ],
+      assessmentCriteria: [
+        "Criterio de sucesso: identificar o valor desconhecido, parear equacoes e resolver pelo menos uma situacao-problema com apoio moderado."
+      ],
+      applicationSuggestions: [
+        "Manter mediacao docente, retirar apoios gradualmente e registrar quais apoios favoreceram autonomia."
+      ]
+    }
+  };
+}
+
+function createRepeatedMathDiMaterial() {
+  const material = createApprovedMathDiMaterial();
+
+  return {
+    ...material,
+    studentSheet: {
+      ...material.studentSheet,
+      questions: Array.from({ length: 5 }, (_, index) => ({
+        command: `Resolva a equacao x + ${index + 1} = ${index + 5}.`,
+        support: "Use o mesmo modelo.",
+        answerSpace: "uma linha"
+      }))
+    }
+  };
 }
 
 describe("Ciclo 2 pedagogical pipeline", () => {
@@ -360,5 +550,441 @@ describe("Ciclo 2 pedagogical pipeline", () => {
 
     expect(prompt.systemPrompt).toBe(PEI_SYSTEM_PROMPT);
     expect(prompt.userPayload.contrato).toBe(PEI_OUTPUT_CONTRACT);
+  });
+
+  it("resolves functional learning level without infantilizing disability profiles", () => {
+    const request = createMathDiRequest();
+    const level = new LearningLevelResolver().resolve(request);
+
+    expect(level.grade).toContain("Ensino Medio");
+    expect(level.readingLevel).toBe("leitor inicial");
+    expect(level.abstractionLevel).toContain("representacao concreta");
+    expect(level.workingMemory).toContain("memoria de trabalho");
+    expect(level.responseMode).toContain("marcar");
+    expect(level.uncertaintyNotes).toEqual([]);
+  });
+
+  it("maps DI barriers and access supports without reducing everything to diagnosis", () => {
+    const request = createMathDiRequest();
+    const level = new LearningLevelResolver().resolve(request);
+    const accessPlan = new BarrierAndAccessResolver().resolve(request, level);
+
+    expect(accessPlan.identifiedBarriers).toContain("abstracao");
+    expect(accessPlan.identifiedBarriers).toContain("memoria de trabalho");
+    expect(accessPlan.identifiedBarriers).toContain("leitura de comandos");
+    expect(accessPlan.recommendedSupports).toContain("exemplo resolvido");
+    expect(accessPlan.recommendedSupports).toContain("mediacao docente");
+    expect(accessPlan.visualRequirements.join(" ")).toContain("igualdade");
+  });
+
+  it("plans varied tasks for the mandatory Mathematics + DI case", () => {
+    const request = createMathDiRequest();
+    const level = new LearningLevelResolver().resolve(request);
+    const accessPlan = new BarrierAndAccessResolver().resolve(request, level);
+    const tasks = new ActivityVarietyPlanner().plan({
+      request,
+      functionalLearningLevel: level,
+      accessPlan,
+      requestedTaskCount: 5
+    });
+    const actionTypes = tasks.map((task) => task.actionType);
+    const distinctActionTypes = new Set(actionTypes);
+
+    expect(tasks).toHaveLength(5);
+    expect(distinctActionTypes.size).toBeGreaterThanOrEqual(4);
+    expect(actionTypes).toEqual([
+      "OBSERVE",
+      "MATCH",
+      "COMPLETE",
+      "SOLVE",
+      "CREATE_GUIDED_EXAMPLE"
+    ]);
+    expect(tasks.every((task) => task.successCriterion.length > 0)).toBe(true);
+    expect(tasks[0]?.visualFunction).toContain("balanca");
+    expect(tasks[4]?.pedagogicalPurpose).toContain("criar exemplo guiado");
+  });
+
+  it("builds a MaterialBlueprint for Mathematics + DI with pedagogical progression", () => {
+    const request = createMathDiRequest();
+    const context = new ContextResolver().resolve({
+      missionType: request.missionType,
+      rawInput: request.input,
+      organizationId: request.organizationId,
+      userId: request.userId,
+      availableKnowledgeIds: ["metodo-acessa"]
+    });
+    const decision = new DecisionEngine(createRegistry()).decide({
+      context,
+      activeKnowledgeIds: context.availableKnowledgeIds
+    });
+    const blueprint = buildMaterialBlueprint(request, context, decision);
+
+    expect(blueprint.resourceType).toBe("Atividade Adaptada");
+    expect(blueprint.discipline).toBe("Matematica");
+    expect(blueprint.grade).toContain("Ensino Medio");
+    expect(blueprint.requestedTaskCount).toBe(5);
+    expect(blueprint.plannedTasks).toHaveLength(5);
+    expect(new Set(blueprint.plannedTasks.map((task) => task.actionType)).size).toBeGreaterThanOrEqual(4);
+    expect(blueprint.identifiedBarriers).toContain("abstracao");
+    expect(blueprint.identifiedBarriers).toContain("memoria de trabalho");
+    expect(blueprint.visualRequirements.join(" ")).toContain("visual");
+    expect(blueprint.antiInfantilizationGuidance.join(" ")).toContain(
+      "Nao infantilizar"
+    );
+    expect(blueprint.successCriteria).toHaveLength(5);
+  });
+
+  it("adds the MaterialBlueprint to the prompt while preserving the public output contract", () => {
+    const request = createMathDiRequest();
+    const context = new ContextResolver().resolve({
+      missionType: request.missionType,
+      rawInput: request.input,
+      organizationId: request.organizationId,
+      userId: request.userId,
+      availableKnowledgeIds: ["metodo-acessa"]
+    });
+    const decision = new DecisionEngine(createRegistry()).decide({
+      context,
+      activeKnowledgeIds: context.availableKnowledgeIds
+    });
+    const prompt = buildPedagogicalGenerationPrompt(request, context, decision);
+    const blueprint = prompt.userPayload.materialBlueprint as {
+      plannedTasks: Array<{ actionType: string; successCriterion: string }>;
+      antiInfantilizationGuidance: string[];
+    };
+
+    expect(prompt.userPayload.materialBlueprintObrigatorio).toContain(
+      "Cada atividade da studentSheet deve corresponder a uma plannedTask"
+    );
+    expect(blueprint.plannedTasks).toHaveLength(5);
+    expect(blueprint.plannedTasks[0]?.actionType).toBe("OBSERVE");
+    expect(blueprint.plannedTasks[3]?.actionType).toBe("SOLVE");
+    expect(blueprint.plannedTasks.every((task) => task.successCriterion)).toBe(
+      true
+    );
+    expect(prompt.userPayload.contrato).toBe(ADAPTED_ACTIVITY_OUTPUT_CONTRACT);
+    expect(ADAPTED_ACTIVITY_OUTPUT_CONTRACT.studentSheet).toBeDefined();
+    expect(ADAPTED_ACTIVITY_OUTPUT_CONTRACT.teacherGuide).toBeDefined();
+  });
+
+  it("requires blueprint metadata in each adapted activity task contract", () => {
+    expect(ADAPTED_ACTIVITY_OUTPUT_CONTRACT.studentSheet.questions).toContain(
+      "plannedTaskOrder"
+    );
+    expect(ADAPTED_ACTIVITY_OUTPUT_CONTRACT.studentSheet.questions).toContain(
+      "actionType"
+    );
+    expect(ADAPTED_ACTIVITY_OUTPUT_CONTRACT.studentSheet.questions).toContain(
+      "visualFunction"
+    );
+    expect(ADAPTED_ACTIVITY_OUTPUT_CONTRACT.studentSheet.questions).toContain(
+      "successCriterion"
+    );
+  });
+
+  it("rejects five nearly identical questions in PedagogicalValidator", () => {
+    const report = new PedagogicalValidator().validate(
+      createRepeatedMathDiMaterial(),
+      createMathDiBlueprint()
+    );
+
+    expect(report.approved).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "EXCESSIVE_REPETITION")).toBe(true);
+    expect(report.issues.some((issue) => issue.severity === "BLOCKER")).toBe(true);
+  });
+
+  it("rejects infantilized material for a high school student", () => {
+    const material = createApprovedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(
+      {
+        ...material,
+        studentSheet: {
+          ...material.studentSheet,
+          context:
+            "Atividade para criancinha fofinha: vamos brincar de equacao, amiguinho."
+        }
+      },
+      createMathDiBlueprint()
+    );
+
+    expect(report.approved).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "SEVERE_INFANTILIZATION")).toBe(true);
+  });
+
+  it("rejects visuals with no pedagogical function", () => {
+    const material = createApprovedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(
+      {
+        ...material,
+        studentSheet: {
+          ...material.studentSheet,
+          visualElements: ["estrela", "personagem sorrindo", "decoracao"]
+        }
+      },
+      createMathDiBlueprint()
+    );
+
+    expect(report.approved).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "DECORATIVE_VISUALS")).toBe(true);
+  });
+
+  it("rejects material that ignores plannedTasks", () => {
+    const material = createApprovedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(
+      {
+        ...material,
+        studentSheet: {
+          ...material.studentSheet,
+          questions: [
+            {
+              command: "Classifique frases sobre o conteudo.",
+              answerSpace: "uma linha"
+            },
+            {
+              command: "Ordene palavras sobre o conteudo.",
+              answerSpace: "uma linha"
+            },
+            {
+              command: "Marque uma alternativa sobre o conteudo.",
+              answerSpace: "uma linha"
+            },
+            {
+              command: "Compare duas ideias sobre o conteudo.",
+              answerSpace: "uma linha"
+            },
+            {
+              command: "Explique uma ideia sobre o conteudo.",
+              answerSpace: "uma linha"
+            }
+          ]
+        }
+      },
+      createMathDiBlueprint()
+    );
+
+    expect(report.approved).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "BLUEPRINT_IGNORED")).toBe(true);
+  });
+
+  it("rejects Progressao Aritmetica fallback in an equations request", () => {
+    const material = createApprovedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(
+      {
+        ...material,
+        studentSheet: {
+          ...material.studentSheet,
+          title: "Progressao aritmetica (PA): identificando regularidades",
+          context:
+            "Uma progressao aritmetica e uma sequencia numerica em que a diferenca entre termos e a razao.",
+          tableRows: ["P.A. | Razao | Proximos termos"]
+        }
+      },
+      createMathDiBlueprint()
+    );
+
+    expect(report.approved).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "INCOMPATIBLE_FALLBACK")).toBe(true);
+  });
+
+  it("approves a varied and coherent Mathematics + DI sequence", () => {
+    const report = new PedagogicalValidator().validate(
+      createApprovedMathDiMaterial(),
+      createMathDiBlueprint()
+    );
+
+    expect(report.approved).toBe(true);
+    expect(report.totalScore).toBeGreaterThanOrEqual(80);
+    expect(report.scores.activityVariety).toBeGreaterThanOrEqual(90);
+    expect(report.scores.pedagogicalProgression).toBeGreaterThanOrEqual(90);
+    expect(report.issues).toEqual([]);
+  });
+
+  it("keeps validator compatibility with studentSheet and teacherGuide", () => {
+    const material = createApprovedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(
+      material,
+      createMathDiBlueprint()
+    );
+
+    expect(material.studentSheet.questions).toHaveLength(5);
+    expect(material.teacherGuide.skillCode).toContain("equacoes");
+    expect(report.scores.curricularAlignment).toBeGreaterThanOrEqual(80);
+    expect(report.scores.practicalUsability).toBeGreaterThanOrEqual(80);
+  });
+
+  it("does not request regeneration when validation is approved", () => {
+    const blueprint = createMathDiBlueprint();
+    const material = createApprovedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(material, blueprint);
+    const decision = new RegenerationPolicy().decide({
+      materialBlueprint: blueprint,
+      originalOutput: material,
+      validationReport: report,
+      attempt: 0
+    });
+
+    expect(report.approved).toBe(true);
+    expect(decision.shouldRegenerate).toBe(false);
+    expect(decision.correctionPrompt).toBeUndefined();
+  });
+
+  it("builds a correction prompt for excessive repetition", () => {
+    const blueprint = createMathDiBlueprint();
+    const material = createRepeatedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(material, blueprint);
+    const decision = new RegenerationPolicy().decide({
+      materialBlueprint: blueprint,
+      originalOutput: material,
+      validationReport: report,
+      attempt: 0
+    });
+
+    expect(report.approved).toBe(false);
+    expect(decision.shouldRegenerate).toBe(true);
+    expect(decision.correctionPrompt?.userPayload.instrucoesDeCorrecao).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Substituir tarefas repetidas")
+      ])
+    );
+  });
+
+  it("builds a specific correction instruction for infantilization", () => {
+    const blueprint = createMathDiBlueprint();
+    const material = createApprovedMathDiMaterial();
+    const infantilized = {
+      ...material,
+      studentSheet: {
+        ...material.studentSheet,
+        context:
+          "Atividade para criancinha fofinha: vamos brincar de equacao, amiguinho."
+      }
+    };
+    const report = new PedagogicalValidator().validate(infantilized, blueprint);
+    const prompt = buildPedagogicalCorrectionPrompt({
+      materialBlueprint: blueprint,
+      originalOutput: infantilized,
+      validationReport: report,
+      attempt: 0
+    });
+
+    expect(report.approved).toBe(false);
+    expect(prompt.userPayload.instrucoesDeCorrecao).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Adequar linguagem")
+      ])
+    );
+  });
+
+  it("builds a specific correction instruction for decorative visuals", () => {
+    const blueprint = createMathDiBlueprint();
+    const material = createApprovedMathDiMaterial();
+    const decorative = {
+      ...material,
+      studentSheet: {
+        ...material.studentSheet,
+        visualElements: ["estrela", "personagem sorrindo", "decoracao"]
+      }
+    };
+    const report = new PedagogicalValidator().validate(decorative, blueprint);
+    const prompt = buildPedagogicalCorrectionPrompt({
+      materialBlueprint: blueprint,
+      originalOutput: decorative,
+      validationReport: report,
+      attempt: 0
+    });
+
+    expect(report.approved).toBe(false);
+    expect(prompt.userPayload.instrucoesDeCorrecao).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Substituir elementos decorativos")
+      ])
+    );
+  });
+
+  it("allows at most one regeneration attempt", () => {
+    const blueprint = createMathDiBlueprint();
+    const material = createRepeatedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(material, blueprint);
+    const decision = new RegenerationPolicy().decide({
+      materialBlueprint: blueprint,
+      originalOutput: material,
+      validationReport: report,
+      attempt: 1
+    });
+
+    expect(decision.shouldRegenerate).toBe(false);
+    expect(decision.reason).toContain("Limite");
+  });
+
+  it("selects the second output when the correction is approved", () => {
+    const blueprint = createMathDiBlueprint();
+    const validator = new PedagogicalValidator();
+    const repeated = createRepeatedMathDiMaterial();
+    const approved = createApprovedMathDiMaterial();
+    const firstReport = validator.validate(repeated, blueprint);
+    const secondReport = validator.validate(approved, blueprint);
+    const selection = selectRegenerationOutput(
+      { attempt: 0, output: repeated, report: firstReport },
+      { attempt: 1, output: approved, report: secondReport }
+    );
+
+    expect(selection.selected.attempt).toBe(1);
+    expect(selection.belowStandard).toBe(false);
+  });
+
+  it("selects the higher score when both outputs are rejected", () => {
+    const blueprint = createMathDiBlueprint();
+    const validator = new PedagogicalValidator();
+    const lowScore = {
+      ...createApprovedMathDiMaterial(),
+      studentSheet: {
+        ...createApprovedMathDiMaterial().studentSheet,
+        visualElements: ["estrela", "decoracao"],
+        questions: Array.from({ length: 5 }, (_, index) => ({
+          command: `Resolva a equacao ${index + 1}.`,
+          answerSpace: "uma linha"
+        }))
+      }
+    };
+    const betterButRejected = createRepeatedMathDiMaterial();
+    const firstReport = validator.validate(lowScore, blueprint);
+    const secondReport = validator.validate(betterButRejected, blueprint);
+    const selection = selectRegenerationOutput(
+      { attempt: 0, output: lowScore, report: firstReport },
+      { attempt: 1, output: betterButRejected, report: secondReport }
+    );
+
+    expect(firstReport.approved).toBe(false);
+    expect(secondReport.approved).toBe(false);
+    expect(selection.selected.report.totalScore).toBeGreaterThanOrEqual(
+      firstReport.totalScore
+    );
+    expect(selection.belowStandard).toBe(true);
+  });
+
+  it("keeps regeneration prompts compatible with PEI and fallback resource types", () => {
+    const blueprint = createMathDiBlueprint();
+    const material = createRepeatedMathDiMaterial();
+    const report = new PedagogicalValidator().validate(material, blueprint);
+    const peiPrompt = buildPedagogicalCorrectionPrompt({
+      materialBlueprint: blueprint,
+      originalOutput: material,
+      validationReport: report,
+      attempt: 0,
+      generationType: "PEI"
+    });
+    const assessmentPrompt = buildPedagogicalCorrectionPrompt({
+      materialBlueprint: blueprint,
+      originalOutput: material,
+      validationReport: report,
+      attempt: 0,
+      generationType: "ASSESSMENT"
+    });
+
+    expect(peiPrompt.outputSchemaName).toBe("AcessaPlusPedagogicalResource");
+    expect(peiPrompt.userPayload.contrato).toBe(PEI_OUTPUT_CONTRACT);
+    expect(assessmentPrompt.userPayload.contrato).toBe(
+      ADAPTED_ACTIVITY_OUTPUT_CONTRACT
+    );
   });
 });

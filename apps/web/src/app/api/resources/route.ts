@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { listResources } from "../demo-store";
+import { getCurrentUser } from "../../server/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const params = new URL(request.url).searchParams;
-  const organizationId = params.get("organizationId");
+  const currentUser = await getCurrentUser();
+  const organizationId = currentUser?.organizationId ?? params.get("organizationId");
 
   if (!organizationId) {
     return NextResponse.json(
@@ -18,6 +20,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   return NextResponse.json(
     await listResources({
       organizationId,
+      userId: currentUser?.id,
       discipline: optionalParam(params, "discipline"),
       gradeYear: optionalParam(params, "gradeYear"),
       skill: optionalParam(params, "skill"),

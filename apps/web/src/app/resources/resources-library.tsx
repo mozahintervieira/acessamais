@@ -117,19 +117,19 @@ export function ResourcesLibrary(): React.ReactElement {
   }
 
   return (
-    <main className="missionShell">
-      <section className="missionIntro">
-        <p className="eyebrow">Banco Inteligente</p>
-        <h1>Atividades e materiais reutilizaveis</h1>
+    <main className="missionShell libraryShell">
+      <section className="missionIntro libraryHero">
+        <p className="eyebrow">Biblioteca Pedagogica</p>
+        <h1>Materiais inclusivos prontos para reutilizar</h1>
         <p className="lead">
-          Encontre atividades A4, materiais adaptados, avaliacoes e recursos
-          por disciplina, habilidade, tema, necessidade e nivel de aprendizagem.
+          Encontre atividades A4, avaliacoes, materiais adaptados e recursos
+          de acessibilidade por disciplina, habilidade, tema, perfil e nivel de aprendizagem.
         </p>
         <div className="actionRow">
-          <a className="primaryLink" href="/">
+          <a className="primaryLink" href="/planning/new">
             Criar atividade A4
           </a>
-          <a className="textLink" href="/">
+          <a className="textLink" href="/planning/new">
             Adaptar material
           </a>
         </div>
@@ -166,21 +166,34 @@ export function ResourcesLibrary(): React.ReactElement {
         <div className="panelHeader">
           <div>
             <p className="panelLabel">Acervo versionado</p>
-            <h2>Materiais prontos para reutilizar</h2>
+            <h2>Materiais prontos para sala de aula</h2>
           </div>
         </div>
         {error ? <p className="formError">{error}</p> : null}
         {isLoading ? <p className="emptyState">Buscando materiais...</p> : null}
         {!isLoading && resources.length === 0 ? (
           <p className="emptyState">
-            Nenhum material encontrado. Crie uma atividade A4 para iniciar o
-            Banco Inteligente.
+            Seu acervo pedagogico ainda esta comecando. Crie ou salve o
+            primeiro material.
           </p>
         ) : null}
-        <div className="missionCards">
+        <div className="libraryResourceGrid">
           {resources.map((resource) => (
-            <article className="missionCard" key={resource.id}>
-              <span className="cardMeta">{resource.metadata.activityType ?? formatResourceType(resource.type)}</span>
+            <article className="missionCard libraryResourceCard" key={resource.id}>
+              <div className="resourceThumbnail" aria-hidden="true">
+                <span>{getSubjectInitial(resource.metadata.discipline)}</span>
+                <small>{resource.metadata.gradeYear ?? "A4"}</small>
+              </div>
+              <div className="libraryCardHeader">
+                <span className="cardMeta">{resource.metadata.activityType ?? formatResourceType(resource.type)}</span>
+                <button
+                  aria-label="Marcar como favorito"
+                  className="favoriteButton"
+                  type="button"
+                >
+                  ☆
+                </button>
+              </div>
               <strong>{resource.title}</strong>
               <div className="resourceFacts">
                 <span>{resource.metadata.discipline ?? "Disciplina nao informada"}</span>
@@ -208,11 +221,20 @@ export function ResourcesLibrary(): React.ReactElement {
                     ? `Versao ${resource.latestVersion.versionNumber}`
                     : "Sem versao"}
                 </small>
-                {resource.missionId ? (
-                  <a className="textLink" href={`/missions/${resource.missionId}`}>
-                    Abrir material
-                  </a>
-                ) : null}
+                <div className="resourceActions">
+                  {resource.missionId ? (
+                    <a className="textLink" href={`/missions/${resource.missionId}`}>
+                      Abrir
+                    </a>
+                  ) : null}
+                  <button type="button" onClick={() => copyResourceText(resource)}>
+                    Duplicar
+                  </button>
+                  <a href="/planning/new">Criar semelhante</a>
+                  <button type="button" onClick={() => downloadResourceText(resource)}>
+                    Baixar
+                  </button>
+                </div>
               </div>
             </article>
           ))}
@@ -315,11 +337,42 @@ function TagList({ tags }: { tags: string[] }): React.ReactElement | null {
 
 function formatResourceType(value: string): string {
   const labels: Record<string, string> = {
-    LESSON_PLAN: "Atividade pronta para impressão",
+    LESSON_PLAN: "Atividade pronta para impressao",
     ADAPTED_ACTIVITY: "Material adaptado",
-    ASSESSMENT: "Avaliação",
-    RESOURCE: "Recurso pedagógico"
+    ASSESSMENT: "Avaliacao",
+    RESOURCE: "Recurso pedagogico"
   };
 
-  return labels[value] ?? "Recurso pedagógico";
+  return labels[value] ?? "Recurso pedagogico";
+}
+
+function getSubjectInitial(value?: string): string {
+  return (value?.trim().charAt(0) || "A").toUpperCase();
+}
+
+function copyResourceText(resource: ResourceListItem): void {
+  const text = resource.latestVersion?.contentText || resource.title;
+
+  void navigator.clipboard?.writeText(text);
+}
+
+function downloadResourceText(resource: ResourceListItem): void {
+  const text = [
+    resource.title,
+    resource.metadata.discipline,
+    resource.metadata.gradeYear,
+    resource.metadata.skill,
+    "",
+    resource.latestVersion?.contentText
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `${resource.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "material-acessa-plus"}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
 }

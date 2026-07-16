@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@acessa-plus/ai-core": "workspace:*",
+    "@acessa-plus/database": "workspace:*",
     "@acessa-plus/pedagogical-core": "workspace:*",
     "@acessa-plus/types": "workspace:*",
     "html-to-image": "^1.11.13",
