@@ -39,7 +39,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ user });
   } catch (error) {
     console.error("auth_register_failed", {
-      error: error instanceof Error ? error.name : "UnknownError"
+      error: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? redactSensitiveError(error.message) : undefined
     });
 
     if (error instanceof Error && error.message === "DATA_INFRASTRUCTURE_UNAVAILABLE") {
@@ -54,4 +55,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 400 }
     );
   }
+}
+
+function redactSensitiveError(message: string): string {
+  return message.replace(/postgres(?:ql)?:\/\/\\S+/gi, "[REDACTED_DATABASE_URL]");
 }

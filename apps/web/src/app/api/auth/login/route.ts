@@ -27,7 +27,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     user = await authenticateTeacher({ email, password });
   } catch (error) {
     console.error("auth_login_lookup_failed", {
-      error: error instanceof Error ? error.name : "UnknownError"
+      error: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? redactSensitiveError(error.message) : undefined
     });
 
     return NextResponse.json(
@@ -48,7 +49,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     await recordUsageEvent({ userId: user.id, eventType: "LOGIN" });
   } catch (error) {
     console.error("auth_login_session_failed", {
-      error: error instanceof Error ? error.name : "UnknownError"
+      error: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? redactSensitiveError(error.message) : undefined
     });
 
     return NextResponse.json(
@@ -58,4 +60,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   return NextResponse.json({ user });
+}
+
+function redactSensitiveError(message: string): string {
+  return message.replace(/postgres(?:ql)?:\/\/\\S+/gi, "[REDACTED_DATABASE_URL]");
 }
