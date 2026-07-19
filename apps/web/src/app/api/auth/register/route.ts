@@ -38,6 +38,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     return NextResponse.json({ user });
   } catch (error) {
+    console.error("auth_register_failed", {
+      error: error instanceof Error ? error.name : "UnknownError"
+    });
+
     if (error instanceof Error && error.message === "DATA_INFRASTRUCTURE_UNAVAILABLE") {
       return NextResponse.json(
         { message: "Nao foi possivel criar a conta neste momento. A infraestrutura de dados esta indisponivel." },

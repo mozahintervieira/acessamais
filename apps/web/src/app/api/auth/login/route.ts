@@ -25,7 +25,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     user = await authenticateTeacher({ email, password });
-  } catch {
+  } catch (error) {
+    console.error("auth_login_lookup_failed", {
+      error: error instanceof Error ? error.name : "UnknownError"
+    });
+
     return NextResponse.json(
       { message: "Nao foi possivel entrar neste momento. A infraestrutura de dados esta indisponivel." },
       { status: 503 }
@@ -42,7 +46,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     await createSession(user.id);
     await recordUsageEvent({ userId: user.id, eventType: "LOGIN" });
-  } catch {
+  } catch (error) {
+    console.error("auth_login_session_failed", {
+      error: error instanceof Error ? error.name : "UnknownError"
+    });
+
     return NextResponse.json(
       { message: "Nao foi possivel entrar neste momento. A infraestrutura de dados esta indisponivel." },
       { status: 503 }

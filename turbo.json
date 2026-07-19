@@ -1,5 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "AUTH_COOKIE_SECURE",
+    "AUTH_SECRET",
+    "DATABASE_URL",
+    "OPENAI_API_KEY",
+    "OPENAI_MODEL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -23,14 +23,21 @@ export async function recordUsageEvent(input: {
     return;
   }
 
-  await getPrisma().usageEvent.create({
-    data: {
-      userId: input.userId,
+  try {
+    await getPrisma().usageEvent.create({
+      data: {
+        userId: input.userId,
+        eventType: input.eventType,
+        resourceId: input.resourceId,
+        metadata: input.metadata ? toPrismaJson(input.metadata) : undefined
+      }
+    });
+  } catch (error) {
+    console.warn("usage_event_not_recorded", {
       eventType: input.eventType,
-      resourceId: input.resourceId,
-      metadata: input.metadata ? toPrismaJson(input.metadata) : undefined
-    }
-  });
+      error: error instanceof Error ? error.name : "UnknownError"
+    });
+  }
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
