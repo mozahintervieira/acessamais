@@ -5,12 +5,22 @@ const globalForPrisma = globalThis as typeof globalThis & {
 };
 
 export function hasDatabaseUrl(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  const value = process.env.DATABASE_URL?.trim();
+
+  return Boolean(value && /^postgres(ql)?:\/\//.test(value));
+}
+
+export function requiresPersistentDatabase(): boolean {
+  return process.env.VERCEL === "1";
+}
+
+export function canUseMemoryFallback(): boolean {
+  return !requiresPersistentDatabase();
 }
 
 export function getPrisma(): PrismaClient {
   if (!hasDatabaseUrl()) {
-    throw new Error("DATABASE_URL nao configurada.");
+    throw new Error("Banco de dados indisponivel.");
   }
 
   globalForPrisma.acessaPlusPrisma ??= new PrismaClient();

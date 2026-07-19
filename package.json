@@ -12,6 +12,7 @@
     "typecheck": "pnpm db:generate && turbo typecheck",
     "lint": "pnpm db:generate && turbo lint",
     "db:generate": "pnpm --filter @acessa-plus/database prisma:generate",
+    "db:deploy:production": "node scripts/deploy-prisma.mjs",
     "db:migrate": "pnpm --filter @acessa-plus/database prisma:migrate",
     "db:studio": "pnpm --filter @acessa-plus/database prisma:studio"
   },

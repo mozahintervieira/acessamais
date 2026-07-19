@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getPrisma, hasDatabaseUrl } from "./db";
+import { canUseMemoryFallback, getPrisma, hasDatabaseUrl } from "./db";
 import { devUsers, type AuthenticatedUser } from "./session";
 import { hashPassword, verifyPassword } from "./password";
 
@@ -22,6 +22,10 @@ export async function createTeacherAccount(input: {
   const passwordHash = await hashPassword(input.password);
 
   if (!hasDatabaseUrl()) {
+    if (!canUseMemoryFallback()) {
+      throw new Error("DATA_INFRASTRUCTURE_UNAVAILABLE");
+    }
+
     if ([...devPasswordUsers.values()].some((user) => user.email === email)) {
       throw new Error("Ja existe uma conta com este e-mail.");
     }
@@ -77,6 +81,10 @@ export async function authenticateTeacher(input: {
   const email = input.email.trim().toLowerCase();
 
   if (!hasDatabaseUrl()) {
+    if (!canUseMemoryFallback()) {
+      throw new Error("DATA_INFRASTRUCTURE_UNAVAILABLE");
+    }
+
     const user = [...devPasswordUsers.values()].find((item) => item.email === email);
 
     if (!user || !(await verifyPassword(input.password, user.passwordHash))) {

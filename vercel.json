@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm db:generate && pnpm turbo build --filter=@acessa-plus/web...",
+  "buildCommand": "pnpm db:generate && pnpm db:deploy:production && pnpm turbo build --filter=@acessa-plus/web...",
   "outputDirectory": "apps/web/.next"
 }

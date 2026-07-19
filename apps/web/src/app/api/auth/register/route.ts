@@ -37,7 +37,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     await recordUsageEvent({ userId: user.id, eventType: "USER_REGISTERED" });
 
     return NextResponse.json({ user });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "DATA_INFRASTRUCTURE_UNAVAILABLE") {
+      return NextResponse.json(
+        { message: "Nao foi possivel criar a conta neste momento. A infraestrutura de dados esta indisponivel." },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { message: "Nao foi possivel criar a conta. Verifique os dados e tente novamente." },
       { status: 400 }

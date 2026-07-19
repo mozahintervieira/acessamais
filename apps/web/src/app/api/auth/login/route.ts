@@ -21,7 +21,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const user = await authenticateTeacher({ email, password });
+  let user;
+
+  try {
+    user = await authenticateTeacher({ email, password });
+  } catch {
+    return NextResponse.json(
+      { message: "Nao foi possivel entrar neste momento. A infraestrutura de dados esta indisponivel." },
+      { status: 503 }
+    );
+  }
 
   if (!user) {
     return NextResponse.json(
@@ -30,8 +39,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  await createSession(user.id);
-  await recordUsageEvent({ userId: user.id, eventType: "LOGIN" });
+  try {
+    await createSession(user.id);
+    await recordUsageEvent({ userId: user.id, eventType: "LOGIN" });
+  } catch {
+    return NextResponse.json(
+      { message: "Nao foi possivel entrar neste momento. A infraestrutura de dados esta indisponivel." },
+      { status: 503 }
+    );
+  }
 
   return NextResponse.json({ user });
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTeacherAccount, authenticateTeacher, isValidEmail } from "./server/auth-repository";
+import { canUseMemoryFallback, hasDatabaseUrl } from "./server/db";
 import { hashPassword, validatePassword, verifyPassword } from "./server/password";
 
 describe("production MVP auth foundation", () => {
@@ -26,9 +27,11 @@ describe("production MVP auth foundation", () => {
 
   it("creates and authenticates a teacher with the development fallback when DATABASE_URL is absent", async () => {
     const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousVercel = process.env.VERCEL;
     const email = `professor-${crypto.randomUUID()}@acessa.test`;
 
     process.env.DATABASE_URL = "";
+    process.env.VERCEL = "";
 
     try {
       const created = await createTeacherAccount({
@@ -45,6 +48,34 @@ describe("production MVP auth foundation", () => {
       expect(denied).toBeNull();
     } finally {
       process.env.DATABASE_URL = previousDatabaseUrl;
+      process.env.VERCEL = previousVercel;
+    }
+  });
+
+  it("does not use memory fallback in Vercel production without DATABASE_URL", async () => {
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousVercel = process.env.VERCEL;
+    const email = `professor-${crypto.randomUUID()}@acessa.test`;
+
+    process.env.DATABASE_URL = "";
+    process.env.VERCEL = "1";
+
+    try {
+      expect(hasDatabaseUrl()).toBe(false);
+      expect(canUseMemoryFallback()).toBe(false);
+      await expect(
+        createTeacherAccount({
+          name: "Professor A",
+          email,
+          password: "Senha12345"
+        })
+      ).rejects.toThrow("DATA_INFRASTRUCTURE_UNAVAILABLE");
+      await expect(authenticateTeacher({ email, password: "Senha12345" })).rejects.toThrow(
+        "DATA_INFRASTRUCTURE_UNAVAILABLE"
+      );
+    } finally {
+      process.env.DATABASE_URL = previousDatabaseUrl;
+      process.env.VERCEL = previousVercel;
     }
   });
 });

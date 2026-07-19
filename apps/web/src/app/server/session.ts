@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { getPrisma, hasDatabaseUrl } from "./db";
+import { canUseMemoryFallback, getPrisma, hasDatabaseUrl } from "./db";
 
 export type AuthenticatedUser = {
   id: string;
@@ -63,8 +63,10 @@ export async function createSession(userId: string): Promise<void> {
         expiresAt
       }
     });
-  } else {
+  } else if (canUseMemoryFallback()) {
     devSessions.set(hashToken(token), { userId, expiresAt });
+  } else {
+    throw new Error("DATA_INFRASTRUCTURE_UNAVAILABLE");
   }
 
   const cookieStore = await cookies();
@@ -87,7 +89,7 @@ export async function clearSession(): Promise<void> {
       await getPrisma().authSession.deleteMany({
         where: { tokenHash: hashToken(token) }
       });
-    } else {
+    } else if (canUseMemoryFallback()) {
       devSessions.delete(hashToken(token));
     }
   }
@@ -103,11 +105,15 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     return null;
   }
 
-  if (!hasDatabaseUrl()) {
+  if (!hasDatabaseUrl() && canUseMemoryFallback()) {
     const session = devSessions.get(hashToken(token));
     const user = session && session.expiresAt > new Date() ? devUsers.get(session.userId) : null;
 
     return user ? toAuthenticatedUser(user) : null;
+  }
+
+  if (!hasDatabaseUrl()) {
+    return null;
   }
 
   const session = await getPrisma().authSession.findUnique({
