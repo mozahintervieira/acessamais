@@ -107,7 +107,7 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     const session = devSessions.get(hashToken(token));
     const user = session && session.expiresAt > new Date() ? devUsers.get(session.userId) : null;
 
-    return user ?? null;
+    return user ? toAuthenticatedUser(user) : null;
   }
 
   const session = await getPrisma().authSession.findUnique({
@@ -125,6 +125,16 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     name: session.user.name,
     email: session.user.email,
     role: session.user.role
+  };
+}
+
+function toAuthenticatedUser(user: AuthenticatedUser): AuthenticatedUser {
+  return {
+    id: user.id,
+    organizationId: user.organizationId,
+    name: user.name,
+    email: user.email,
+    role: user.role
   };
 }
 
