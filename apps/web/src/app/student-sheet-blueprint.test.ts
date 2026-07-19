@@ -3,13 +3,15 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   buildMaterialBlueprint,
+  buildPedagogicalProject,
   ContextResolver,
   DecisionEngine,
   KnowledgeRegistry,
   PedagogicalValidator
 } from "@acessa-plus/pedagogical-core";
 import type { CreateMissionRequest } from "@acessa-plus/types";
-import { buildStudentSheet } from "./api/demo-store";
+import { buildStudentSheet, buildWorksheetsFromBlueprints } from "./api/demo-store";
+import { buildWordExportText, resolveWorksheetCollection } from "./product-studio";
 import {
   resolveRendererKind,
   StudentSheetRenderer,
@@ -73,6 +75,70 @@ function createBlueprint() {
 
   return {
     request,
+    context,
+    decision,
+    blueprint: buildMaterialBlueprint(request, context, decision)
+  };
+}
+
+function createPortugueseSubstantiveRequest(): CreateMissionRequest {
+  return {
+    userId: "professor-demo",
+    organizationId: "organizacao-demo",
+    missionType: "ADAPT_ACTIVITY",
+    input: {
+      rawPrompt:
+        "Crie 5 folhas A4 de Lingua Portuguesa sobre substantivos proprios e comuns, funcoes e flexoes dos substantivos, para estudante com DI e apoio moderado.",
+      discipline: "Lingua Portuguesa",
+      gradeYear: "6 ano",
+      skill: "EF06LP04/ES",
+      knowledgeObject: "substantivos",
+      theme: "substantivos proprios e comuns; funcoes e flexoes dos substantivos",
+      lessonObjective: "Identificar, classificar, flexionar e usar substantivos em frases curtas.",
+      specificNeed: "Deficiencia Intelectual",
+      readingWritingLevel: "Leitor inicial",
+      expectedProductType: "Atividade Adaptada",
+      activityType: "Atividade Adaptada",
+      questionCount: "5",
+      outputFormat: "Folha A4 e guia do professor",
+      adaptationProfile: {
+        enabled: true,
+        targetAudience: "Deficiencia Intelectual",
+        learningProfile: "Leitor inicial",
+        supports: ["apoio moderado", "recursos visuais", "frases curtas"]
+      }
+    }
+  };
+}
+
+function createBlueprintForRequest(request: CreateMissionRequest) {
+  const registry = new KnowledgeRegistry();
+
+  registry.register({
+    id: "metodo-acessa",
+    name: "Metodo ACESSA+",
+    version: "0.1.0",
+    type: "PROTOCOL",
+    scope: ["cognitive-model"],
+    status: "ACTIVE"
+  });
+
+  const context = new ContextResolver().resolve({
+    missionType: request.missionType,
+    rawInput: request.input,
+    organizationId: request.organizationId,
+    userId: request.userId,
+    availableKnowledgeIds: ["metodo-acessa"]
+  });
+  const decision = new DecisionEngine(registry).decide({
+    context,
+    activeKnowledgeIds: context.availableKnowledgeIds
+  });
+
+  return {
+    request,
+    context,
+    decision,
     blueprint: buildMaterialBlueprint(request, context, decision)
   };
 }
@@ -654,5 +720,148 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(match?.taskData?.actionType).toBe("MATCH");
     expect(match?.taskData).toHaveProperty("leftItems");
     expect(match?.taskData).not.toHaveProperty("representation");
+  });
+
+  it("builds five distinct printable worksheets from the WorksheetBlueprint collection", () => {
+    const { request, context, decision, blueprint } = createBlueprint();
+    const projectOutput = buildPedagogicalProject({
+      request,
+      context,
+      decision,
+      materialBlueprint: blueprint
+    });
+    const worksheets = buildWorksheetsFromBlueprints(
+      {},
+      request,
+      blueprint,
+      projectOutput.project,
+      projectOutput.worksheetBlueprints
+    );
+    const titles = worksheets.map((worksheet) => worksheet.title);
+    const renderedSheets = worksheets.map((worksheet) =>
+      renderToStaticMarkup(
+        React.createElement(StudentSheetRenderer, {
+          plan: {
+            subject: "Matematica",
+            grade: "6 ano",
+            studentSheet: worksheet.studentSheet as StudentSheetPlan["studentSheet"]
+          }
+        })
+      )
+    );
+
+    expect(worksheets).toHaveLength(5);
+    expect(new Set(titles).size).toBe(5);
+    expect(worksheets.map((worksheet) => worksheet.worksheetOrder)).toEqual([1, 2, 3, 4, 5]);
+    expect(worksheets.every((worksheet) => worksheet.validationStatus === "VALID")).toBe(true);
+    expect(worksheets.every((worksheet) => worksheet.validationIssues.length === 0)).toBe(true);
+    expect(worksheets.every((worksheet) =>
+      Array.isArray(worksheet.studentSheet.questions) &&
+      worksheet.studentSheet.questions.length >= 3
+    )).toBe(true);
+    expect(JSON.stringify(worksheets)).not.toMatch(/Progressao Aritmetica|P\.A\.|placeholder|paisagem/i);
+    expect(renderedSheets.join(" ")).not.toContain("Tarefa aguardando dados concretos");
+    expect(renderedSheets.join(" ")).not.toMatch(/\bSIM\b|\bNAO\b|\bLER\b|\bOK\b/i);
+  });
+
+  it("keeps worksheet navigation and Word export compatible with the multi-sheet contract", () => {
+    const { request, context, decision, blueprint } = createBlueprint();
+    const projectOutput = buildPedagogicalProject({
+      request,
+      context,
+      decision,
+      materialBlueprint: blueprint
+    });
+    const worksheets = buildWorksheetsFromBlueprints(
+      {},
+      request,
+      blueprint,
+      projectOutput.project,
+      projectOutput.worksheetBlueprints
+    );
+    const plan = {
+      subject: "Matematica",
+      grade: "6 ano",
+      studentSheet: worksheets[0]?.studentSheet as StudentSheetPlan["studentSheet"],
+      teacherGuide: worksheets[0]?.teacherGuide,
+      worksheets
+    };
+    const resolved = resolveWorksheetCollection(plan);
+    const exported = buildWordExportText(plan, resolved, true);
+
+    expect(resolved).toHaveLength(5);
+    expect(exported).toContain("FOLHA 1");
+    expect(exported).toContain("FOLHA 5");
+    expect(exported.split("--- QUEBRA DE FOLHA ---")).toHaveLength(5);
+  });
+
+  it("builds editorial Portuguese substantive worksheets with correct lexical classification", () => {
+    const setup = createBlueprintForRequest(createPortugueseSubstantiveRequest());
+    const projectOutput = buildPedagogicalProject({
+      request: setup.request,
+      context: setup.context,
+      decision: setup.decision,
+      materialBlueprint: setup.blueprint
+    });
+    const worksheets = buildWorksheetsFromBlueprints(
+      {},
+      setup.request,
+      setup.blueprint,
+      projectOutput.project,
+      projectOutput.worksheetBlueprints
+    );
+    const serialized = JSON.stringify(worksheets);
+    const classificationQuestions = (worksheets[1]?.studentSheet.questions ?? []) as Array<{
+      actionType?: string;
+      taskData?: {
+        expectedClassification?: Array<{ item: string; category: string }>;
+      };
+    }>;
+    const classificationQuestion = classificationQuestions.find((question) =>
+      question.actionType === "CLASSIFY"
+    );
+    const classifications = classificationQuestion?.taskData?.expectedClassification ?? [];
+
+    expect(worksheets).toHaveLength(5);
+    expect(worksheets.every((worksheet) => worksheet.validationStatus === "VALID")).toBe(true);
+    expect(classifications).toContainEqual({ item: "cachorro", category: "substantivo comum" });
+    expect(classifications).toContainEqual({ item: "Rex", category: "substantivo proprio" });
+    expect(classifications).toContainEqual({ item: "Ana", category: "substantivo proprio" });
+    expect(classifications).toContainEqual({ item: "Vitoria", category: "substantivo proprio" });
+    expect(classifications).toContainEqual({ item: "escola", category: "substantivo comum" });
+    expect(classifications).toContainEqual({ item: "livro", category: "substantivo comum" });
+    expect(serialized).not.toMatch(/passo 3|resposta 7|valor desconhecido|opera[cç][aã]o|numero conhecido/i);
+    expect(serialized).not.toMatch(/CONCEPTUAL_CLASSIFICATION_ERROR|GENERIC_LANGUAGE_FALLBACK|CROSS_DISCIPLINE_FALLBACK/i);
+  });
+
+  it("differentiates the five Portuguese substantive worksheets by editorial purpose and content", () => {
+    const setup = createBlueprintForRequest(createPortugueseSubstantiveRequest());
+    const projectOutput = buildPedagogicalProject({
+      request: setup.request,
+      context: setup.context,
+      decision: setup.decision,
+      materialBlueprint: setup.blueprint
+    });
+    const worksheets = buildWorksheetsFromBlueprints(
+      {},
+      setup.request,
+      setup.blueprint,
+      projectOutput.project,
+      projectOutput.worksheetBlueprints
+    );
+    const signatures = worksheets.map((worksheet) => {
+      const questions = (worksheet.studentSheet.questions ?? []) as Array<{ actionType?: string }>;
+
+      return questions.map((question) => question.actionType).join(">");
+    });
+    const sheetTexts = worksheets.map((worksheet) => JSON.stringify(worksheet.studentSheet));
+
+    expect(new Set(signatures).size).toBe(5);
+    expect(sheetTexts[2]).toMatch(/menino|menina|aluno|alunos|cidade|cidades|professor|professora/i);
+    expect(sheetTexts[3]).toMatch(/Mariana|biblioteca|frase curta/i);
+    expect(sheetTexts[4]).toMatch(/frase final|singular|plural|proprio|comum/i);
+    expect(worksheets[2]?.title).toContain("flexoes");
+    expect(worksheets[3]?.title).toContain("contexto");
+    expect(worksheets[4]?.title).toContain("avaliacao");
   });
 });

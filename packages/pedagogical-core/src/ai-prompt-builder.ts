@@ -21,6 +21,10 @@ import {
   buildMaterialBlueprint
 } from "./material-blueprint-builder.js";
 import type { MaterialBlueprint } from "./material-blueprint.js";
+import type {
+  PedagogicalProject,
+  WorksheetBlueprint
+} from "./pedagogical-project-engine.js";
 
 export const PEDAGOGICAL_GENERATION_SYSTEM_PROMPT =
   ADAPTED_ACTIVITY_SYSTEM_PROMPT;
@@ -36,7 +40,9 @@ export function buildPedagogicalGenerationPrompt(
   context: ResolvedContext,
   decision: DecisionResult,
   generationType?: ResourceGenerationType,
-  materialBlueprint?: MaterialBlueprint
+  materialBlueprint?: MaterialBlueprint,
+  pedagogicalProject?: PedagogicalProject,
+  worksheetBlueprints?: WorksheetBlueprint[]
 ): PedagogicalGenerationPrompt {
   const contractEntry = resolveGenerationContract(generationType);
   const systemPromptEntry = resolveGenerationSystemPrompt(generationType);
@@ -50,10 +56,16 @@ export function buildPedagogicalGenerationPrompt(
         "Analisar primeiro a habilidade curricular e somente depois gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
       materialBlueprintObrigatorio:
         "O MaterialBlueprint abaixo e obrigatorio. Cada atividade da studentSheet deve corresponder a uma plannedTask, respeitando ordem, actionType, intencao pedagogica, forma de resposta, apoio necessario, funcao visual e criterio de sucesso. Nao substitua o blueprint por lista generica de perguntas.",
+      pedagogicalProjectObrigatorio:
+        "O PedagogicalProject e o projeto pedagogico aprovado antes da geracao. A IA nao deve decidir a sequencia didatica, nem trocar objetivo, habilidade, objeto, metodologia, estrategias ou criterios. Use este projeto como fonte de verdade pedagogica.",
+      worksheetBlueprintObrigatorio:
+        "O WorksheetBlueprint define o mapa das folhas A4. A quantidade informada pelo professor representa quantidade de folhas, nao quantidade de questoes. Cada folha deve seguir sua identidade, objetivo, estrategia, metodologia, recurso, progressao cognitiva e foco do guia do professor.",
       taskDataObrigatorio:
         "Cada atividade deve conter taskData completo e concreto conforme o actionType. Nao use placeholders, alternativas vazias, pares ausentes, lacunas sem enunciado, visuais decorativos ou instrucao sem recurso correspondente.",
       contratoTaskDataPorActionType: TASK_DATA_OUTPUT_CONTRACT,
       materialBlueprint: blueprint,
+      pedagogicalProject,
+      worksheetBlueprints,
       referenciaCurricular:
         "Usar a BNCC como referencia nacional e, quando o professor informar Espirito Santo, SEDU-ES, Curriculo do Espirito Santo ou ano 2026, considerar essa referencia curricular na analise. Se a habilidade estadual for informada, preservar seu codigo e interpretar a competencia antes de criar atividades.",
       etapaObrigatoriaDeAnaliseCurricular: CURRICULAR_ANALYSIS_STEPS,

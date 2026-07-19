@@ -4869,6 +4869,81 @@ body.simpleMode .helperText {
   }
 }
 
+.field small {
+  color: var(--acessa-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.worksheetNavigator {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+  border: 1px solid #d7dde2;
+  border-radius: 14px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.worksheetNavigator button {
+  min-height: 34px;
+  border: 1px solid #c9d6df;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: var(--acessa-blue-dark);
+  font-weight: 850;
+}
+
+.worksheetNavigator button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.worksheetTabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.worksheetTabs button {
+  width: 34px;
+  padding: 0;
+}
+
+.worksheetTabs button[aria-current="page"] {
+  border-color: var(--acessa-blue-dark);
+  background: var(--acessa-blue-dark);
+  color: #ffffff;
+}
+
+.worksheetStatus {
+  grid-column: 1 / -1;
+  justify-self: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.worksheetStatus.valid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.worksheetStatus.review {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.printWorksheetStack {
+  display: none;
+}
+
 @media print {
   .mobileMenuButton,
   .appHeader,
@@ -4886,5 +4961,18 @@ body.simpleMode .helperText {
   .previewCard {
     margin: 0;
     padding: 0;
+  }
+
+  .printWorksheetStack {
+    display: block;
+  }
+
+  .printWorksheetStack .productA4 {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .previewCard > .productA4:has(+ .printWorksheetStack) {
+    display: none;
   }
 }

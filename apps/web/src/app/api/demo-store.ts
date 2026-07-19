@@ -10,6 +10,9 @@ import {
   type ActivityActionType,
   type MaterialBlueprint,
   type PlannedTask,
+  buildPedagogicalProject,
+  type PedagogicalProject,
+  type WorksheetBlueprint,
   PedagogicalValidator,
   type PedagogicalValidationReport,
   buildPedagogicalGenerationPrompt,
@@ -48,6 +51,21 @@ type InternalPedagogicalValidationState = {
   attempts: InternalPedagogicalValidationAttempt[];
   selectedAttempt: number;
   belowStandard: boolean;
+};
+
+export type GeneratedWorksheet = {
+  worksheetId: string;
+  worksheetOrder: number;
+  worksheetBlueprintId: string;
+  title: string;
+  objective: string;
+  strategy: string;
+  pedagogicalPurpose: string;
+  studentSheet: Record<string, unknown>;
+  teacherGuide: Record<string, unknown>;
+  validationStatus: "VALID" | "NEEDS_REVIEW";
+  validationIssues: string[];
+  regenerationCount: number;
 };
 
 type ResourceMetadata = {
@@ -627,13 +645,29 @@ async function generatePedagogicalPlan(
   decision: DecisionResult
 ): Promise<PedagogicalPlan & Record<string, unknown>> {
   const materialBlueprint = buildMaterialBlueprint(request, context, decision);
-  const generated = await generateAndSelectPedagogicalOutput(
+  const pedagogicalProjectOutput = buildPedagogicalProject({
     request,
     context,
     decision,
     materialBlueprint
+  });
+  const generated = await generateAndSelectPedagogicalOutput(
+    request,
+    context,
+    decision,
+    materialBlueprint,
+    pedagogicalProjectOutput.project,
+    pedagogicalProjectOutput.worksheetBlueprints
   );
   const fallback = buildGeneratedFallbacks(request);
+  const worksheets = buildWorksheetsFromBlueprints(
+    generated,
+    request,
+    materialBlueprint,
+    pedagogicalProjectOutput.project,
+    pedagogicalProjectOutput.worksheetBlueprints
+  );
+  const firstWorksheet = worksheets[0];
 
   return {
     intent: request.missionType,
@@ -655,8 +689,11 @@ async function generatePedagogicalPlan(
     ]),
     curricularAnalysis: buildCurricularAnalysis(generated, request),
     warnings: normalizeStringArray(generated.warnings, []),
-    studentSheet: buildStudentSheet(generated, request, materialBlueprint),
-    teacherGuide: buildTeacherGuide(generated, request, materialBlueprint),
+    pedagogicalProject: pedagogicalProjectOutput.project,
+    worksheetBlueprints: pedagogicalProjectOutput.worksheetBlueprints,
+    worksheets,
+    studentSheet: firstWorksheet?.studentSheet ?? buildStudentSheet(generated, request, materialBlueprint),
+    teacherGuide: firstWorksheet?.teacherGuide ?? buildTeacherGuide(generated, request, materialBlueprint),
     worksheetTitle: normalizeString(
       generated.worksheetTitle,
       `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
@@ -726,14 +763,18 @@ async function callOpenAI(
   request: CreateMissionRequest,
   context: ResolvedContext,
   decision: DecisionResult,
-  materialBlueprint: MaterialBlueprint
+  materialBlueprint: MaterialBlueprint,
+  pedagogicalProject?: PedagogicalProject,
+  worksheetBlueprints?: WorksheetBlueprint[]
 ): Promise<InternallyValidatedGeneration> {
   const prompt = buildPedagogicalGenerationPrompt(
     request,
     context,
     decision,
     undefined,
-    materialBlueprint
+    materialBlueprint,
+    pedagogicalProject,
+    worksheetBlueprints
   );
   const response = await generateJsonWithConfiguredProvider<Record<string, unknown>>(
     {
@@ -759,10 +800,19 @@ async function generateAndSelectPedagogicalOutput(
   request: CreateMissionRequest,
   context: ResolvedContext,
   decision: DecisionResult,
-  materialBlueprint: MaterialBlueprint
+  materialBlueprint: MaterialBlueprint,
+  pedagogicalProject?: PedagogicalProject,
+  worksheetBlueprints?: WorksheetBlueprint[]
 ): Promise<InternallyValidatedGeneration> {
   const validator = new PedagogicalValidator();
-  const firstOutput = await callOpenAI(request, context, decision, materialBlueprint);
+  const firstOutput = await callOpenAI(
+    request,
+    context,
+    decision,
+    materialBlueprint,
+    pedagogicalProject,
+    worksheetBlueprints
+  );
   const firstReport = validateGeneratedOutput(
     validator,
     buildNormalizedValidationCandidate(firstOutput, request, materialBlueprint),
@@ -1554,6 +1604,338 @@ export function buildStudentSheet(
   };
 }
 
+export function buildWorksheetsFromBlueprints(
+  generated: Record<string, unknown>,
+  request: CreateMissionRequest,
+  materialBlueprint: MaterialBlueprint,
+  pedagogicalProject: PedagogicalProject,
+  worksheetBlueprints: WorksheetBlueprint[]
+): GeneratedWorksheet[] {
+  const worksheets = worksheetBlueprints.length > 0
+    ? worksheetBlueprints
+    : [{
+        sheetNumber: 1,
+        title: materialBlueprint.content,
+        objective: materialBlueprint.learningObjective,
+        strategy: "Atividade guiada",
+        methodology: "Mediação pedagógica com apoio visual funcional.",
+        resources: materialBlueprint.visualRequirements,
+        learningFocus: "atividade guiada",
+        contentScope: materialBlueprint.content,
+        forbiddenContent: ["placeholder", "conteudo desconectado"],
+        requiredExamples: [materialBlueprint.content],
+        requiredTaskTypes: ["observar", "responder", "registrar"],
+        expectedProgression: "reconhecer, aplicar e registrar",
+        editorialPattern: "folha A4 com organizacao clara",
+        assessmentEvidence: "resposta correta com apoio adequado",
+        visualIdentity: "folha A4 com organização clara",
+        cognitiveProgression: "reconhecer, aplicar e registrar",
+        actionTypes: materialBlueprint.plannedTasks.map((task) => task.actionType),
+        teacherGuideFocus: ["mediação", "acessibilidade", "evidências"],
+        successCriteria: materialBlueprint.successCriteria,
+        plannedTasks: materialBlueprint.plannedTasks
+      } satisfies WorksheetBlueprint];
+
+  return worksheets.map((worksheetBlueprint) => {
+    const sheetBlueprint = buildSheetMaterialBlueprint(materialBlueprint, worksheetBlueprint);
+    const sheetGenerated = buildWorksheetGeneratedInput(generated, worksheetBlueprint);
+    const studentSheet = buildStudentSheet(sheetGenerated, request, sheetBlueprint);
+    const teacherGuide = buildWorksheetTeacherGuide(
+      generated,
+      request,
+      sheetBlueprint,
+      pedagogicalProject,
+      worksheetBlueprint
+    );
+    const validationIssues = collectWorksheetValidationIssues(
+      studentSheet,
+      sheetBlueprint,
+      worksheetBlueprint,
+      worksheets
+    );
+
+    return {
+      worksheetId: `worksheet_${worksheetBlueprint.sheetNumber}`,
+      worksheetOrder: worksheetBlueprint.sheetNumber,
+      worksheetBlueprintId: `worksheet_blueprint_${worksheetBlueprint.sheetNumber}`,
+      title: worksheetBlueprint.title,
+      objective: worksheetBlueprint.objective,
+      strategy: worksheetBlueprint.strategy,
+      pedagogicalPurpose: worksheetBlueprint.cognitiveProgression,
+      studentSheet,
+      teacherGuide,
+      validationStatus: validationIssues.length === 0 ? "VALID" : "NEEDS_REVIEW",
+      validationIssues,
+      regenerationCount: resolveRegenerationCount(generated)
+    };
+  });
+}
+
+function resolveRegenerationCount(generated: Record<string, unknown>): number {
+  const state = (generated as InternallyValidatedGeneration)[INTERNAL_PEDAGOGICAL_VALIDATION];
+
+  return Math.max(0, Number(state?.selectedAttempt ?? 1) - 1);
+}
+
+function buildSheetMaterialBlueprint(
+  materialBlueprint: MaterialBlueprint,
+  worksheetBlueprint: WorksheetBlueprint
+): MaterialBlueprint {
+  const plannedTasks = ensureWorksheetPlannedTasks(materialBlueprint, worksheetBlueprint);
+
+  return {
+    ...materialBlueprint,
+    requestedTaskCount: plannedTasks.length,
+    learningObjective: worksheetBlueprint.objective,
+    content: `${materialBlueprint.content}: ${worksheetBlueprint.title}`,
+    visualRequirements: uniqueStrings([
+      ...worksheetBlueprint.resources,
+      worksheetBlueprint.visualIdentity,
+      ...materialBlueprint.visualRequirements
+    ]),
+    successCriteria: worksheetBlueprint.successCriteria,
+    plannedTasks
+  };
+}
+
+function ensureWorksheetPlannedTasks(
+  materialBlueprint: MaterialBlueprint,
+  worksheetBlueprint: WorksheetBlueprint
+): PlannedTask[] {
+  const tasks = [...worksheetBlueprint.plannedTasks];
+  const fallbackActions: ActivityActionType[] = ["CLASSIFY", "MATCH", "COMPLETE", "CREATE_GUIDED_EXAMPLE"];
+
+  while (tasks.length < 3) {
+    const actionType = fallbackActions[tasks.length % fallbackActions.length] ?? "COMPLETE";
+    const baseTask =
+      materialBlueprint.plannedTasks.find((task) => task.actionType === actionType) ??
+      materialBlueprint.plannedTasks[tasks.length % materialBlueprint.plannedTasks.length];
+
+    tasks.push({
+      order: tasks.length + 1,
+      actionType,
+      pedagogicalPurpose:
+        baseTask?.pedagogicalPurpose ??
+        `ampliar ${materialBlueprint.content} na folha ${worksheetBlueprint.sheetNumber}`,
+      cognitiveDemand:
+        baseTask?.cognitiveDemand ??
+        worksheetBlueprint.cognitiveProgression,
+      instructionStyle:
+        baseTask?.instructionStyle ??
+        "comando objetivo com mediação quando necessário",
+      responseMode:
+        baseTask?.responseMode ??
+        "resposta curta com apoio visual",
+      supportRequired:
+        baseTask?.supportRequired ??
+        worksheetBlueprint.resources.slice(0, 2),
+      visualFunction:
+        baseTask?.visualFunction ??
+        worksheetBlueprint.visualIdentity,
+      successCriterion:
+        baseTask?.successCriterion ??
+        `conclui a tarefa ${tasks.length + 1} da folha ${worksheetBlueprint.sheetNumber}`
+    });
+  }
+
+  return tasks.map((task, index) => ({
+    ...task,
+    order: index + 1
+  }));
+}
+
+function buildWorksheetGeneratedInput(
+  generated: Record<string, unknown>,
+  worksheetBlueprint: WorksheetBlueprint
+): Record<string, unknown> {
+  const source = isRecord(generated.studentSheet) ? generated.studentSheet : {};
+
+  return {
+    ...generated,
+    worksheetTitle: worksheetBlueprint.title,
+    learningObjective: worksheetBlueprint.objective,
+    context: `${worksheetBlueprint.objective} A folha utiliza ${worksheetBlueprint.strategy.toLowerCase()} para promover ${worksheetBlueprint.cognitiveProgression}.`,
+    studentSheet: {
+      ...source,
+      title: worksheetBlueprint.title,
+      context: worksheetBlueprint.objective,
+      instructions: [
+        "Leia cada comando com atenção.",
+        "Use os apoios visuais da folha antes de responder.",
+        "Registre suas respostas nos espaços indicados."
+      ],
+      baseText: buildWorksheetBaseText(worksheetBlueprint),
+      didacticBoxes: [
+        `${worksheetBlueprint.strategy}: observe as pistas, responda com calma e confira sua produção.`,
+        `Foco da folha: ${worksheetBlueprint.learningFocus}.`,
+        ...worksheetBlueprint.successCriteria
+      ],
+      visualElements: worksheetBlueprint.resources,
+      tableRows: buildWorksheetTableRows(worksheetBlueprint)
+    }
+  };
+}
+
+function buildWorksheetTableRows(worksheetBlueprint: WorksheetBlueprint): string[] {
+  return [
+    `Foco | Escopo | Evidencia`,
+    `${worksheetBlueprint.learningFocus} | ${worksheetBlueprint.contentScope} | ${worksheetBlueprint.assessmentEvidence}`,
+    ...worksheetBlueprint.plannedTasks.slice(0, 3).map((task) =>
+    `${task.actionType} | ${task.responseMode} | ${task.successCriterion}`
+    )
+  ];
+}
+
+function buildWorksheetBaseText(worksheetBlueprint: WorksheetBlueprint): string {
+  if (normalizeComparable(worksheetBlueprint.contentScope).includes("substantivo")) {
+    if (worksheetBlueprint.sheetNumber === 1) {
+      return "Ana levou o cachorro Rex para passear na praca de Vitoria. Depois, ela guardou o livro na mochila.";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 4) {
+      return "Mariana visitou a biblioteca da escola. Ela escolheu um livro sobre Vitoria e escreveu uma frase no caderno.";
+    }
+  }
+
+  return "";
+}
+
+function buildWorksheetTeacherGuide(
+  generated: Record<string, unknown>,
+  request: CreateMissionRequest,
+  materialBlueprint: MaterialBlueprint,
+  pedagogicalProject: PedagogicalProject,
+  worksheetBlueprint: WorksheetBlueprint
+): Record<string, unknown> {
+  const guide = buildTeacherGuide(generated, request, materialBlueprint);
+
+  return {
+    ...guide,
+    skillCode: materialBlueprint.skillCode,
+    knowledgeObject: materialBlueprint.knowledgeObject,
+    objectives: [
+      worksheetBlueprint.objective,
+      ...pedagogicalProject.specificObjectives.slice(0, 2)
+    ],
+    methodology: [
+      worksheetBlueprint.methodology,
+      `Padrao editorial: ${worksheetBlueprint.editorialPattern}.`,
+      `Progressao esperada: ${worksheetBlueprint.expectedProgression}.`,
+      ...worksheetBlueprint.teacherGuideFocus.map((focus) => `Foco de mediação: ${focus}.`)
+    ],
+    adaptations: [
+      ...normalizeStringArray(pedagogicalProject.strategies, []).slice(0, 3),
+      ...normalizeStringArray(pedagogicalProject.resources, []).slice(0, 2),
+      ...normalizeStringArray(pedagogicalProject.assistiveTechnology, []).slice(0, 2)
+    ],
+    assessmentCriteria: worksheetBlueprint.successCriteria,
+    applicationSuggestions: [
+      `Aplicar como folha ${worksheetBlueprint.sheetNumber}, respeitando a progressão: ${worksheetBlueprint.cognitiveProgression}.`,
+      `Evidencia esperada: ${worksheetBlueprint.assessmentEvidence}.`,
+      "Registrar evidências de autonomia, necessidade de mediação e acertos com apoio."
+    ]
+  };
+}
+
+function collectWorksheetValidationIssues(
+  studentSheet: Record<string, unknown>,
+  materialBlueprint?: MaterialBlueprint,
+  worksheetBlueprint?: WorksheetBlueprint,
+  allWorksheetBlueprints: WorksheetBlueprint[] = []
+): string[] {
+  const sourceQuestions = Array.isArray(studentSheet.questions) ? studentSheet.questions : [];
+
+  const taskIssues = sourceQuestions
+    .map((question) => {
+      if (!isRecord(question)) {
+        return "INVALID_QUESTION";
+      }
+
+      return normalizeString(question.taskDataStatus, "") === "VALID"
+        ? ""
+        : normalizeString(question.taskDataIssue, "INCOMPLETE_TASK_DATA");
+    })
+    .filter(Boolean);
+
+  return uniqueStrings([
+    ...taskIssues,
+    ...collectSubstantiveEditorialIssues(studentSheet, materialBlueprint, worksheetBlueprint, allWorksheetBlueprints)
+  ]);
+}
+
+function collectSubstantiveEditorialIssues(
+  studentSheet: Record<string, unknown>,
+  materialBlueprint?: MaterialBlueprint,
+  worksheetBlueprint?: WorksheetBlueprint,
+  allWorksheetBlueprints: WorksheetBlueprint[] = []
+): string[] {
+  if (!materialBlueprint || !worksheetBlueprint || !isPortugueseSubstantives(materialBlueprint)) {
+    return [];
+  }
+
+  const issues: string[] = [];
+  const serialized = JSON.stringify(studentSheet);
+  const normalized = normalizeComparable(serialized);
+  const signature = worksheetBlueprint.actionTypes.join(">");
+  const repeatedSignature = allWorksheetBlueprints.some((candidate) =>
+    candidate.sheetNumber !== worksheetBlueprint.sheetNumber &&
+    candidate.actionTypes.join(">") === signature
+  );
+
+  if (repeatedSignature) {
+    issues.push("WORKSHEET_STRUCTURE_REPETITION");
+  }
+
+  if (/passo\s*\d|resposta\s*\d|valor desconhecido|operacao|n[uú]mero conhecido/i.test(serialized)) {
+    issues.push("CROSS_DISCIPLINE_FALLBACK");
+    issues.push("GENERIC_LANGUAGE_FALLBACK");
+  }
+
+  if (normalized.includes("cachorro") && normalized.includes("substantivo proprio")) {
+    const classifications = extractExpectedClassification(studentSheet);
+    const cachorro = classifications.find((item) => normalizeComparable(item.item) === "cachorro");
+
+    if (cachorro?.category !== "substantivo comum") {
+      issues.push("CONCEPTUAL_CLASSIFICATION_ERROR");
+    }
+  }
+
+  if (normalized.includes("escola") && normalized.includes("nome de lugar proprio")) {
+    issues.push("AMBIGUOUS_EXAMPLE");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 3 && !/menino|menina|aluno|alunos|cidade|cidades|professor|professora/i.test(serialized)) {
+    issues.push("MISSING_FLEXION_CONTENT");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 4 && !/Mariana|biblioteca|frase curta|contexto/i.test(serialized)) {
+    issues.push("MISSING_CONTEXTUAL_USE");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 5 && !/autoavalia|frase final|singular|plural|proprio|comum/i.test(serialized)) {
+    issues.push("WEAK_FINAL_ASSESSMENT");
+  }
+
+  return issues;
+}
+
+function extractExpectedClassification(studentSheet: Record<string, unknown>): Array<{ item: string; category: string }> {
+  const questions = Array.isArray(studentSheet.questions) ? studentSheet.questions : [];
+
+  return questions.flatMap((question) => {
+    if (!isRecord(question) || !isRecord(question.taskData) || !Array.isArray(question.taskData.expectedClassification)) {
+      return [];
+    }
+
+    return question.taskData.expectedClassification
+      .filter(isRecord)
+      .map((item) => ({
+        item: normalizeString(item.item, ""),
+        category: normalizeString(item.category, "")
+      }));
+  });
+}
+
 function normalizeQuestionsFromBlueprint(
   value: unknown,
   materialBlueprint: MaterialBlueprint
@@ -1663,14 +2045,626 @@ function buildConcreteTaskDataFallback(
   ].join(" "));
 
   if (source.includes("matematica") && (source.includes("equacao") || source.includes("equacoes"))) {
-    return buildEquationTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    return buildEquationTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion) ??
+      buildGenericTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+  }
+
+  if (isPortugueseSubstantives(materialBlueprint, source)) {
+    return buildSubstantiveTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
   }
 
   if (plannedTask.actionType === "CREATE_GUIDED_EXAMPLE") {
     return buildConcreteGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
   }
 
-  return undefined;
+  return buildGenericTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+}
+
+function isPortugueseSubstantives(materialBlueprint: MaterialBlueprint, source?: string): boolean {
+  const comparable = source ?? normalizeComparable([
+    materialBlueprint.discipline,
+    materialBlueprint.knowledgeObject,
+    materialBlueprint.content,
+    materialBlueprint.skillCode
+  ].join(" "));
+
+  return comparable.includes("substantivo") &&
+    (comparable.includes("lingua") || comparable.includes("portugues") || comparable.includes("ef06lp"));
+}
+
+function buildSubstantiveTaskDataFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const sheetKind = resolveSubstantiveSheetKind(materialBlueprint, plannedTask, instruction, command);
+
+  switch (plannedTask.actionType) {
+    case "OBSERVE":
+      return buildSubstantiveObserveFallback(sheetKind);
+    case "CLASSIFY":
+      return buildSubstantiveClassifyFallback(sheetKind);
+    case "MATCH":
+      return buildSubstantiveMatchFallback(sheetKind);
+    case "COMPLETE":
+      return buildSubstantiveCompleteFallback(sheetKind);
+    case "CONNECT":
+      return buildSubstantiveConnectFallback(sheetKind);
+    case "ORDER":
+      return buildSubstantiveOrderFallback(sheetKind);
+    case "CREATE_GUIDED_EXAMPLE":
+      return buildSubstantiveGuidedExampleFallback(sheetKind, plannedTask);
+    case "SOLVE":
+      return buildGenericSolveFallback(materialBlueprint, plannedTask, instruction, command);
+    default:
+      return buildConcreteGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+  }
+}
+
+type SubstantiveSheetKind = "recognition" | "classification" | "flexion" | "context" | "assessment";
+
+function resolveSubstantiveSheetKind(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): SubstantiveSheetKind {
+  const source = normalizeComparable([
+    materialBlueprint.content,
+    plannedTask.pedagogicalPurpose,
+    instruction,
+    command
+  ].join(" "));
+
+  if (source.includes("reconhecimento de substantivos")) {
+    return "recognition";
+  }
+
+  if (source.includes("classificacao em proprios e comuns")) {
+    return "classification";
+  }
+
+  if (source.includes("uso dos substantivos em contexto")) {
+    return "context";
+  }
+
+  if (source.includes("aplicacao e avaliacao final")) {
+    return "assessment";
+  }
+
+  if (source.includes("flexoes dos substantivos")) {
+    return "flexion";
+  }
+
+  if (source.includes("avaliacao") || source.includes("generalizacao") || source.includes("integrador")) {
+    return "assessment";
+  }
+
+  if (source.includes("contexto") || source.includes("contextual") || source.includes("frase")) {
+    return "context";
+  }
+
+  if (source.includes("flex") || source.includes("singular") || source.includes("plural") || source.includes("genero")) {
+    return "flexion";
+  }
+
+  if (source.includes("classifica") || source.includes("proprio") || source.includes("comum")) {
+    return "classification";
+  }
+
+  return "recognition";
+}
+
+function buildSubstantiveObserveFallback(sheetKind: SubstantiveSheetKind): Record<string, unknown> {
+  if (sheetKind === "assessment") {
+    return {
+      actionType: "OBSERVE",
+      representation: "Ana | cachorro | Vitoria | livro",
+      question: "Quais palavras sao substantivos?",
+      options: ["Ana", "correu", "feliz"],
+      correctOption: "Ana",
+      visualDescription: "quadro com palavras para identificar substantivos"
+    };
+  }
+
+  return {
+    actionType: "OBSERVE",
+    representation: "Ana levou o cachorro Rex para passear na praca de Vitoria.",
+    question: "Circule os nomes que aparecem na frase.",
+    options: ["Ana", "levou", "para"],
+    correctOption: "Ana",
+    visualDescription: "texto curto com nomes de pessoa, animal, lugar e cidade"
+  };
+}
+
+function buildSubstantiveClassifyFallback(sheetKind: SubstantiveSheetKind): Record<string, unknown> {
+  const items = sheetKind === "assessment"
+    ? ["Ana", "Vitoria", "Rex", "cachorro", "livro", "cidade"]
+    : ["Ana", "Vitoria", "Rex", "escola", "livro", "cachorro"];
+
+  return {
+    actionType: "CLASSIFY",
+    items,
+    categories: ["substantivo proprio", "substantivo comum"],
+    expectedClassification: items.map((item) => ({
+      item,
+      category: classifySubstantiveExample(item)
+    }))
+  };
+}
+
+function buildSubstantiveMatchFallback(sheetKind: SubstantiveSheetKind): Record<string, unknown> {
+  if (sheetKind === "flexion") {
+    return {
+      actionType: "MATCH",
+      leftItems: ["menino", "aluno", "cidade", "professor"],
+      rightItems: ["menina", "alunos", "cidades", "professora"],
+      correctPairs: [
+        { left: "menino", right: "menina" },
+        { left: "aluno", right: "alunos" },
+        { left: "cidade", right: "cidades" },
+        { left: "professor", right: "professora" }
+      ],
+      connectionInstruction: "Ligue cada substantivo a sua flexao correta."
+    };
+  }
+
+  return {
+    actionType: "MATCH",
+    leftItems: ["Ana", "Vitoria", "Rex", "cachorro"],
+    rightItems: ["nome de pessoa", "nome de cidade", "nome de animal", "animal comum"],
+    correctPairs: [
+      { left: "Ana", right: "nome de pessoa" },
+      { left: "Vitoria", right: "nome de cidade" },
+      { left: "Rex", right: "nome de animal" },
+      { left: "cachorro", right: "animal comum" }
+    ],
+    connectionInstruction: "Ligue cada substantivo ao que ele nomeia."
+  };
+}
+
+function buildSubstantiveCompleteFallback(sheetKind: SubstantiveSheetKind): Record<string, unknown> {
+  if (sheetKind === "flexion") {
+    return {
+      actionType: "COMPLETE",
+      statements: [
+        "Um aluno. Dois ___.",
+        "Uma cidade. Muitas ___.",
+        "O professor. A ___.",
+        "O menino. A ___."
+      ],
+      blanks: ["alunos", "cidades", "professora", "menina"],
+      expectedAnswers: ["alunos", "cidades", "professora", "menina"],
+      supportSteps: [
+        "Observe se a palavra esta no singular ou no plural.",
+        "Veja se a palavra indica masculino ou feminino.",
+        "Complete uma frase por vez."
+      ]
+    };
+  }
+
+  if (sheetKind === "context") {
+    return {
+      actionType: "COMPLETE",
+      statements: [
+        "Mariana visitou a ___ da escola.",
+        "Ela leu um ___ na biblioteca.",
+        "Depois, escreveu uma frase sobre ___."
+      ],
+      blanks: ["biblioteca", "livro", "Vitoria"],
+      expectedAnswers: ["biblioteca", "livro", "Vitoria"],
+      supportSteps: [
+        "Escolha uma palavra do banco.",
+        "Confira se a frase ficou com sentido.",
+        "Leia a frase completa."
+      ]
+    };
+  }
+
+  if (sheetKind === "assessment") {
+    return {
+      actionType: "COMPLETE",
+      statements: [
+        "Singular: cidade. Plural: ___.",
+        "Substantivo proprio: ___.",
+        "Substantivo comum: ___."
+      ],
+      blanks: ["cidades", "Ana", "livro"],
+      expectedAnswers: ["cidades", "Ana", "livro"],
+      supportSteps: [
+        "Use o que aprendeu nas folhas anteriores.",
+        "Confira maiusculas e minusculas.",
+        "Complete cada item com atencao."
+      ]
+    };
+  }
+
+  return {
+    actionType: "COMPLETE",
+    statements: [
+      "Ana levou o cachorro Rex para passear. Nome de pessoa: ___.",
+      "Eles foram a praca de Vitoria. Nome de cidade: ___.",
+      "O animal da frase e o ___."
+    ],
+    blanks: ["Ana", "Vitoria", "cachorro"],
+    expectedAnswers: ["Ana", "Vitoria", "cachorro"],
+    supportSteps: [
+      "Leia a frase curta.",
+      "Procure nomes de pessoa, lugar, animal e objeto.",
+      "Escreva uma palavra por lacuna."
+    ]
+  };
+}
+
+function buildSubstantiveConnectFallback(sheetKind: SubstantiveSheetKind): Record<string, unknown> {
+  if (sheetKind === "flexion") {
+    return {
+      actionType: "CONNECT",
+      sourceItems: ["singular", "plural", "masculino", "feminino"],
+      targetItems: ["cidade", "cidades", "professor", "professora"],
+      correctConnections: [
+        { source: "singular", target: "cidade" },
+        { source: "plural", target: "cidades" },
+        { source: "masculino", target: "professor" },
+        { source: "feminino", target: "professora" }
+      ]
+    };
+  }
+
+  return {
+    actionType: "CONNECT",
+    sourceItems: ["Ana", "Vitoria", "Rex", "livro"],
+    targetItems: ["pessoa", "cidade", "animal com nome proprio", "objeto"],
+    correctConnections: [
+      { source: "Ana", target: "pessoa" },
+      { source: "Vitoria", target: "cidade" },
+      { source: "Rex", target: "animal com nome proprio" },
+      { source: "livro", target: "objeto" }
+    ]
+  };
+}
+
+function buildSubstantiveOrderFallback(sheetKind: SubstantiveSheetKind): Record<string, unknown> {
+  const items = sheetKind === "context"
+    ? ["Mariana", "visitou", "a biblioteca", "da escola"]
+    : ["ler a frase", "encontrar o substantivo", "classificar", "conferir a resposta"];
+
+  return {
+    actionType: "ORDER",
+    items,
+    correctOrder: items
+  };
+}
+
+function buildSubstantiveGuidedExampleFallback(
+  sheetKind: SubstantiveSheetKind,
+  plannedTask: PlannedTask
+): Record<string, unknown> {
+  if (sheetKind === "context") {
+    return {
+      actionType: "CREATE_GUIDED_EXAMPLE",
+      contextPrompt: "Crie uma frase curta usando um nome proprio e um substantivo comum.",
+      availableValues: ["Mariana", "Vitoria", "biblioteca", "livro", "escola"],
+      constructionSteps: [
+        "Escolha um nome de pessoa ou cidade.",
+        "Escolha um substantivo comum.",
+        "Complete a frase.",
+        "Destaque os substantivos usados."
+      ],
+      fieldsToComplete: ["nome proprio", "substantivo comum", "frase curta"],
+      exampleAnswer: "Mariana leu um livro na escola. Proprio: Mariana. Comum: livro, escola.",
+      sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose
+    };
+  }
+
+  if (sheetKind === "assessment") {
+    return {
+      actionType: "CREATE_GUIDED_EXAMPLE",
+      contextPrompt: "Escreva uma frase final com um substantivo proprio e um substantivo comum.",
+      availableValues: ["Ana", "Rex", "Vitoria", "cachorro", "livro", "cidade"],
+      constructionSteps: [
+        "Escolha um substantivo proprio.",
+        "Escolha um substantivo comum.",
+        "Escreva uma frase curta.",
+        "Marque P para proprio e C para comum."
+      ],
+      fieldsToComplete: ["substantivo proprio", "substantivo comum", "frase", "P/C"],
+      exampleAnswer: "Ana ganhou um livro. Ana = proprio. livro = comum.",
+      sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose
+    };
+  }
+
+  return {
+    actionType: "CREATE_GUIDED_EXAMPLE",
+    contextPrompt: "Monte um exemplo com substantivos.",
+    availableValues: ["Ana", "Vitoria", "Rex", "cachorro", "livro", "escola"],
+    constructionSteps: [
+      "Escolha um nome de pessoa.",
+      "Escolha um lugar.",
+      "Escolha um animal ou objeto.",
+      "Indique se e proprio ou comum."
+    ],
+    fieldsToComplete: ["nome de pessoa", "lugar", "animal ou objeto", "proprio ou comum"],
+    exampleAnswer: "Ana = proprio; Vitoria = proprio; Rex = proprio; livro = comum; cachorro = comum.",
+    sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose
+  };
+}
+
+function classifySubstantiveExample(item: string): "substantivo proprio" | "substantivo comum" {
+  const normalized = normalizeComparable(item);
+  const proper = ["ana", "vitoria", "rex", "brasil", "espirito santo"];
+
+  return proper.includes(normalized)
+    ? "substantivo proprio"
+    : "substantivo comum";
+}
+
+function buildGenericTaskDataFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  switch (plannedTask.actionType) {
+    case "OBSERVE":
+      return buildGenericObserveFallback(materialBlueprint, plannedTask, instruction, command);
+    case "MATCH":
+      return buildGenericMatchFallback(materialBlueprint, plannedTask, instruction, command);
+    case "COMPLETE":
+      return buildGenericCompleteFallback(materialBlueprint, plannedTask, instruction, command);
+    case "SOLVE":
+      return buildGenericSolveFallback(materialBlueprint, plannedTask, instruction, command);
+    case "CLASSIFY":
+      return buildGenericClassifyFallback(materialBlueprint, plannedTask);
+    case "ORDER":
+      return buildGenericOrderFallback(materialBlueprint, plannedTask);
+    case "CONNECT":
+      return buildGenericConnectFallback(materialBlueprint, plannedTask);
+    case "CREATE_GUIDED_EXAMPLE":
+      return buildConcreteGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+    default:
+      return undefined;
+  }
+}
+
+function buildGenericObserveFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, instruction, command);
+
+  return {
+    actionType: "OBSERVE",
+    representation: `${terms.topic} = ${terms.examples[0]}`,
+    question: `Qual opção combina melhor com ${terms.topic}?`,
+    options: terms.examples.slice(0, 3),
+    correctOption: terms.examples[0],
+    visualDescription: `quadro comparativo sobre ${terms.topic} com opções concretas`
+  };
+}
+
+function buildGenericMatchFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, instruction, command);
+  const pairs = terms.examples.slice(0, 3).map((example, index) => ({
+    left: example,
+    right: terms.meanings[index] ?? `${terms.topic} ${index + 1}`
+  }));
+
+  return {
+    actionType: "MATCH",
+    leftItems: pairs.map((pair) => pair.left),
+    rightItems: pairs.map((pair) => pair.right),
+    correctPairs: pairs,
+    connectionInstruction: `Ligue cada exemplo à sua função em ${terms.topic}.`
+  };
+}
+
+function buildGenericCompleteFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, instruction, command);
+
+  return {
+    actionType: "COMPLETE",
+    statements: [
+      `${terms.sentences[0] ?? `O conteúdo estudado é ${terms.topic}.`} Palavra principal: ___`,
+      `${terms.sentences[1] ?? `Um exemplo importante é ${terms.examples[0]}.`} Complete com uma palavra do quadro: ___`
+    ],
+    blanks: ["palavra principal", "palavra do quadro"],
+    expectedAnswers: terms.examples.slice(0, 2),
+    supportSteps: [
+      "Leia a frase com mediação quando necessário.",
+      "Observe as palavras do quadro.",
+      "Complete apenas uma lacuna por vez."
+    ]
+  };
+}
+
+function buildGenericSolveFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, instruction, command);
+
+  return {
+    actionType: "SOLVE",
+    problemContext: `${terms.sentences[0] ?? `Observe o exemplo sobre ${terms.topic}.`} O que essa situação mostra sobre ${terms.topic}?`,
+    equation: `${terms.topic} -> ${terms.examples[0]}`,
+    guidedSteps: [
+      "Identifique a informação principal.",
+      "Use o apoio visual da folha.",
+      "Escreva uma resposta curta no espaço indicado."
+    ],
+    answer: terms.examples[0],
+    calculationSpace: "linhas para registro da resposta"
+  };
+}
+
+function buildGenericClassifyFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, "", "");
+  const categories = terms.categories;
+
+  return {
+    actionType: "CLASSIFY",
+    items: terms.examples.slice(0, 5),
+    categories,
+    expectedClassification: terms.examples.slice(0, 5).map((item, index) => ({
+      item,
+      category: categories[index % categories.length] ?? categories[0]
+    }))
+  };
+}
+
+function buildGenericOrderFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, "", "");
+  const items = terms.sequence.slice(0, 4);
+
+  return {
+    actionType: "ORDER",
+    items,
+    correctOrder: items
+  };
+}
+
+function buildGenericConnectFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask
+): Record<string, unknown> {
+  const terms = buildConcreteTerms(materialBlueprint, plannedTask, "", "");
+  const pairs = terms.examples.slice(0, 3).map((example, index) => ({
+    source: example,
+    target: terms.meanings[index] ?? terms.categories[index % terms.categories.length] ?? terms.topic
+  }));
+
+  return {
+    actionType: "CONNECT",
+    sourceItems: pairs.map((pair) => pair.source),
+    targetItems: pairs.map((pair) => pair.target),
+    correctConnections: pairs
+  };
+}
+
+function buildConcreteTerms(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): {
+  topic: string;
+  examples: string[];
+  meanings: string[];
+  categories: string[];
+  sequence: string[];
+  sentences: string[];
+} {
+  const source = normalizeComparable([
+    materialBlueprint.discipline,
+    materialBlueprint.knowledgeObject,
+    materialBlueprint.content,
+    plannedTask.pedagogicalPurpose,
+    instruction,
+    command
+  ].join(" "));
+  const topic = materialBlueprint.knowledgeObject || materialBlueprint.content || "conteúdo estudado";
+
+  if (source.includes("substantivo")) {
+    return {
+      topic: "substantivos",
+      examples: ["Ana", "escola", "Vitória", "livro", "cachorro"],
+      meanings: ["nome de pessoa", "nome de lugar ou objeto", "nome próprio de cidade", "nome de objeto", "nome de animal"],
+      categories: ["substantivo próprio", "substantivo comum"],
+      sequence: ["ler a frase", "encontrar o nome", "classificar", "escrever outro exemplo"],
+      sentences: [
+        "Ana levou um livro para a escola.",
+        "Vitória é uma cidade do Espírito Santo."
+      ]
+    };
+  }
+
+  if (source.includes("coesao") || source.includes("coerencia") || source.includes("texto")) {
+    return {
+      topic: "ideia principal do texto",
+      examples: ["assunto principal", "informação secundária", "conectivo", "começo", "final"],
+      meanings: ["o que o texto mais apresenta", "detalhe que ajuda a explicar", "palavra que liga ideias", "primeira parte", "última parte"],
+      categories: ["ideia principal", "detalhe", "organização textual"],
+      sequence: ["ler o texto", "marcar o assunto principal", "ligar as ideias", "reescrever com sentido"],
+      sentences: [
+        "A turma organizou uma campanha para arrecadar livros.",
+        "Os estudantes doaram os livros para a biblioteca."
+      ]
+    };
+  }
+
+  if (source.includes("quimic") || source.includes("reacao") || source.includes("transformacao")) {
+    return {
+      topic: "transformações químicas",
+      examples: ["reagentes", "produtos", "síntese", "decomposição", "dupla troca"],
+      meanings: ["substâncias iniciais", "substâncias formadas", "união de substâncias", "separação em partes", "troca entre compostos"],
+      categories: ["reagente", "produto", "tipo de reação"],
+      sequence: ["observar reagentes", "identificar produtos", "classificar reação", "registrar evidência"],
+      sentences: [
+        "Nas reações químicas, os reagentes se transformam em produtos.",
+        "Os produtos aparecem depois da seta."
+      ]
+    };
+  }
+
+  if (source.includes("geografia") || source.includes("territorio") || source.includes("brasil") || source.includes("espirito santo")) {
+    return {
+      topic: "território brasileiro e Espírito Santo",
+      examples: ["Brasil", "Espírito Santo", "região Sudeste", "Vitória", "conflito territorial"],
+      meanings: ["país", "estado", "região", "capital", "disputa por território ou recursos"],
+      categories: ["localização", "território", "conflito socioambiental"],
+      sequence: ["observar o mapa", "localizar o estado", "identificar conflito", "propor solução"],
+      sentences: [
+        "O Espírito Santo fica na região Sudeste do Brasil.",
+        "Conflitos territoriais podem envolver terra, moradia e recursos naturais."
+      ]
+    };
+  }
+
+  return {
+    topic,
+    examples: [
+      topic,
+      materialBlueprint.skillCode || "habilidade curricular",
+      materialBlueprint.learningObjective || "objetivo de aprendizagem",
+      materialBlueprint.content || topic
+    ],
+    meanings: [
+      "conteúdo principal",
+      "habilidade trabalhada",
+      "objetivo da atividade",
+      "exemplo de aplicação"
+    ],
+    categories: ["conceito", "exemplo"],
+    sequence: ["observar", "relacionar", "completar", "registrar"],
+    sentences: [
+      `O tema desta folha é ${topic}.`,
+      `A atividade trabalha ${materialBlueprint.learningObjective}.`
+    ]
+  };
 }
 
 function buildConcreteGuidedExampleFallback(

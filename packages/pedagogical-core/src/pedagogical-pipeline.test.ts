@@ -6,6 +6,7 @@ import {
   BarrierAndAccessResolver,
   buildMaterialBlueprint,
   buildPedagogicalGenerationPrompt,
+  buildPedagogicalProject,
   ContextResolver,
   DecisionEngine,
   getDefaultResourceGenerationType,
@@ -17,6 +18,7 @@ import {
   PEDAGOGICAL_RESOURCE_OUTPUT_CONTRACT,
   PEI_SYSTEM_PROMPT,
   PEI_OUTPUT_CONTRACT,
+  PedagogicalProjectError,
   PedagogicalValidator,
   RegenerationPolicy,
   buildPedagogicalCorrectionPrompt,
@@ -693,6 +695,71 @@ describe("Ciclo 2 pedagogical pipeline", () => {
     expect(blueprint.successCriteria).toHaveLength(5);
   });
 
+  it("builds a PedagogicalProject and WorksheetBlueprints before AI generation", () => {
+    const request = createMathDiRequest();
+    const context = new ContextResolver().resolve({
+      missionType: request.missionType,
+      rawInput: request.input,
+      organizationId: request.organizationId,
+      userId: request.userId,
+      availableKnowledgeIds: ["metodo-acessa"]
+    });
+    const decision = new DecisionEngine(createRegistry()).decide({
+      context,
+      activeKnowledgeIds: context.availableKnowledgeIds
+    });
+    const materialBlueprint = buildMaterialBlueprint(request, context, decision);
+    const ppe = buildPedagogicalProject({
+      request,
+      context,
+      decision,
+      materialBlueprint
+    });
+
+    expect(ppe.validation.approved).toBe(true);
+    expect(ppe.project.generalObjective).toBe(materialBlueprint.learningObjective);
+    expect(ppe.project.worksheetCount).toBe(5);
+    expect(ppe.worksheetBlueprints).toHaveLength(5);
+    expect(ppe.worksheetBlueprints.map((sheet) => sheet.sheetNumber)).toEqual([1, 2, 3, 4, 5]);
+    expect(new Set(ppe.worksheetBlueprints.map((sheet) => sheet.strategy)).size).toBe(5);
+    expect(ppe.worksheetBlueprints[0]?.title).toContain(materialBlueprint.content);
+    expect(ppe.worksheetBlueprints[4]?.teacherGuideFocus).toContain("avaliacao formativa");
+  });
+
+  it("rejects a clear discipline and BNCC skill mismatch before generation", () => {
+    const request = {
+      ...createMathDiRequest(),
+      input: {
+        ...createMathDiRequest().input,
+        discipline: "Matematica",
+        skill: "EF06LP02",
+        knowledgeObject: "Equacoes do primeiro grau",
+        theme: "Equacoes do primeiro grau"
+      }
+    };
+    const context = new ContextResolver().resolve({
+      missionType: request.missionType,
+      rawInput: request.input,
+      organizationId: request.organizationId,
+      userId: request.userId,
+      availableKnowledgeIds: ["metodo-acessa"]
+    });
+    const decision = new DecisionEngine(createRegistry()).decide({
+      context,
+      activeKnowledgeIds: context.availableKnowledgeIds
+    });
+    const materialBlueprint = buildMaterialBlueprint(request, context, decision);
+
+    expect(() =>
+      buildPedagogicalProject({
+        request,
+        context,
+        decision,
+        materialBlueprint
+      })
+    ).toThrow(PedagogicalProjectError);
+  });
+
   it("adds the MaterialBlueprint to the prompt while preserving the public output contract", () => {
     const request = createMathDiRequest();
     const context = new ContextResolver().resolve({
@@ -714,6 +781,12 @@ describe("Ciclo 2 pedagogical pipeline", () => {
 
     expect(prompt.userPayload.materialBlueprintObrigatorio).toContain(
       "Cada atividade da studentSheet deve corresponder a uma plannedTask"
+    );
+    expect(prompt.userPayload.pedagogicalProjectObrigatorio).toContain(
+      "A IA nao deve decidir a sequencia didatica"
+    );
+    expect(prompt.userPayload.worksheetBlueprintObrigatorio).toContain(
+      "quantidade de folhas"
     );
     expect(blueprint.plannedTasks).toHaveLength(5);
     expect(blueprint.plannedTasks[0]?.actionType).toBe("OBSERVE");

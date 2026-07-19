@@ -30,7 +30,7 @@ type WorksheetQuestion = {
   answerSpace?: string;
 };
 
-type WorksheetPlan = {
+export type WorksheetPlan = {
   studentSheet?: {
     title?: string;
     context?: string;
@@ -65,6 +65,22 @@ type WorksheetPlan = {
   objectives?: string[];
   visualElements?: string[];
   questions?: WorksheetQuestion[];
+  worksheets?: WorksheetResult[];
+};
+
+export type WorksheetResult = {
+  worksheetId: string;
+  worksheetOrder: number;
+  worksheetBlueprintId: string;
+  title: string;
+  objective: string;
+  strategy: string;
+  pedagogicalPurpose: string;
+  studentSheet: WorksheetPlan["studentSheet"];
+  teacherGuide: WorksheetPlan["teacherGuide"];
+  validationStatus: "VALID" | "NEEDS_REVIEW";
+  validationIssues: string[];
+  regenerationCount: number;
 };
 
 type MissionResult = {
@@ -135,6 +151,8 @@ export function ProductStudio(): React.ReactElement {
   const [message, setMessage] = useState<string | null>(null);
   const [showTeacherGuide, setShowTeacherGuide] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
+  const [selectedWorksheetIndex, setSelectedWorksheetIndex] = useState(0);
+  const [printAllSheets, setPrintAllSheets] = useState(false);
   const sheetRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -154,6 +172,11 @@ export function ProductStudio(): React.ReactElement {
   );
 
   const selectedPlan = result?.pedagogicalPlan ?? null;
+  const worksheets = useMemo(() => resolveWorksheetCollection(selectedPlan), [selectedPlan]);
+  const selectedWorksheet = worksheets[selectedWorksheetIndex] ?? worksheets[0] ?? null;
+  const selectedWorksheetPlan = selectedPlan && selectedWorksheet
+    ? buildWorksheetPlanForPreview(selectedPlan, selectedWorksheet)
+    : selectedPlan;
 
   function updateForm<TKey extends keyof StudioForm>(
     field: TKey,
@@ -238,6 +261,7 @@ export function ProductStudio(): React.ReactElement {
       const payload = (await response.json()) as MissionResult;
       setResult(payload);
       setShowTeacherGuide(false);
+      setSelectedWorksheetIndex(0);
       saveGeneratedMission({
         missionId: payload.missionId,
         resourceId: payload.resourceId,
@@ -269,6 +293,14 @@ export function ProductStudio(): React.ReactElement {
     link.download = "atividade-acessa-plus-a4.png";
     link.href = dataUrl;
     link.click();
+  }
+
+  function printAllWorksheets(): void {
+    setPrintAllSheets(true);
+    window.setTimeout(() => {
+      window.print();
+      window.setTimeout(() => setPrintAllSheets(false), 500);
+    }, 0);
   }
 
   return (
@@ -328,7 +360,12 @@ export function ProductStudio(): React.ReactElement {
             <SelectField label="Estudante" value={form.selectedStudentId} onChange={(value) => updateForm("selectedStudentId", value)} options={[["", "Sem estudante vinculado"], ...students.map((item) => [item.id, item.name] as [string, string])]} />
             <Field label="Perfil do estudante" value={form.studentProfile} onChange={(value) => updateForm("studentProfile", value)} />
             <Field label="Nivel de apoio" value={form.supportLevel} onChange={(value) => updateForm("supportLevel", value)} />
-            <Field label="Quantidade de atividades" value={form.activityCount} onChange={(value) => updateForm("activityCount", value)} />
+            <Field
+              hint="Informe quantas folhas A4 diferentes o ACESSA+ deve criar."
+              label="Quantidade de folhas A4"
+              value={form.activityCount}
+              onChange={(value) => updateForm("activityCount", value)}
+            />
             <Field label="Formato de saida" value={form.outputFormat} onChange={(value) => updateForm("outputFormat", value)} />
             <Field label="Necessidade de imagens/elementos visuais" value={form.visualNeed} onChange={(value) => updateForm("visualNeed", value)} wide />
           </div>
@@ -356,27 +393,76 @@ export function ProductStudio(): React.ReactElement {
 
         <aside className="previewCard">
           <div className="previewToolbar">
-            <span>{showTeacherGuide ? "Guia do professor" : "Folha A4"}</span>
+            <span>
+              {showTeacherGuide ? "Guia do professor" : "Folha A4"}
+              {selectedWorksheet ? ` - Folha ${selectedWorksheet.worksheetOrder} de ${worksheets.length}` : ""}
+            </span>
             <div>
-              <button disabled={!selectedPlan} type="button" onClick={() => setShowTeacherGuide(false)}>Folha</button>
-              <button disabled={!selectedPlan} type="button" onClick={() => setShowTeacherGuide(true)}>Guia</button>
+              <button disabled={!selectedWorksheetPlan} type="button" onClick={() => setShowTeacherGuide(false)}>Folha</button>
+              <button disabled={!selectedWorksheetPlan} type="button" onClick={() => setShowTeacherGuide(true)}>Guia</button>
             </div>
           </div>
+          {selectedPlan && worksheets.length > 0 ? (
+            <div className="worksheetNavigator" aria-label="Navegação entre folhas A4">
+              <button
+                disabled={selectedWorksheetIndex === 0}
+                type="button"
+                onClick={() => setSelectedWorksheetIndex((current) => Math.max(0, current - 1))}
+              >
+                Anterior
+              </button>
+              <div className="worksheetTabs">
+                {worksheets.map((worksheet, index) => (
+                  <button
+                    aria-current={index === selectedWorksheetIndex ? "page" : undefined}
+                    key={worksheet.worksheetId}
+                    type="button"
+                    onClick={() => setSelectedWorksheetIndex(index)}
+                  >
+                    {worksheet.worksheetOrder}
+                  </button>
+                ))}
+              </div>
+              <button
+                disabled={selectedWorksheetIndex >= worksheets.length - 1}
+                type="button"
+                onClick={() => setSelectedWorksheetIndex((current) => Math.min(worksheets.length - 1, current + 1))}
+              >
+                Próxima
+              </button>
+              {selectedWorksheet ? (
+                <span className={selectedWorksheet.validationStatus === "VALID" ? "worksheetStatus valid" : "worksheetStatus review"}>
+                  {selectedWorksheet.validationStatus === "VALID" ? "Folha validada" : "Revisão interna necessária"}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <div className="exportBar productExport">
-            <button disabled={!selectedPlan} type="button" onClick={() => window.print()}>PDF</button>
-            <button disabled={!selectedPlan} type="button" onClick={() => exportWord(selectedPlan)}>Word</button>
-            <button disabled={!selectedPlan} type="button" onClick={() => void exportImage()}>Imagem</button>
+            <button disabled={!selectedWorksheetPlan} type="button" onClick={() => window.print()}>PDF atual</button>
+            <button disabled={!selectedPlan || worksheets.length === 0} type="button" onClick={printAllWorksheets}>PDF todas</button>
+            <button disabled={!selectedPlan} type="button" onClick={() => exportWord(selectedPlan, worksheets, true)}>Word</button>
+            <button disabled={!selectedWorksheetPlan} type="button" onClick={() => void exportImage()}>Imagem atual</button>
             {result ? <a className="saveButton" href={`/missions/${result.missionId}`}>Abrir salvo</a> : null}
           </div>
 
-          {selectedPlan ? (
-            showTeacherGuide ? <TeacherGuide plan={selectedPlan} /> : <StudentSheetRenderer plan={selectedPlan} sheetRef={sheetRef} />
+          {selectedWorksheetPlan ? (
+            showTeacherGuide ? <TeacherGuide plan={selectedWorksheetPlan} /> : <StudentSheetRenderer plan={selectedWorksheetPlan} sheetRef={sheetRef} />
           ) : (
             <div className="blankPreview">
               <strong>Seu material aparecera aqui.</strong>
               <p>Preencha o formulario e gere um recurso com aparencia profissional.</p>
             </div>
           )}
+          {selectedPlan && printAllSheets ? (
+            <div className="printWorksheetStack" aria-hidden={!printAllSheets}>
+              {worksheets.map((worksheet) => (
+                <StudentSheetRenderer
+                  key={worksheet.worksheetId}
+                  plan={buildWorksheetPlanForPreview(selectedPlan, worksheet)}
+                />
+              ))}
+            </div>
+          ) : null}
         </aside>
       </section>
     </main>
@@ -397,7 +483,7 @@ function buildPrompt(
     `Referencia curricular: ${form.curriculumReference}.`,
     `Conteudo: ${form.content}.`,
     `Perfil do estudante: ${selectedStudent?.profile || form.studentProfile}. Nivel de apoio: ${selectedStudent?.supportLevel || form.supportLevel}.`,
-    `Quantidade de atividades: ${form.activityCount}.`,
+    `Quantidade de folhas A4: ${form.activityCount}. Cada folha deve ter identidade propria, estrategia diferente, recursos diferentes e progressao cognitiva diferente.`,
     `Formato de saida: ${form.outputFormat}.`,
     `Elementos visuais: ${form.visualNeed}. Imagens: ${form.includeImages ? "sim" : "nao"}. Pictogramas: ${form.includePictograms ? "sim" : "nao"}. Elementos visuais: ${form.includeVisualElements ? "sim" : "nao"}.`,
     selectedClass ? `Turma: ${selectedClass.name}, ${selectedClass.grade}, turno ${selectedClass.shift}.` : "",
@@ -433,11 +519,24 @@ function GenerationSteps({ activeStep }: { activeStep: number }): React.ReactEle
   );
 }
 
-function Field({ label, value, onChange, wide }: { label: string; value: string; onChange: (value: string) => void; wide?: boolean }): React.ReactElement {
+function Field({
+  label,
+  value,
+  onChange,
+  wide,
+  hint
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  wide?: boolean;
+  hint?: string;
+}): React.ReactElement {
   return (
     <label className={wide ? "field proWide" : "field"}>
       <span>{label}</span>
       <input value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      {hint ? <small>{hint}</small> : null}
     </label>
   );
 }
@@ -462,6 +561,46 @@ function Toggle({ checked, label, onChange }: { checked: boolean; label: string;
       <span>{label}</span>
     </label>
   );
+}
+
+export function resolveWorksheetCollection(plan: WorksheetPlan | null): WorksheetResult[] {
+  if (!plan) {
+    return [];
+  }
+
+  if (Array.isArray(plan.worksheets) && plan.worksheets.length > 0) {
+    return plan.worksheets
+      .filter((worksheet): worksheet is WorksheetResult => Boolean(worksheet?.studentSheet))
+      .sort((left, right) => left.worksheetOrder - right.worksheetOrder);
+  }
+
+  return [{
+    worksheetId: "worksheet_1",
+    worksheetOrder: 1,
+    worksheetBlueprintId: "legacy_worksheet_1",
+    title: plan.studentSheet?.title ?? plan.worksheetTitle ?? "Atividade pronta para imprimir",
+    objective: plan.learningObjective ?? "Desenvolver a aprendizagem prevista.",
+    strategy: "Atividade guiada",
+    pedagogicalPurpose: "atividade principal",
+    studentSheet: plan.studentSheet,
+    teacherGuide: plan.teacherGuide,
+    validationStatus: "VALID",
+    validationIssues: [],
+    regenerationCount: 0
+  }];
+}
+
+export function buildWorksheetPlanForPreview(
+  plan: WorksheetPlan,
+  worksheet: WorksheetResult
+): WorksheetPlan {
+  return {
+    ...plan,
+    worksheetTitle: worksheet.title,
+    learningObjective: worksheet.objective,
+    studentSheet: worksheet.studentSheet,
+    teacherGuide: worksheet.teacherGuide
+  };
 }
 
 function TeacherGuide({ plan }: { plan: WorksheetPlan }): React.ReactElement {
@@ -500,22 +639,12 @@ function Guide({ title, items }: { title: string; items: string[] }): React.Reac
   );
 }
 
-function exportWord(plan: WorksheetPlan | null): void {
+function exportWord(plan: WorksheetPlan | null, worksheets: WorksheetResult[] = [], allSheets = false): void {
   if (!plan) {
     return;
   }
 
-  const text = [
-    plan.studentSheet?.title ?? plan.worksheetTitle,
-    plan.studentSheet?.context,
-    ...(plan.studentSheet?.instructions ?? plan.instructions ?? []),
-    plan.studentSheet?.baseText ?? plan.baseText,
-    ...(plan.studentSheet?.didacticBoxes ?? plan.didacticBoxes ?? []),
-    ...(plan.studentSheet?.tableRows ?? plan.tableRows ?? []),
-    ...(plan.studentSheet?.questions ?? plan.questions ?? []).map((question, index) => `${index + 1}. ${question.command}`)
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const text = buildWordExportText(plan, worksheets, allSheets);
   const blob = new Blob([text], { type: "application/msword;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -524,4 +653,31 @@ function exportWord(plan: WorksheetPlan | null): void {
   link.download = "material-acessa-plus.doc";
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export function buildWordExportText(
+  plan: WorksheetPlan,
+  worksheets: WorksheetResult[] = [],
+  allSheets = false
+): string {
+  const collection = allSheets && worksheets.length > 0
+    ? worksheets.map((worksheet) => buildWorksheetPlanForPreview(plan, worksheet))
+    : [plan];
+
+  return collection
+    .map((worksheetPlan, index) => [
+      `FOLHA ${index + 1}`,
+      worksheetPlan.studentSheet?.title ?? worksheetPlan.worksheetTitle,
+      worksheetPlan.studentSheet?.context,
+      ...(worksheetPlan.studentSheet?.instructions ?? worksheetPlan.instructions ?? []),
+      worksheetPlan.studentSheet?.baseText ?? worksheetPlan.baseText,
+      ...(worksheetPlan.studentSheet?.didacticBoxes ?? worksheetPlan.didacticBoxes ?? []),
+      ...(worksheetPlan.studentSheet?.tableRows ?? worksheetPlan.tableRows ?? []),
+      ...(worksheetPlan.studentSheet?.questions ?? worksheetPlan.questions ?? []).map((question, questionIndex) =>
+        `${questionIndex + 1}. ${question.command}`
+      )
+    ]
+      .filter(Boolean)
+      .join("\n\n"))
+    .join("\n\n--- QUEBRA DE FOLHA ---\n\n");
 }
