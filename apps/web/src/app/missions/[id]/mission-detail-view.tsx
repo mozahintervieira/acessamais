@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StudentSheetRenderer } from "../../student-sheet-renderer";
+import {
+  exportWorksheetPdf,
+  exportWorksheetPng,
+  exportWorksheetsDocx,
+  type ExportWorksheetPlan
+} from "../../../lib/export/material-export";
 
 type MissionDetail = {
   id: string;
@@ -122,6 +128,10 @@ export function MissionDetailView({
   const [isSaving, setIsSaving] = useState(false);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [showTeacherGuide, setShowTeacherGuide] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const sheetRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     void loadMission();
@@ -217,6 +227,23 @@ export function MissionDetailView({
     resource?.versions.find((item) => item.id === selectedVersionId) ??
     resource?.versions[0];
 
+  async function runExport(task: () => Promise<void>, initialMessage: string): Promise<void> {
+    setIsExporting(true);
+    setExportMessage(initialMessage);
+    setExportError(null);
+
+    try {
+      await task();
+    } catch (caughtError) {
+      console.error("mission_detail_export_failed", {
+        error: caughtError instanceof Error ? caughtError.name : "UnknownError"
+      });
+      setExportError("Nao foi possivel concluir a exportacao. Tente novamente.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <main className="missionShell">
       <section className="missionIntro">
@@ -291,9 +318,36 @@ export function MissionDetailView({
               <span className="countBadge">v{version.versionNumber}</span>
             </div>
             <div className="exportBar inlineExport">
-              <button type="button" onClick={() => window.print()}>PDF/imprimir</button>
-              <button type="button" onClick={() => downloadWord(resource.title, version.contentText)}>Exportar Word</button>
-              <button type="button" onClick={() => window.print()}>Imagem A4</button>
+              <button
+                disabled={isExporting || !sheetRef.current}
+                type="button"
+                onClick={() => void runExport(() => exportWorksheetPdf(sheetRef.current as HTMLElement, {
+                  title: resource.title,
+                  onProgress: (progress) => setExportMessage(progress.message)
+                }), "Preparando seu PDF...")}
+              >
+                PDF
+              </button>
+              <button
+                disabled={isExporting}
+                type="button"
+                onClick={() => void runExport(() => exportWorksheetsDocx([toExportWorksheetPlan(version.contentJson, resource.title)], {
+                  title: resource.title,
+                  onProgress: (progress) => setExportMessage(progress.message)
+                }), "Preparando documento Word...")}
+              >
+                Exportar Word
+              </button>
+              <button
+                disabled={isExporting || !sheetRef.current}
+                type="button"
+                onClick={() => void runExport(() => exportWorksheetPng(sheetRef.current as HTMLElement, {
+                  title: resource.title,
+                  onProgress: (progress) => setExportMessage(progress.message)
+                }), "Gerando imagem em alta qualidade...")}
+              >
+                Imagem A4
+              </button>
               <button type="button" onClick={() => setShowTeacherGuide((current) => !current)}>
                 {showTeacherGuide ? "Ver folha do estudante" : "Ver guia do professor"}
               </button>
@@ -308,11 +362,13 @@ export function MissionDetailView({
               </button>
               <button type="button" onClick={saveNewVersion}>Salvar</button>
             </div>
+            {exportMessage ? <p className="successMessage">{exportMessage}</p> : null}
+            {exportError ? <p className="formError">{exportError}</p> : null}
             {copyMessage ? <p className="successMessage">{copyMessage}</p> : null}
             {showTeacherGuide ? (
               <TeacherGuideView content={version.contentJson} />
             ) : (
-              <StudentSheetView content={version.contentJson} title={resource.title} />
+              <StudentSheetView content={version.contentJson} sheetRef={sheetRef} title={resource.title} />
             )}
             {editablePlan ? (
               <div className="editorGrid editSurface">
@@ -373,12 +429,14 @@ export function MissionDetailView({
 
 function StudentSheetView({
   content,
+  sheetRef,
   title
 }: {
   content: MissionDetail["resources"][number]["versions"][number]["contentJson"];
+  sheetRef?: React.RefObject<HTMLElement | null>;
   title: string;
 }): React.ReactElement {
-  return <StudentSheetRenderer compact plan={{ ...content, worksheetTitle: content.worksheetTitle ?? title }} />;
+  return <StudentSheetRenderer compact plan={{ ...content, worksheetTitle: content.worksheetTitle ?? title }} sheetRef={sheetRef} />;
 }
 
 function TeacherGuideView({
@@ -531,15 +589,17 @@ function ResultBlock({
   );
 }
 
-function downloadWord(title: string, contentText: string): void {
-  const blob = new Blob([contentText], { type: "application/msword;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.doc`;
-  link.click();
-  URL.revokeObjectURL(url);
+function toExportWorksheetPlan(
+  content: MissionDetail["resources"][number]["versions"][number]["contentJson"],
+  title: string
+): ExportWorksheetPlan {
+  return {
+    worksheetTitle: content.worksheetTitle ?? title,
+    subject: content.subject,
+    grade: content.grade,
+    studentSheet: resolveStudentSheet(content, title),
+    teacherGuide: resolveTeacherGuide(content)
+  };
 }
 
 function ReadOnlySection({

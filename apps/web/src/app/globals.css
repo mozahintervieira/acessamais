@@ -4944,6 +4944,27 @@ body.simpleMode .helperText {
   display: none;
 }
 
+.exportWorksheetStack {
+  position: fixed;
+  top: 0;
+  left: -12000px;
+  z-index: -1;
+  width: 900px;
+  pointer-events: none;
+}
+
+.exportWorksheetItem {
+  width: 794px;
+  min-height: 1123px;
+  margin: 0;
+  background: #ffffff;
+}
+
+.exportWorksheetItem .productA4 {
+  margin: 0;
+  box-shadow: none;
+}
+
 @media print {
   .mobileMenuButton,
   .appHeader,

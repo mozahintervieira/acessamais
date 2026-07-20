@@ -1,9 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
 import { saveGeneratedMission } from "./demo-local-store";
 import { StudentSheetRenderer } from "./student-sheet-renderer";
+import {
+  exportWorksheetPdf,
+  exportWorksheetPng,
+  exportWorksheetsDocx
+} from "../lib/export/material-export";
 
 type WorksheetQuestion = {
   plannedTaskOrder?: number;
@@ -176,6 +181,7 @@ export function InstantResourceStudio(): React.ReactElement {
   const [showAdaptations, setShowAdaptations] = useState(false);
   const [showTeacherGuide, setShowTeacherGuide] = useState(false);
   const [followUp, setFollowUp] = useState<string | null>(null);
+  const sheetRef = useRef<HTMLElement | null>(null);
   const [adaptation, setAdaptation] = useState<AdaptationState>({
     enabled: true,
     targetAudience: "Deficiencia Intelectual",
@@ -302,16 +308,28 @@ export function InstantResourceStudio(): React.ReactElement {
     setMessage("Recurso copiado.");
   }
 
-  function exportWord(): void {
-    const text = activePlan ? buildCopyText(activePlan) : "";
-    const blob = new Blob([text], { type: "application/msword;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+  async function exportCurrentPdf(): Promise<void> {
+    if (!sheetRef.current || !activePlan) {
+      return;
+    }
 
-    link.href = url;
-    link.download = "recurso-acessa-plus.doc";
-    link.click();
-    URL.revokeObjectURL(url);
+    await exportWorksheetPdf(sheetRef.current, { title: activePlan.studentSheet?.title ?? activePlan.worksheetTitle ?? "recurso-acessa-plus" });
+  }
+
+  async function exportCurrentImage(): Promise<void> {
+    if (!sheetRef.current || !activePlan) {
+      return;
+    }
+
+    await exportWorksheetPng(sheetRef.current, { title: activePlan.studentSheet?.title ?? activePlan.worksheetTitle ?? "recurso-acessa-plus" });
+  }
+
+  async function exportWord(): Promise<void> {
+    if (!activePlan) {
+      return;
+    }
+
+    await exportWorksheetsDocx([activePlan], { title: activePlan.studentSheet?.title ?? activePlan.worksheetTitle ?? "recurso-acessa-plus" });
   }
 
   function shareResource(): void {
@@ -523,13 +541,13 @@ export function InstantResourceStudio(): React.ReactElement {
           <a className={canExport && result ? "" : "disabledLink"} href={result ? `/missions/${result.missionId}` : "/missions"}>
             Salvar
           </a>
-          <button type="button" disabled={!canExport} onClick={() => window.print()}>
+          <button type="button" disabled={!canExport} onClick={() => void exportCurrentPdf()}>
             Exportar PDF
           </button>
-          <button type="button" disabled={!canExport} onClick={exportWord}>
+          <button type="button" disabled={!canExport} onClick={() => void exportWord()}>
             Exportar Word
           </button>
-          <button type="button" disabled={!canExport} onClick={() => window.print()}>
+          <button type="button" disabled={!canExport} onClick={() => void exportCurrentImage()}>
             Exportar imagem
           </button>
           <button type="button" disabled={!canExport} onClick={shareResource}>
@@ -580,7 +598,7 @@ export function InstantResourceStudio(): React.ReactElement {
           showTeacherGuide ? (
             <TeacherGuideView plan={activePlan} />
           ) : (
-            <PrintableWorksheet plan={activePlan} />
+            <PrintableWorksheet plan={activePlan} sheetRef={sheetRef} />
           )
         ) : (
           <EmptyPreview isGenerating={isGenerating} />
@@ -714,8 +732,14 @@ function MultiChipGroup({
   );
 }
 
-function PrintableWorksheet({ plan }: { plan: WorksheetPlan }): React.ReactElement {
-  return <StudentSheetRenderer plan={plan} />;
+function PrintableWorksheet({
+  plan,
+  sheetRef
+}: {
+  plan: WorksheetPlan;
+  sheetRef?: React.RefObject<HTMLElement | null>;
+}): React.ReactElement {
+  return <StudentSheetRenderer plan={plan} sheetRef={sheetRef} />;
 }
 
 function buildCopyText(plan: WorksheetPlan): string {

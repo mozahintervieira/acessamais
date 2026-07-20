@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MissionType } from "@acessa-plus/types";
+import {
+  exportWorksheetPdf,
+  exportWorksheetPng,
+  exportWorksheetsDocx
+} from "../../../lib/export/material-export";
 
 type TaskKey =
   | "printable"
@@ -176,6 +181,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const sheetRef = useRef<HTMLElement | null>(null);
 
   const task = useMemo(
     () => taskOptions.find((option) => option.key === selectedTask) ?? taskOptions[0]!,
@@ -273,16 +279,41 @@ export function LessonPlanMissionForm(): React.ReactElement {
     setCopyMessage("Atividade copiada.");
   }
 
-  function downloadWord(): void {
-    const text = result ? buildCopyText(form, result) : "";
-    const blob = new Blob([text], { type: "application/msword;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+  async function exportCurrentPdf(): Promise<void> {
+    if (!sheetRef.current || !result) {
+      return;
+    }
 
-    link.href = url;
-    link.download = "atividade-acessa-plus.doc";
-    link.click();
-    URL.revokeObjectURL(url);
+    await exportWorksheetPdf(sheetRef.current, { title: result.pedagogicalPlan.worksheetTitle ?? "atividade-acessa-plus" });
+  }
+
+  async function exportCurrentImage(): Promise<void> {
+    if (!sheetRef.current || !result) {
+      return;
+    }
+
+    await exportWorksheetPng(sheetRef.current, { title: result.pedagogicalPlan.worksheetTitle ?? "atividade-acessa-plus" });
+  }
+
+  async function downloadWord(): Promise<void> {
+    if (!result) {
+      return;
+    }
+
+    await exportWorksheetsDocx([
+      {
+        worksheetTitle: result.pedagogicalPlan.worksheetTitle,
+        subject: form.discipline,
+        grade: form.gradeYear,
+        studentSheet: {
+          title: result.pedagogicalPlan.worksheetTitle,
+          instructions: result.pedagogicalPlan.instructions,
+          baseText: result.pedagogicalPlan.baseText,
+          visualElements: result.pedagogicalPlan.visualElements,
+          questions: result.pedagogicalPlan.questions
+        }
+      }
+    ], { title: result.pedagogicalPlan.worksheetTitle ?? "atividade-acessa-plus" });
   }
 
   return (
@@ -376,9 +407,11 @@ export function LessonPlanMissionForm(): React.ReactElement {
           result={result}
           taskTitle={task.title}
           onCopy={copyActivity}
-          onPrint={() => window.print()}
-          onWord={downloadWord}
+          onImage={() => void exportCurrentImage()}
+          onPdf={() => void exportCurrentPdf()}
+          onWord={() => void downloadWord()}
           copyMessage={copyMessage}
+          sheetRef={sheetRef}
         />
       </section>
     </main>
@@ -424,17 +457,21 @@ function A4Preview({
   result,
   taskTitle,
   onCopy,
-  onPrint,
+  onImage,
+  onPdf,
   onWord,
-  copyMessage
+  copyMessage,
+  sheetRef
 }: {
   form: FormState;
   result: MissionResult | null;
   taskTitle: string;
   onCopy: () => void;
-  onPrint: () => void;
+  onImage: () => void;
+  onPdf: () => void;
   onWord: () => void;
   copyMessage: string | null;
+  sheetRef: React.RefObject<HTMLElement | null>;
 }): React.ReactElement {
   const worksheet = result?.pedagogicalPlan;
   const questions = worksheet?.questions ?? buildPreviewQuestions(form.questionCount);
@@ -442,15 +479,15 @@ function A4Preview({
   return (
     <aside className="a4Workspace" aria-live="polite">
       <div className="exportBar">
-        <button type="button" onClick={onPrint}>PDF/imprimir</button>
+        <button type="button" onClick={onPdf} disabled={!result}>PDF</button>
         <button type="button" onClick={onWord} disabled={!result}>Exportar Word</button>
-        <button type="button" onClick={onPrint}>Imagem A4</button>
+        <button type="button" onClick={onImage} disabled={!result}>Imagem A4</button>
         <button type="button" onClick={onCopy} disabled={!result}>Copiar</button>
         <a className="saveButton" href={result ? `/missions/${result.missionId}` : "/missions"}>Salvar</a>
       </div>
       {copyMessage ? <p className="successMessage">{copyMessage}</p> : null}
 
-      <article className="a4Sheet">
+      <article className="a4Sheet" ref={sheetRef}>
         <header className="a4Header">
           <strong>{form.discipline}</strong>
           <span>{worksheet?.skillCode ?? form.skill}</span>

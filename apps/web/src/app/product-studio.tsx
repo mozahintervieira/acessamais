@@ -1,9 +1,17 @@
 "use client";
 
-import { toPng } from "html-to-image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CreateMissionRequest } from "@acessa-plus/types";
 import { StudentSheetRenderer } from "./student-sheet-renderer";
+import {
+  exportWorksheetPdf,
+  exportWorksheetPng,
+  exportWorksheetsDocx,
+  exportWorksheetsPdf,
+  exportWorksheetsPngZip,
+  getExportableElements,
+  type ExportWorksheetPlan
+} from "../lib/export/material-export";
 
 type WorksheetQuestion = {
   plannedTaskOrder?: number;
@@ -194,8 +202,11 @@ export function ProductStudio(): React.ReactElement {
   const [showTeacherGuide, setShowTeacherGuide] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
   const [selectedWorksheetIndex, setSelectedWorksheetIndex] = useState(0);
-  const [printAllSheets, setPrintAllSheets] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
+  const exportSheetRefs = useRef<Array<HTMLElement | null>>([]);
 
   useEffect(() => {
     async function loadWorkspace(): Promise<void> {
@@ -335,29 +346,37 @@ export function ProductStudio(): React.ReactElement {
     }
   }
 
-  async function exportImage(): Promise<void> {
-    if (!sheetRef.current) {
-      return;
+  async function runExport(format: string, task: () => Promise<void>): Promise<void> {
+    setExportingFormat(format);
+    setExportError(null);
+    setExportMessage(format);
+
+    try {
+      await task();
+    } catch (caughtError) {
+      console.error("material_export_failed", {
+        error: caughtError instanceof Error ? caughtError.name : "UnknownError"
+      });
+      setExportError("Nao foi possivel concluir a exportacao. Tente novamente.");
+    } finally {
+      setExportingFormat(null);
     }
-
-    const dataUrl = await toPng(sheetRef.current, {
-      backgroundColor: "#ffffff",
-      cacheBust: true,
-      pixelRatio: 2
-    });
-    const link = document.createElement("a");
-
-    link.download = "atividade-acessa-plus-a4.png";
-    link.href = dataUrl;
-    link.click();
   }
 
-  function printAllWorksheets(): void {
-    setPrintAllSheets(true);
-    window.setTimeout(() => {
-      window.print();
-      window.setTimeout(() => setPrintAllSheets(false), 500);
-    }, 0);
+  function currentTitle(): string {
+    return selectedWorksheetPlan?.studentSheet?.title ?? selectedWorksheetPlan?.worksheetTitle ?? "material-acessa-plus";
+  }
+
+  function allWorksheetPlans(): ExportWorksheetPlan[] {
+    if (!selectedPlan || worksheets.length === 0) {
+      return selectedPlan ? [selectedPlan] : [];
+    }
+
+    return worksheets.map((worksheet) => buildWorksheetPlanForPreview(selectedPlan, worksheet));
+  }
+
+  function allExportElements(): HTMLElement[] {
+    return getExportableElements(exportSheetRefs.current).slice(0, worksheets.length);
   }
 
   return (
@@ -495,12 +514,60 @@ export function ProductStudio(): React.ReactElement {
             </div>
           ) : null}
           <div className="exportBar productExport">
-            <button disabled={!selectedWorksheetPlan} type="button" onClick={() => window.print()}>PDF atual</button>
-            <button disabled={!selectedPlan || worksheets.length === 0} type="button" onClick={printAllWorksheets}>PDF todas</button>
-            <button disabled={!selectedPlan} type="button" onClick={() => exportWord(selectedPlan, worksheets, true)}>Word</button>
-            <button disabled={!selectedWorksheetPlan} type="button" onClick={() => void exportImage()}>Imagem atual</button>
+            <button
+              disabled={!selectedWorksheetPlan || !sheetRef.current || Boolean(exportingFormat)}
+              type="button"
+              onClick={() => void runExport("Preparando seu PDF...", () => exportWorksheetPdf(sheetRef.current as HTMLElement, {
+                title: currentTitle(),
+                onProgress: (progress) => setExportMessage(progress.message)
+              }))}
+            >
+              PDF atual
+            </button>
+            <button
+              disabled={!selectedPlan || worksheets.length === 0 || Boolean(exportingFormat)}
+              type="button"
+              onClick={() => void runExport("Preparando PDF com todas as folhas...", () => exportWorksheetsPdf(allExportElements(), {
+                title: selectedPlan?.studentSheet?.title ?? selectedPlan?.worksheetTitle ?? "material-acessa-plus",
+                onProgress: (progress) => setExportMessage(progress.message)
+              }))}
+            >
+              PDF todas
+            </button>
+            <button
+              disabled={!selectedPlan || Boolean(exportingFormat)}
+              type="button"
+              onClick={() => void runExport("Preparando documento Word...", () => exportWorksheetsDocx(allWorksheetPlans(), {
+                title: selectedPlan?.studentSheet?.title ?? selectedPlan?.worksheetTitle ?? "material-acessa-plus",
+                onProgress: (progress) => setExportMessage(progress.message)
+              }))}
+            >
+              Word
+            </button>
+            <button
+              disabled={!selectedWorksheetPlan || !sheetRef.current || Boolean(exportingFormat)}
+              type="button"
+              onClick={() => void runExport("Gerando imagem em alta qualidade...", () => exportWorksheetPng(sheetRef.current as HTMLElement, {
+                title: currentTitle(),
+                onProgress: (progress) => setExportMessage(progress.message)
+              }))}
+            >
+              Imagem atual
+            </button>
+            <button
+              disabled={!selectedPlan || worksheets.length === 0 || Boolean(exportingFormat)}
+              type="button"
+              onClick={() => void runExport("Gerando pacote de imagens A4...", () => exportWorksheetsPngZip(allExportElements(), {
+                title: selectedPlan?.studentSheet?.title ?? selectedPlan?.worksheetTitle ?? "material-acessa-plus",
+                onProgress: (progress) => setExportMessage(progress.message)
+              }))}
+            >
+              Imagens todas
+            </button>
             {result ? <a className="saveButton" href={`/missions/${result.missionId}`}>Abrir salvo</a> : null}
           </div>
+          {exportMessage ? <p className="successMessage">{exportMessage}</p> : null}
+          {exportError ? <p className="formError">{exportError}</p> : null}
 
           {selectedWorksheetPlan ? (
             showTeacherGuide ? <TeacherGuide plan={selectedWorksheetPlan} /> : <StudentSheetRenderer plan={selectedWorksheetPlan} sheetRef={sheetRef} />
@@ -510,13 +577,20 @@ export function ProductStudio(): React.ReactElement {
               <p>Preencha o formulario e gere um recurso com aparencia profissional.</p>
             </div>
           )}
-          {selectedPlan && printAllSheets ? (
-            <div className="printWorksheetStack" aria-hidden={!printAllSheets}>
-              {worksheets.map((worksheet) => (
-                <StudentSheetRenderer
+          {selectedPlan && worksheets.length > 0 ? (
+            <div className="exportWorksheetStack" aria-hidden="true">
+              {worksheets.map((worksheet, index) => (
+                <div
+                  className="exportWorksheetItem"
                   key={worksheet.worksheetId}
-                  plan={buildWorksheetPlanForPreview(selectedPlan, worksheet)}
-                />
+                  ref={(element) => {
+                    exportSheetRefs.current[index] = element;
+                  }}
+                >
+                  <StudentSheetRenderer
+                    plan={buildWorksheetPlanForPreview(selectedPlan, worksheet)}
+                  />
+                </div>
               ))}
             </div>
           ) : null}
@@ -708,22 +782,6 @@ function Guide({ title, items }: { title: string; items: string[] }): React.Reac
       <ul>{clean.map((item) => <li key={item}>{item}</li>)}</ul>
     </section>
   );
-}
-
-function exportWord(plan: WorksheetPlan | null, worksheets: WorksheetResult[] = [], allSheets = false): void {
-  if (!plan) {
-    return;
-  }
-
-  const text = buildWordExportText(plan, worksheets, allSheets);
-  const blob = new Blob([text], { type: "application/msword;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = "material-acessa-plus.doc";
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 export function buildWordExportText(
