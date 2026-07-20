@@ -1,13 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  listDemoClasses,
-  listDemoStudents,
-  saveDemoStudent,
-  type DemoClass,
-  type DemoStudent
-} from "../teacher-demo-store";
+
+type Classroom = {
+  id: string;
+  name: string;
+  grade: string;
+};
+
+type Student = {
+  id: string;
+  classId: string;
+  name: string;
+  age: string;
+  grade: string;
+  profile: string;
+  notes: string;
+  supportLevel: string;
+  resources: string;
+  preferences: string;
+  createdAt: string;
+};
 
 const emptyForm = {
   classroomId: "",
@@ -22,10 +35,11 @@ const emptyForm = {
 };
 
 export function StudentsPanel(): React.ReactElement {
-  const [classes, setClasses] = useState<DemoClass[]>([]);
-  const [students, setStudents] = useState<DemoStudent[]>([]);
+  const [classes, setClasses] = useState<Classroom[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void load();
@@ -39,23 +53,29 @@ export function StudentsPanel(): React.ReactElement {
       ]);
 
       if (!classesResponse.ok || !studentsResponse.ok) {
-        throw new Error("fallback");
+        throw new Error("Nao foi possivel carregar turmas e estudantes.");
       }
 
-      setClasses((await classesResponse.json()) as DemoClass[]);
+      setClasses((await classesResponse.json()) as Classroom[]);
       setStudents(mapApiStudents((await studentsResponse.json()) as ApiStudent[]));
-    } catch {
-      setClasses(listDemoClasses());
-      setStudents(listDemoStudents());
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Nao foi possivel carregar turmas e estudantes."
+      );
     }
   }
 
   async function save(): Promise<void> {
     if (!form.displayName.trim()) {
+      setError("Informe o nome ou identificador do estudante.");
       return;
     }
 
     try {
+      setError("");
+      setMessage("");
       const response = await fetch("/api/teacher/students", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -63,27 +83,18 @@ export function StudentsPanel(): React.ReactElement {
       });
 
       if (!response.ok) {
-        throw new Error("fallback");
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(payload?.message ?? "Nao foi possivel salvar o estudante.");
       }
 
       setMessage("Estudante salvo com persistencia real.");
       await load();
-    } catch {
-      saveDemoStudent({
-        classId: form.classroomId,
-        name: form.displayName,
-        age: form.age,
-        grade: form.grade,
-        diagnosis: "",
-        profile: form.pedagogicalProfile,
-        notes: form.observations,
-        supportLevel: form.supportLevel,
-        resources: form.interests,
-        pei: "",
-        preferences: form.preferences
-      });
-      setStudents(listDemoStudents());
-      setMessage("Estudante salvo no modo local de desenvolvimento.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Nao foi possivel salvar o estudante."
+      );
     }
 
     setForm(emptyForm);
@@ -111,6 +122,7 @@ export function StudentsPanel(): React.ReactElement {
             <Field key={field} label={labelFor(field)} value={form[field]} onChange={(value) => setForm((current) => ({ ...current, [field]: value }))} />
           ))}
           {message ? <p className="successMessage">{message}</p> : null}
+          {error ? <p className="formError">{error}</p> : null}
           <button className="primaryButton" type="button" onClick={() => void save()}>Cadastrar estudante</button>
         </div>
         <div className="libraryCards">
@@ -142,19 +154,17 @@ type ApiStudent = {
   createdAt: string;
 };
 
-function mapApiStudents(students: ApiStudent[]): DemoStudent[] {
+function mapApiStudents(students: ApiStudent[]): Student[] {
   return students.map((student) => ({
     id: student.id,
     classId: student.classroomId,
     name: student.displayName,
     age: student.age,
     grade: "",
-    diagnosis: "",
     profile: student.pedagogicalProfile,
     notes: student.observations,
     supportLevel: student.supportLevel,
     resources: student.interests,
-    pei: "",
     preferences: student.preferences,
     createdAt: student.createdAt
   }));

@@ -89,7 +89,9 @@ export function buildMaterialBlueprint(
 }
 
 function resolveRequestedTaskCount(request: CreateMissionRequest): number {
-  const parsed = Number.parseInt(request.input.questionCount ?? "5", 10);
+  const parsed = typeof request.input.questionCount === "number"
+    ? request.input.questionCount
+    : Number.parseInt(request.input.questionCount ?? "5", 10);
 
   if (!Number.isFinite(parsed)) {
     return 5;

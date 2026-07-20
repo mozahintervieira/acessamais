@@ -3,16 +3,7 @@
 import { toPng } from "html-to-image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CreateMissionRequest } from "@acessa-plus/types";
-import { saveGeneratedMission } from "./demo-local-store";
 import { StudentSheetRenderer } from "./student-sheet-renderer";
-import {
-  getTeacherProfile,
-  listDemoClasses,
-  listDemoStudents,
-  type DemoClass,
-  type DemoStudent,
-  type TeacherProfile
-} from "./teacher-demo-store";
 
 type WorksheetQuestion = {
   plannedTaskOrder?: number;
@@ -90,6 +81,56 @@ type MissionResult = {
   pedagogicalPlan: WorksheetPlan;
 };
 
+type StudioUser = {
+  id: string;
+  organizationId: string;
+  name: string;
+  email: string;
+};
+
+type StudioProfile = {
+  name: string;
+  email: string;
+  audiences: string[];
+  generationPreferences: string;
+};
+
+type StudioClass = {
+  id: string;
+  name: string;
+  grade: string;
+  shift: string;
+};
+
+type StudioStudent = {
+  id: string;
+  name: string;
+  age: string;
+  grade: string;
+  profile: string;
+  notes: string;
+  supportLevel: string;
+  resources: string;
+  preferences: string;
+};
+
+type TeacherDashboardPayload = {
+  user: StudioUser;
+  profile: StudioProfile;
+  classrooms: StudioClass[];
+  students: Array<{
+    id: string;
+    displayName: string;
+    age: string;
+    classroomId: string;
+    pedagogicalProfile: string;
+    supportLevel: string;
+    observations: string;
+    interests: string;
+    preferences: string;
+  }>;
+};
+
 type StudioForm = {
   materialTypes: string[];
   discipline: string;
@@ -141,9 +182,10 @@ const defaultForm: StudioForm = {
 };
 
 export function ProductStudio(): React.ReactElement {
-  const [profile, setProfile] = useState<TeacherProfile | null>(null);
-  const [classes, setClasses] = useState<DemoClass[]>([]);
-  const [students, setStudents] = useState<DemoStudent[]>([]);
+  const [user, setUser] = useState<StudioUser | null>(null);
+  const [profile, setProfile] = useState<StudioProfile | null>(null);
+  const [classes, setClasses] = useState<StudioClass[]>([]);
+  const [students, setStudents] = useState<StudioStudent[]>([]);
   const [form, setForm] = useState<StudioForm>(defaultForm);
   const [result, setResult] = useState<MissionResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -156,9 +198,31 @@ export function ProductStudio(): React.ReactElement {
   const sheetRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    setProfile(getTeacherProfile());
-    setClasses(listDemoClasses());
-    setStudents(listDemoStudents());
+    async function loadWorkspace(): Promise<void> {
+      try {
+        const response = await fetch("/api/teacher/dashboard");
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+          throw new Error(payload?.message ?? "Nao foi possivel carregar seu espaco pedagogico.");
+        }
+
+        const payload = (await response.json()) as TeacherDashboardPayload;
+
+        setUser(payload.user);
+        setProfile(payload.profile);
+        setClasses(payload.classrooms);
+        setStudents(payload.students.map(mapStudentForStudio));
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Nao foi possivel carregar seu espaco pedagogico."
+        );
+      }
+    }
+
+    void loadWorkspace();
   }, []);
 
   const selectedStudent = useMemo(
@@ -209,8 +273,8 @@ export function ProductStudio(): React.ReactElement {
 
     const prompt = buildPrompt(form, profile, selectedClass, selectedStudent);
     const request: CreateMissionRequest = {
-      userId: "demo-teacher",
-      organizationId: "demo-organization",
+      userId: user?.id ?? "",
+      organizationId: user?.organizationId ?? "",
       missionType: form.materialTypes.includes("Atividade Adaptada")
         ? "ADAPT_ACTIVITY"
         : "CREATE_LESSON_PLAN",
@@ -262,13 +326,6 @@ export function ProductStudio(): React.ReactElement {
       setResult(payload);
       setShowTeacherGuide(false);
       setSelectedWorksheetIndex(0);
-      saveGeneratedMission({
-        missionId: payload.missionId,
-        resourceId: payload.resourceId,
-        missionType: request.missionType,
-        contentJson: payload.pedagogicalPlan,
-        prompt
-      });
       setMessage("Material gerado online e salvo em Meus Materiais.");
       setGenerationStep(3);
     } catch (caughtError) {
@@ -471,9 +528,9 @@ export function ProductStudio(): React.ReactElement {
 
 function buildPrompt(
   form: StudioForm,
-  profile: TeacherProfile | null,
-  selectedClass?: DemoClass,
-  selectedStudent?: DemoStudent
+  profile: StudioProfile | null,
+  selectedClass?: StudioClass,
+  selectedStudent?: StudioStudent
 ): string {
   return [
     `Crie: ${form.materialTypes.join(", ")}.`,
@@ -487,7 +544,7 @@ function buildPrompt(
     `Formato de saida: ${form.outputFormat}.`,
     `Elementos visuais: ${form.visualNeed}. Imagens: ${form.includeImages ? "sim" : "nao"}. Pictogramas: ${form.includePictograms ? "sim" : "nao"}. Elementos visuais: ${form.includeVisualElements ? "sim" : "nao"}.`,
     selectedClass ? `Turma: ${selectedClass.name}, ${selectedClass.grade}, turno ${selectedClass.shift}.` : "",
-    selectedStudent ? `Estudante: ${selectedStudent.name}, ${selectedStudent.age} anos. Observacoes pedagogicas: ${selectedStudent.notes}. Recursos: ${selectedStudent.resources}. PEI: ${selectedStudent.pei}. Preferencias: ${selectedStudent.preferences}.` : "",
+    selectedStudent ? `Estudante: ${selectedStudent.name}, ${selectedStudent.age} anos. Observacoes pedagogicas: ${selectedStudent.notes}. Recursos: ${selectedStudent.resources}. Preferencias: ${selectedStudent.preferences}.` : "",
     profile ? `Preferencias do professor: ${profile.generationPreferences}. Publico atendido: ${profile.audiences.join(", ")}.` : "",
     "Antes de entregar, pesquise pedagogicamente a habilidade, o objeto de conhecimento e a competencia exigida. Use a BNCC como base nacional e considere o Curriculo do Espirito Santo/SEDU-ES quando informado. A atividade precisa avaliar diretamente essa competencia, nao apenas mencionar o tema.",
     "A folha do estudante deve parecer uma folha editorial A4, como material comprado de editora educacional: cabecalho forte, titulo grande, quadro de dica, exemplo resolvido, atividades numeradas, alternativas com caixas de marcacao, linhas para resposta, tabelas, mapas, sequencias, blocos ou esquemas quando fizer sentido.",
@@ -497,6 +554,20 @@ function buildPrompt(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function mapStudentForStudio(student: TeacherDashboardPayload["students"][number]): StudioStudent {
+  return {
+    id: student.id,
+    name: student.displayName,
+    age: student.age,
+    grade: "",
+    profile: student.pedagogicalProfile,
+    notes: student.observations,
+    supportLevel: student.supportLevel,
+    resources: student.interests,
+    preferences: student.preferences
+  };
 }
 
 function GenerationSteps({ activeStep }: { activeStep: number }): React.ReactElement {

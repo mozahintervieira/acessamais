@@ -1,16 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  audienceOptions,
-  getTeacherProfile,
-  saveTeacherProfile,
-  type TeacherProfile
-} from "../teacher-demo-store";
+
+type TeacherProfile = {
+  name: string;
+  photoUrl: string;
+  email: string;
+  school: string;
+  city: string;
+  state: string;
+  teachingStage: string;
+  subjects: string;
+  audiences: string[];
+  generationPreferences: string;
+};
+
+const audienceOptions = ["DI", "TEA", "DV", "DA", "TDAH", "AH/SD", "CAA", "Libras", "Braille"];
+
+const emptyProfile: TeacherProfile = {
+  name: "",
+  photoUrl: "",
+  email: "",
+  school: "",
+  city: "",
+  state: "",
+  teachingStage: "",
+  subjects: "",
+  audiences: [],
+  generationPreferences: ""
+};
 
 export function TeacherProfilePanel(): React.ReactElement {
-  const [profile, setProfile] = useState<TeacherProfile>(getTeacherProfile());
+  const [profile, setProfile] = useState<TeacherProfile>(emptyProfile);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function load(): Promise<void> {
@@ -18,7 +41,8 @@ export function TeacherProfilePanel(): React.ReactElement {
         const response = await fetch("/api/teacher/profile");
 
         if (!response.ok) {
-          throw new Error("fallback");
+          const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+          throw new Error(payload?.message ?? "Nao foi possivel carregar seu perfil.");
         }
 
         const payload = (await response.json()) as ApiProfile;
@@ -35,8 +59,12 @@ export function TeacherProfilePanel(): React.ReactElement {
           audiences: payload.audiences,
           generationPreferences: payload.generationPreferences
         });
-      } catch {
-        setProfile(getTeacherProfile());
+      } catch (caughtError) {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Nao foi possivel carregar seu perfil."
+        );
       }
     }
 
@@ -58,6 +86,8 @@ export function TeacherProfilePanel(): React.ReactElement {
 
   async function save(): Promise<void> {
     try {
+      setError("");
+      setMessage("");
       const response = await fetch("/api/teacher/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,13 +105,17 @@ export function TeacherProfilePanel(): React.ReactElement {
       });
 
       if (!response.ok) {
-        throw new Error("fallback");
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(payload?.message ?? "Nao foi possivel salvar seu perfil.");
       }
 
       setMessage("Perfil salvo com persistencia real.");
-    } catch {
-      saveTeacherProfile(profile);
-      setMessage("Perfil salvo no modo local de desenvolvimento.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Nao foi possivel salvar seu perfil."
+      );
     }
   }
 
@@ -118,6 +152,7 @@ export function TeacherProfilePanel(): React.ReactElement {
           </div>
         </div>
         {message ? <p className="successMessage proWide">{message}</p> : null}
+        {error ? <p className="formError proWide">{error}</p> : null}
         <button className="primaryButton" type="button" onClick={() => void save()}>Salvar perfil</button>
       </section>
     </main>

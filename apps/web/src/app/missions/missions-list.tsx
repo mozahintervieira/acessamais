@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listLocalMissions } from "../demo-local-store";
 
 type MissionListItem = {
   id: string;
@@ -12,8 +11,6 @@ type MissionListItem = {
   createdAt: string;
 };
 
-const organizationId = "demo-organization";
-
 export function MissionsList(): React.ReactElement {
   const [missions, setMissions] = useState<MissionListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -23,27 +20,20 @@ export function MissionsList(): React.ReactElement {
     async function loadMissions(): Promise<void> {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions?organizationId=${organizationId}`
+          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions`
         );
 
         if (!response.ok) {
           throw new Error("Nao foi possivel carregar os materiais.");
         }
 
-        const apiMissions = (await response.json()) as MissionListItem[];
-        setMissions(mergeMissions(apiMissions, listLocalMissions()));
+        setMissions((await response.json()) as MissionListItem[]);
       } catch (caughtError) {
-        const localMissions = listLocalMissions();
-
-        if (localMissions.length > 0) {
-          setMissions(localMissions);
-        } else {
-          setError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : "Erro inesperado ao carregar materiais."
-          );
-        }
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Erro inesperado ao carregar materiais."
+        );
       } finally {
         setIsLoading(false);
       }
@@ -103,21 +93,6 @@ export function MissionsList(): React.ReactElement {
         </div>
       </section>
     </main>
-  );
-}
-
-function mergeMissions(
-  apiMissions: MissionListItem[],
-  localMissions: MissionListItem[]
-): MissionListItem[] {
-  const apiIds = new Set(apiMissions.map((mission) => mission.id));
-
-  return [
-    ...apiMissions,
-    ...localMissions.filter((mission) => !apiIds.has(mission.id))
-  ].sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
   );
 }
 

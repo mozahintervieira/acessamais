@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listLocalResources } from "../demo-local-store";
 
 type ResourceListItem = {
   id: string;
@@ -44,8 +43,6 @@ type Filters = {
   mostUsed: string;
 };
 
-const organizationId = "demo-organization";
-
 export function ResourcesLibrary(): React.ReactElement {
   const [filters, setFilters] = useState<Filters>({
     q: "",
@@ -74,7 +71,7 @@ export function ResourcesLibrary(): React.ReactElement {
     setError(null);
 
     try {
-      const params = new URLSearchParams({ organizationId });
+      const params = new URLSearchParams();
 
       for (const [key, value] of Object.entries(filters)) {
         if (value.trim()) {
@@ -87,23 +84,17 @@ export function ResourcesLibrary(): React.ReactElement {
       );
 
       if (!response.ok) {
-        throw new Error("Nao foi possivel carregar os materiais.");
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(payload?.message ?? "Nao foi possivel carregar os materiais.");
       }
 
-      const apiResources = (await response.json()) as ResourceListItem[];
-      setResources(mergeResources(apiResources, filterLocalResources(listLocalResources(), filters)));
+      setResources((await response.json()) as ResourceListItem[]);
     } catch (caughtError) {
-      const localResources = filterLocalResources(listLocalResources(), filters);
-
-      if (localResources.length > 0) {
-        setResources(localResources);
-      } else {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Erro inesperado ao carregar materiais."
-        );
-      }
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Erro inesperado ao carregar materiais."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -242,66 +233,6 @@ export function ResourcesLibrary(): React.ReactElement {
       </section>
     </main>
   );
-}
-
-function mergeResources(
-  apiResources: ResourceListItem[],
-  localResources: ResourceListItem[]
-): ResourceListItem[] {
-  const apiIds = new Set(apiResources.map((resource) => resource.id));
-
-  return [
-    ...apiResources,
-    ...localResources.filter((resource) => !apiIds.has(resource.id))
-  ].sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
-  );
-}
-
-function filterLocalResources(
-  resources: ResourceListItem[],
-  filters: Filters
-): ResourceListItem[] {
-  return resources.filter((resource) => {
-    const searchableText = [
-      resource.title,
-      resource.metadata.discipline,
-      resource.metadata.gradeYear,
-      resource.metadata.skill,
-      resource.metadata.knowledgeObject,
-      resource.metadata.theme,
-      resource.metadata.activityType,
-      resource.metadata.specificNeed,
-      resource.metadata.learningLevel,
-      "professor demo",
-      "favorito",
-      "mais usado",
-      resource.latestVersion?.contentText
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return (
-      matches(searchableText, filters.q) &&
-      matches(resource.metadata.discipline, filters.discipline) &&
-      matches(resource.metadata.gradeYear, filters.gradeYear) &&
-      matches(resource.metadata.skill, filters.skill) &&
-      matches(resource.metadata.knowledgeObject, filters.knowledgeObject) &&
-      matches(resource.metadata.theme, filters.theme) &&
-      matches(resource.metadata.activityType, filters.activityType) &&
-      matches(resource.metadata.specificNeed, filters.specificNeed) &&
-      matches(resource.metadata.learningLevel, filters.learningLevel) &&
-      matches(searchableText, filters.teacher) &&
-      matches(searchableText, filters.favorites) &&
-      matches(searchableText, filters.mostUsed)
-    );
-  });
-}
-
-function matches(value: string | undefined, filter: string): boolean {
-  return !filter.trim() || (value ?? "").toLowerCase().includes(filter.trim().toLowerCase());
 }
 
 function Field({

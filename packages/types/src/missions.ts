@@ -32,7 +32,7 @@ export type MissionInput = {
   availableResources?: string[];
   expectedProductType?: string;
   activityType?: string;
-  questionCount?: string;
+  questionCount?: string | number;
   difficultyLevel?: string;
   outputFormat?: string;
   learningLevel?: string;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMissionDetail } from "../../demo-store";
 import { getCurrentUser } from "../../../server/session";
+import { hasDatabaseUrl } from "../../../server/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,14 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const currentUser = await getCurrentUser();
+
+  if (hasDatabaseUrl() && !currentUser) {
+    return NextResponse.json(
+      { message: "Entre novamente para acessar este material." },
+      { status: 401 }
+    );
+  }
+
   const organizationId =
     currentUser?.organizationId ?? new URL(request.url).searchParams.get("organizationId");
   const { id } = await context.params;

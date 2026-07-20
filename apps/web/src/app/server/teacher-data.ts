@@ -266,17 +266,17 @@ export async function listClassrooms(user: AuthenticatedUser): Promise<Classroom
   }));
 }
 
-export async function createStudent(user: AuthenticatedUser, input: Partial<StudentRecord>): Promise<StudentRecord> {
+export async function createStudent(user: AuthenticatedUser, input: Record<string, unknown>): Promise<StudentRecord> {
   const student = {
     id: `student_${randomUUID()}`,
-    displayName: input.displayName?.trim() || "Estudante",
-    age: input.age?.trim() || "",
-    classroomId: input.classroomId?.trim() || "",
-    pedagogicalProfile: input.pedagogicalProfile?.trim() || "",
-    supportLevel: input.supportLevel?.trim() || "",
-    observations: input.observations?.trim() || "",
-    interests: input.interests?.trim() || "",
-    preferences: input.preferences?.trim() || "",
+    displayName: normalizeText(input.displayName) || "Estudante",
+    age: normalizeText(input.age),
+    classroomId: normalizeText(input.classroomId),
+    pedagogicalProfile: normalizeText(input.pedagogicalProfile),
+    supportLevel: normalizeText(input.supportLevel),
+    observations: normalizeText(input.observations),
+    interests: normalizeText(input.interests),
+    preferences: normalizeText(input.preferences),
     createdAt: new Date().toISOString()
   };
 
@@ -394,4 +394,20 @@ function normalizeList(value: unknown): string[] {
   }
 
   return [];
+}
+
+function normalizeText(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value).trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean).join(", ");
+  }
+
+  return "";
 }

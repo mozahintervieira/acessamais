@@ -4,6 +4,7 @@ import {
   listVersions
 } from "../../../demo-store";
 import { getCurrentUser } from "../../../../server/session";
+import { hasDatabaseUrl } from "../../../../server/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,14 @@ export async function GET(
   context: { params: Promise<{ resourceId: string }> }
 ): Promise<NextResponse> {
   const currentUser = await getCurrentUser();
+
+  if (hasDatabaseUrl() && !currentUser) {
+    return NextResponse.json(
+      { message: "Entre novamente para acessar as versoes deste material." },
+      { status: 401 }
+    );
+  }
+
   const organizationId =
     currentUser?.organizationId ?? new URL(request.url).searchParams.get("organizationId");
   const { resourceId } = await context.params;
@@ -34,6 +43,14 @@ export async function POST(
   try {
     const { resourceId } = await context.params;
     const currentUser = await getCurrentUser();
+
+    if (hasDatabaseUrl() && !currentUser) {
+      return NextResponse.json(
+        { message: "Entre novamente para salvar uma nova versao." },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as {
       organizationId?: string;
       contentJson?: unknown;

@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listDemoClasses, saveDemoClass, type DemoClass } from "../teacher-demo-store";
+
+type Classroom = {
+  id: string;
+  name: string;
+  grade: string;
+  shift: string;
+  studentCount?: string;
+};
 
 export function ClassesPanel(): React.ReactElement {
-  const [classes, setClasses] = useState<DemoClass[]>([]);
+  const [classes, setClasses] = useState<Classroom[]>([]);
   const [form, setForm] = useState({ name: "", grade: "", shift: "", studentCount: "" });
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void load();
@@ -17,21 +25,29 @@ export function ClassesPanel(): React.ReactElement {
       const response = await fetch("/api/teacher/classes");
 
       if (!response.ok) {
-        throw new Error("fallback");
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(payload?.message ?? "Nao foi possivel carregar as turmas.");
       }
 
-      setClasses((await response.json()) as DemoClass[]);
-    } catch {
-      setClasses(listDemoClasses());
+      setClasses((await response.json()) as Classroom[]);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Nao foi possivel carregar as turmas."
+      );
     }
   }
 
   async function save(): Promise<void> {
     if (!form.name.trim()) {
+      setError("Informe o nome da turma.");
       return;
     }
 
     try {
+      setError("");
+      setMessage("");
       const response = await fetch("/api/teacher/classes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,15 +55,18 @@ export function ClassesPanel(): React.ReactElement {
       });
 
       if (!response.ok) {
-        throw new Error("fallback");
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(payload?.message ?? "Nao foi possivel salvar a turma.");
       }
 
       setMessage("Turma salva com persistencia real.");
       await load();
-    } catch {
-      saveDemoClass(form);
-      setClasses(listDemoClasses());
-      setMessage("Turma salva no modo local de desenvolvimento.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Nao foi possivel salvar a turma."
+      );
     }
 
     setForm({ name: "", grade: "", shift: "", studentCount: "" });
@@ -69,6 +88,7 @@ export function ClassesPanel(): React.ReactElement {
           <Field label="Turno" value={form.shift} onChange={(value) => setForm((current) => ({ ...current, shift: value }))} />
           <Field label="Quantidade de estudantes" value={form.studentCount} onChange={(value) => setForm((current) => ({ ...current, studentCount: value }))} />
           {message ? <p className="successMessage">{message}</p> : null}
+          {error ? <p className="formError">{error}</p> : null}
           <button className="primaryButton" type="button" onClick={() => void save()}>Cadastrar turma</button>
         </div>
         <div className="libraryCards">

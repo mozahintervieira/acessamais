@@ -164,15 +164,17 @@ const globalStore = globalThis as typeof globalThis & {
 export async function executeMission(
   request: CreateMissionRequest
 ): Promise<MissionExecutionResult> {
-  validateMission(request);
+  const normalizedRequest = normalizeMissionRequest(request);
 
-  const context = resolveContext(request);
+  validateMission(normalizedRequest);
+
+  const context = resolveContext(normalizedRequest);
   const decision = resolveDecision(context);
-  const pedagogicalPlan = await generatePedagogicalPlan(request, context, decision);
+  const pedagogicalPlan = await generatePedagogicalPlan(normalizedRequest, context, decision);
   const status: MissionStatus = decision.canProceedToPedagogicalEngine
     ? "COMPLETED"
     : "NEEDS_REVIEW";
-  const contentText = buildContentText(request, context, pedagogicalPlan);
+  const contentText = buildContentText(normalizedRequest, context, pedagogicalPlan);
   const now = new Date().toISOString();
   const missionId = `mission_${randomUUID()}`;
   const resourceId = `resource_${randomUUID()}`;
@@ -189,23 +191,23 @@ export async function executeMission(
   const resource: Resource = {
     id: resourceId,
     missionId,
-    organizationId: request.organizationId,
-    createdByUserId: request.userId,
-    type: request.missionType === "ADAPT_ACTIVITY" ? "ADAPTED_ACTIVITY" : "LESSON_PLAN",
-    title: resolveTitle(request),
+    organizationId: normalizedRequest.organizationId,
+    createdByUserId: normalizedRequest.userId,
+    type: normalizedRequest.missionType === "ADAPT_ACTIVITY" ? "ADAPTED_ACTIVITY" : "LESSON_PLAN",
+    title: resolveTitle(normalizedRequest),
     status: "DRAFT",
-    metadata: buildMetadata(request, context, decision, pedagogicalPlan),
+    metadata: buildMetadata(normalizedRequest, context, decision, pedagogicalPlan),
     versions: [version],
     createdAt: now,
     updatedAt: now
   };
   const mission: Mission = {
     id: missionId,
-    organizationId: request.organizationId,
-    createdByUserId: request.userId,
-    missionType: request.missionType,
+    organizationId: normalizedRequest.organizationId,
+    createdByUserId: normalizedRequest.userId,
+    missionType: normalizedRequest.missionType,
     status,
-    input: request.input,
+    input: normalizedRequest.input,
     context,
     decision,
     createdAt: now,
@@ -222,17 +224,17 @@ export async function executeMission(
   }
 
   await recordUsageEvent({
-    userId: request.userId,
+    userId: normalizedRequest.userId,
     eventType: "MATERIAL_GENERATED",
     resourceId,
     metadata: {
-      missionType: request.missionType,
-      discipline: request.input.discipline,
-      gradeYear: request.input.gradeYear
+      missionType: normalizedRequest.missionType,
+      discipline: normalizedRequest.input.discipline,
+      gradeYear: normalizedRequest.input.gradeYear
     }
   });
   await recordUsageEvent({
-    userId: request.userId,
+    userId: normalizedRequest.userId,
     eventType: "MATERIAL_SAVED",
     resourceId
   });
@@ -241,7 +243,7 @@ export async function executeMission(
     missionId,
     resourceId,
     versionId,
-    missionType: request.missionType,
+    missionType: normalizedRequest.missionType,
     status,
     context,
     decision,
@@ -955,7 +957,7 @@ function resolveContext(request: CreateMissionRequest): ResolvedContext {
     ["availableResources", input.availableResources?.join(", ")],
     ["expectedProductType", input.expectedProductType],
     ["activityType", input.activityType],
-    ["questionCount", input.questionCount],
+    ["questionCount", normalizeText(input.questionCount)],
     ["difficultyLevel", input.difficultyLevel],
     ["outputFormat", input.outputFormat]
   ];
@@ -1110,6 +1112,10 @@ function validateMission(request: CreateMissionRequest): void {
     throw new Error("input da missao e obrigatorio.");
   }
 
+  if (parseWorksheetCount(request.input.questionCount) === null) {
+    throw new Error("Informe a quantidade de folhas A4 usando um numero entre 1 e 10.");
+  }
+
   if (
     !request.input.rawPrompt &&
     !request.input.theme &&
@@ -1118,6 +1124,74 @@ function validateMission(request: CreateMissionRequest): void {
   ) {
     throw new Error("Descreva em uma frase o recurso pedagogico que deseja criar.");
   }
+}
+
+function normalizeMissionRequest(request: CreateMissionRequest): CreateMissionRequest {
+  const questionCount = parseWorksheetCount(request.input?.questionCount);
+
+  return {
+    ...request,
+    input: {
+      ...request.input,
+      questionCount: questionCount === null ? request.input.questionCount : String(questionCount)
+    }
+  };
+}
+
+function parseWorksheetCount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampWorksheetCount(Math.trunc(value));
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(/\s+/g, " ");
+
+    if (!normalized) {
+      return 5;
+    }
+
+    const direct = Number.parseInt(normalized, 10);
+
+    if (Number.isFinite(direct)) {
+      return clampWorksheetCount(direct);
+    }
+
+    const textualNumbers: Record<string, number> = {
+      um: 1,
+      uma: 1,
+      dois: 2,
+      duas: 2,
+      tres: 3,
+      três: 3,
+      quatro: 4,
+      cinco: 5,
+      seis: 6,
+      sete: 7,
+      oito: 8,
+      nove: 9,
+      dez: 10
+    };
+    const comparable = normalized
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLocaleLowerCase("pt-BR");
+
+    return textualNumbers[comparable] ? clampWorksheetCount(textualNumbers[comparable]) : null;
+  }
+
+  if (value === undefined || value === null) {
+    return 5;
+  }
+
+  return null;
+}
+
+function clampWorksheetCount(value: number): number | null {
+  if (!Number.isFinite(value) || value < 1) {
+    return null;
+  }
+
+  return Math.min(value, 10);
 }
 
 function buildGeneratedFallbacks(request: CreateMissionRequest): {
@@ -1451,10 +1525,7 @@ function normalizeQuestions(
   }
 
   const input = request?.input;
-  const count = Math.min(
-    Math.max(Number.parseInt(input?.questionCount ?? "5", 10) || 5, 1),
-    10
-  );
+  const count = parseWorksheetCount(input?.questionCount) ?? 5;
   const theme = input?.theme ?? input?.knowledgeObject ?? "conteudo estudado";
   const subject = normalizeComparable(input?.discipline ?? input?.subject);
   const commands = buildFallbackQuestionCommands(theme, subject);
@@ -3585,13 +3656,16 @@ function matches(value: string | undefined, filter: string | undefined): boolean
     : true;
 }
 
-function normalizeText(value: string | undefined): string | undefined {
-  const normalized = value?.trim().replace(/\s+/g, " ");
+function normalizeText(value: unknown): string | undefined {
+  const normalized =
+    typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? String(value).trim().replace(/\s+/g, " ")
+      : undefined;
 
   return normalized ? normalized : undefined;
 }
 
-function normalizeComparable(value: string | undefined): string {
+function normalizeComparable(value: unknown): string {
   return normalizeText(value)
     ?.normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
