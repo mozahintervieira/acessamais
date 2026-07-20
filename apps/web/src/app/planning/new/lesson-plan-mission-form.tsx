@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { CreateMissionRequest, MissionType } from "@acessa-plus/types";
+import type { MissionType } from "@acessa-plus/types";
 
 type TaskKey =
   | "printable"
@@ -197,9 +197,7 @@ export function LessonPlanMissionForm(): React.ReactElement {
     setResult(null);
     setCopyMessage(null);
 
-    const request: CreateMissionRequest = {
-      userId: "demo-teacher",
-      organizationId: "demo-organization",
+    const request = {
       missionType: task.missionType,
       input: {
         ...form,

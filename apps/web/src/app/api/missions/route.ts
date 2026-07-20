@@ -4,6 +4,7 @@ import {
   listMissions
 } from "../demo-store";
 import { getCurrentUser } from "../../server/session";
+import { hasDatabaseUrl } from "../../server/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,14 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const currentUser = await getCurrentUser();
+
+    if (hasDatabaseUrl() && !currentUser) {
+      return NextResponse.json(
+        { message: "Entre novamente para gerar e salvar o material no seu espaco pedagogico." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const result = await executeMission(
       currentUser
