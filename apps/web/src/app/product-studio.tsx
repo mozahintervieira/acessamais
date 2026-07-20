@@ -363,6 +363,14 @@ export function ProductStudio(): React.ReactElement {
     }
   }
 
+  function currentSheetElement(): HTMLElement {
+    if (!sheetRef.current) {
+      throw new Error("A folha ainda nao esta pronta para exportacao.");
+    }
+
+    return sheetRef.current;
+  }
+
   function currentTitle(): string {
     return selectedWorksheetPlan?.studentSheet?.title ?? selectedWorksheetPlan?.worksheetTitle ?? "material-acessa-plus";
   }
@@ -515,9 +523,9 @@ export function ProductStudio(): React.ReactElement {
           ) : null}
           <div className="exportBar productExport">
             <button
-              disabled={!selectedWorksheetPlan || !sheetRef.current || Boolean(exportingFormat)}
+              disabled={!selectedWorksheetPlan || Boolean(exportingFormat)}
               type="button"
-              onClick={() => void runExport("Preparando seu PDF...", () => exportWorksheetPdf(sheetRef.current as HTMLElement, {
+              onClick={() => void runExport("Preparando seu PDF...", () => exportWorksheetPdf(currentSheetElement(), {
                 title: currentTitle(),
                 onProgress: (progress) => setExportMessage(progress.message)
               }))}
@@ -545,9 +553,9 @@ export function ProductStudio(): React.ReactElement {
               Word
             </button>
             <button
-              disabled={!selectedWorksheetPlan || !sheetRef.current || Boolean(exportingFormat)}
+              disabled={!selectedWorksheetPlan || Boolean(exportingFormat)}
               type="button"
-              onClick={() => void runExport("Gerando imagem em alta qualidade...", () => exportWorksheetPng(sheetRef.current as HTMLElement, {
+              onClick={() => void runExport("Gerando imagem em alta qualidade...", () => exportWorksheetPng(currentSheetElement(), {
                 title: currentTitle(),
                 onProgress: (progress) => setExportMessage(progress.message)
               }))}

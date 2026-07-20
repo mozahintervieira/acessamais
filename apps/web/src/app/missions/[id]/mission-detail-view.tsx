@@ -244,6 +244,14 @@ export function MissionDetailView({
     }
   }
 
+  function currentSheetElement(): HTMLElement {
+    if (!sheetRef.current) {
+      throw new Error("A folha ainda nao esta pronta para exportacao.");
+    }
+
+    return sheetRef.current;
+  }
+
   return (
     <main className="missionShell">
       <section className="missionIntro">
@@ -319,9 +327,9 @@ export function MissionDetailView({
             </div>
             <div className="exportBar inlineExport">
               <button
-                disabled={isExporting || !sheetRef.current}
+                disabled={isExporting}
                 type="button"
-                onClick={() => void runExport(() => exportWorksheetPdf(sheetRef.current as HTMLElement, {
+                onClick={() => void runExport(() => exportWorksheetPdf(currentSheetElement(), {
                   title: resource.title,
                   onProgress: (progress) => setExportMessage(progress.message)
                 }), "Preparando seu PDF...")}
@@ -339,9 +347,9 @@ export function MissionDetailView({
                 Exportar Word
               </button>
               <button
-                disabled={isExporting || !sheetRef.current}
+                disabled={isExporting}
                 type="button"
-                onClick={() => void runExport(() => exportWorksheetPng(sheetRef.current as HTMLElement, {
+                onClick={() => void runExport(() => exportWorksheetPng(currentSheetElement(), {
                   title: resource.title,
                   onProgress: (progress) => setExportMessage(progress.message)
                 }), "Gerando imagem em alta qualidade...")}
