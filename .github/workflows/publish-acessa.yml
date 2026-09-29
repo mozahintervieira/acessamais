@@ -1,0 +1,37 @@
+name: Publicar nova experiencia ACESSA+
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Aplicar pacote validado
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          archive = Path('.github/workflows/acessa-release.zip')
+          with ZipFile(archive) as package:
+              package.extractall('.')
+          PY
+
+      - name: Registrar versao e remover instalador temporario
+        shell: bash
+        run: |
+          rm -f .github/workflows/acessa-release.zip
+          rm -f .github/workflows/publish-acessa.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: lanca nova experiencia pedagogica do ACESSA+"
+          git push origin HEAD:main
