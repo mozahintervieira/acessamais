@@ -1,5 +1,5 @@
-import { HomeDashboard } from "./home-dashboard";
+import { PublicLanding } from "./public-landing";
 
 export default function HomePage(): React.ReactElement {
-  return <HomeDashboard />;
+  return <PublicLanding />;
 }

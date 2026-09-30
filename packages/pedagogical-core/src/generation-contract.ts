@@ -63,6 +63,10 @@ export const ADAPTED_ACTIVITY_OUTPUT_CONTRACT = {
     context: "contexto curto para o estudante",
     instructions: "array de instrucoes para o estudante",
     baseText: "texto-base quando necessario",
+    guidedReading:
+      "objeto { title, text, keyIdea, imageKind, imageAlt } com explicacao acessivel e correta do conceito antes da pratica; text deve ensinar, nao apenas anunciar o tema",
+    workedExample:
+      "objeto { title, problem, steps, answer, check } com exemplo completo e realmente respondido, mostrando cada etapa e a verificacao final; obrigatorio em conteudos procedimentais",
     didacticBoxes: "array de quadros de apoio para o estudante",
     visualElements:
       "array de intencoes visuais renderizaveis, sem prefixos descritivos iniciados por imagem, icone, pictograma ou desenho",

@@ -47,25 +47,70 @@ export type PedagogicalProject = {
 
 export type WorksheetBlueprint = {
   sheetNumber: number;
+  pedagogicalRole: string;
   title: string;
   objective: string;
   strategy: string;
   methodology: string;
+  primaryPattern: PedagogicalActivityPatternId;
+  secondaryPattern: PedagogicalActivityPatternId;
+  interactionMode: string;
   resources: string[];
+  visualPlan: string[];
+  supportPlan: string[];
+  responsePlan: string;
   visualIdentity: string;
   learningFocus: string;
   contentScope: string;
+  contentRequirements: string[];
   forbiddenContent: string[];
   requiredExamples: string[];
   requiredTaskTypes: string[];
   expectedProgression: string;
   editorialPattern: string;
+  editorialConstraints: string[];
+  accessibilityConstraints: string[];
+  validationRules: string[];
   assessmentEvidence: string;
   cognitiveProgression: string;
   actionTypes: ActivityActionType[];
   teacherGuideFocus: string[];
   successCriteria: string[];
   plannedTasks: PlannedTask[];
+  qualityScore: number;
+  diversityScore: number;
+};
+
+export type PedagogicalActivityPatternId =
+  | "MARK_ONE"
+  | "MARK_MULTIPLE"
+  | "CIRCLE"
+  | "MATCH_COLUMNS"
+  | "CLASSIFY"
+  | "COMPLETE_WITH_WORD_BANK"
+  | "COMPLETE_SENTENCE"
+  | "IMAGE_QUESTION"
+  | "ORDER_SEQUENCE"
+  | "CUT_AND_PASTE"
+  | "TRUE_FALSE_VISUAL"
+  | "SOLVED_EXAMPLE"
+  | "SHORT_PRODUCTION"
+  | "CONTEXT_PROBLEM"
+  | "TABLE_COMPLETION"
+  | "SELF_ASSESSMENT"
+  | "FINAL_CHALLENGE";
+
+export type PedagogicalActivityPattern = {
+  id: PedagogicalActivityPatternId;
+  objective: string;
+  complexity: "LOW" | "MEDIUM" | "HIGH";
+  recommendedItems: { min: number; max: number };
+  space: "SMALL" | "MEDIUM" | "LARGE";
+  suitableProfiles: string[];
+  requiresVisual: boolean;
+  responseType: string;
+  incompatibilities: PedagogicalActivityPatternId[];
+  editorialConstraints: string[];
 };
 
 export type PedagogicalProjectEngineOutput = {
@@ -105,7 +150,7 @@ export class PedagogicalProjectEngine {
       generalObjective: input.materialBlueprint.learningObjective,
       specificObjectives: worksheetBlueprints.map((sheet) => sheet.objective),
       competencies: resolveCompetencies(input.request, input.materialBlueprint),
-      skills: [input.materialBlueprint.skillCode],
+      skills: input.request.input.skill ? [input.materialBlueprint.skillCode] : [],
       knowledgeObject: input.materialBlueprint.knowledgeObject,
       content: input.materialBlueprint.content,
       studentProfile: input.materialBlueprint.studentProfile,
@@ -154,7 +199,14 @@ function validatePedagogicalRequest(
   const grade = normalizeComparable(request.input.gradeYear ?? request.input.yearGrade ?? "");
 
   addMissingIssue(issues, discipline, "discipline", "Disciplina e obrigatoria para gerar um projeto pedagogico consistente.");
-  addMissingIssue(issues, skill, "skill", "Habilidade BNCC ou curricular e obrigatoria para gerar um projeto pedagogico consistente.");
+  if (!skill) {
+    issues.push({
+      code: "CURRICULUM_CONFIRMATION_REQUIRED",
+      field: "skill",
+      severity: "WARNING",
+      message: "A habilidade curricular ainda nao foi confirmada. O material pode ser criado como proposta, mas o guia deve sinalizar revisao docente antes do uso oficial."
+    });
+  }
   addMissingIssue(issues, knowledgeObject, "knowledgeObject", "Objeto de conhecimento ou conteudo e obrigatorio.");
   addMissingIssue(issues, grade, "gradeYear", "Serie/ano e obrigatorio para adequar linguagem, idade e progressao.");
 
@@ -193,26 +245,68 @@ function buildWorksheetBlueprints(
     const plannedTasks = template.actionTypes.map((actionType, taskIndex) =>
       buildWorksheetPlannedTask(materialBlueprint, actionType, sheetNumber, taskIndex + 1)
     );
+    const primaryPattern = template.primaryPattern ?? resolvePrimaryPattern(template.actionTypes[0]);
+    const secondaryPattern = template.secondaryPattern ?? resolveSecondaryPattern(template.actionTypes[1], primaryPattern);
+    const visualPlan = template.visualPlan ?? resolveVisualPlanFromResources(template.resources);
+    const supportPlan = template.supportPlan ?? [
+      "comandos diretos",
+      "exemplo antes da tarefa complexa",
+      "apoio visual funcional"
+    ];
+    const editorialConstraints = template.editorialConstraints ?? [
+      "maximo de tres blocos principais",
+      "comandos curtos",
+      "espaco de resposta adequado"
+    ];
+    const accessibilityConstraints = template.accessibilityConstraints ?? [
+      "linguagem concreta",
+      "pouca informacao simultanea",
+      "fonte legivel e contraste adequado"
+    ];
+    const validationRules = template.validationRules ?? [
+      "folha deve ter funcao pedagogica clara",
+      "tarefas devem corresponder ao objetivo da folha"
+    ];
+    const diversityScore = calculateWorksheetDiversityScore(template, plannedTasks);
+    const qualityScore = calculateWorksheetQualityScore(template, plannedTasks, diversityScore);
 
     return {
       sheetNumber,
+      pedagogicalRole: template.pedagogicalRole ?? template.learningFocus,
       title: `${materialBlueprint.content}: ${template.title}`,
       objective: `${template.objective} em ${materialBlueprint.content}.`,
       strategy: template.strategy,
       methodology: template.methodology,
+      primaryPattern,
+      secondaryPattern,
+      interactionMode: template.interactionMode ?? "resposta curta com apoio visual",
       resources: uniqueStrings([
         ...template.resources,
         ...materialBlueprint.visualRequirements.slice(0, 2),
         ...materialBlueprint.recommendedSupports.slice(0, 2)
       ]),
+      visualPlan,
+      supportPlan: adaptSupportPlanForProfile(supportPlan, materialBlueprint),
+      responsePlan: template.responsePlan ?? resolvePattern(primaryPattern).responseType,
       visualIdentity: template.visualIdentity,
       learningFocus: template.learningFocus,
       contentScope: template.contentScope,
+      contentRequirements: template.contentRequirements ?? [
+        materialBlueprint.content,
+        materialBlueprint.knowledgeObject
+      ],
       forbiddenContent: template.forbiddenContent,
       requiredExamples: template.requiredExamples,
       requiredTaskTypes: template.requiredTaskTypes,
       expectedProgression: template.expectedProgression,
       editorialPattern: template.editorialPattern,
+      editorialConstraints,
+      accessibilityConstraints: adaptAccessibilityConstraints(accessibilityConstraints, materialBlueprint),
+      validationRules: [
+        ...validationRules,
+        "nao repetir o mesmo molde da folha anterior",
+        "validar se o visual tem funcao pedagogica"
+      ],
       assessmentEvidence: template.assessmentEvidence,
       cognitiveProgression: template.cognitiveProgression,
       actionTypes: template.actionTypes,
@@ -221,7 +315,9 @@ function buildWorksheetBlueprints(
         plannedTasks[0]?.successCriterion ?? `Realiza a proposta da folha ${sheetNumber} com apoio adequado.`,
         `Mantem relacao direta com ${materialBlueprint.knowledgeObject}.`
       ],
-      plannedTasks
+      plannedTasks,
+      qualityScore,
+      diversityScore
     };
   });
 }
@@ -263,7 +359,41 @@ function buildWorksheetPlannedTask(
   };
 }
 
-type WorksheetTemplate = Omit<WorksheetBlueprint, "sheetNumber" | "title" | "objective" | "successCriteria" | "plannedTasks"> & {
+type WorksheetTemplate = Omit<
+  WorksheetBlueprint,
+  | "sheetNumber"
+  | "title"
+  | "objective"
+  | "successCriteria"
+  | "plannedTasks"
+  | "pedagogicalRole"
+  | "primaryPattern"
+  | "secondaryPattern"
+  | "interactionMode"
+  | "visualPlan"
+  | "supportPlan"
+  | "responsePlan"
+  | "contentRequirements"
+  | "editorialConstraints"
+  | "accessibilityConstraints"
+  | "validationRules"
+  | "qualityScore"
+  | "diversityScore"
+> &
+Partial<Pick<
+  WorksheetBlueprint,
+  | "pedagogicalRole"
+  | "primaryPattern"
+  | "secondaryPattern"
+  | "interactionMode"
+  | "visualPlan"
+  | "supportPlan"
+  | "responsePlan"
+  | "contentRequirements"
+  | "editorialConstraints"
+  | "accessibilityConstraints"
+  | "validationRules"
+>> & {
   title: string;
   objective: string;
 };
@@ -276,9 +406,162 @@ function resolveWorksheetSequence(materialBlueprint: MaterialBlueprint): Workshe
     materialBlueprint.skillCode
   ].join(" "));
 
-  return source.includes("lingua") && source.includes("substantivo")
-    ? SUBSTANTIVE_WORKSHEET_SEQUENCE
-    : WORKSHEET_SEQUENCE;
+  if (source.includes("lingua") && source.includes("substantivo")) {
+    return SUBSTANTIVE_WORKSHEET_SEQUENCE;
+  }
+
+  if (
+    source.includes("lingua") &&
+    (
+      source.includes("conto") ||
+      source.includes("fabula") ||
+      source.includes("mito") ||
+      source.includes("narrativa") ||
+      source.includes("ef06lp04")
+    )
+  ) {
+    return NARRATIVE_WORKSHEET_SEQUENCE;
+  }
+
+  return WORKSHEET_SEQUENCE;
+}
+
+export const PEDAGOGICAL_ACTIVITY_PATTERNS: PedagogicalActivityPattern[] = [
+  createPattern("MARK_ONE", "escolher uma resposta entre poucas alternativas", "LOW", 2, 4, "SMALL", true, "marcacao objetiva"),
+  createPattern("MARK_MULTIPLE", "marcar mais de uma resposta correta", "MEDIUM", 3, 5, "MEDIUM", true, "marcacao multipla"),
+  createPattern("CIRCLE", "circular elementos relevantes no material", "LOW", 2, 4, "SMALL", true, "circulo ou destaque"),
+  createPattern("MATCH_COLUMNS", "relacionar itens de duas colunas", "MEDIUM", 3, 5, "MEDIUM", false, "ligacao entre pares"),
+  createPattern("CLASSIFY", "separar itens em categorias claras", "MEDIUM", 4, 8, "MEDIUM", false, "classificacao em grupos"),
+  createPattern("COMPLETE_WITH_WORD_BANK", "completar lacunas com banco de palavras", "MEDIUM", 2, 4, "MEDIUM", false, "lacunas com banco de palavras"),
+  createPattern("COMPLETE_SENTENCE", "completar frases curtas com sentido", "MEDIUM", 2, 4, "MEDIUM", false, "lacunas em frase"),
+  createPattern("IMAGE_QUESTION", "responder a partir de imagem ou cena", "LOW", 1, 3, "LARGE", true, "marcacao ou resposta curta"),
+  createPattern("ORDER_SEQUENCE", "ordenar acontecimentos ou etapas", "MEDIUM", 3, 5, "LARGE", true, "sequencia numerada"),
+  createPattern("CUT_AND_PASTE", "recortar e colar cartoes", "MEDIUM", 3, 6, "LARGE", true, "recorte e colagem"),
+  createPattern("TRUE_FALSE_VISUAL", "julgar afirmacoes com apoio visual", "LOW", 3, 5, "MEDIUM", true, "verdadeiro ou falso"),
+  createPattern("SOLVED_EXAMPLE", "analisar exemplo resolvido antes da tarefa", "LOW", 1, 2, "MEDIUM", true, "exemplo guiado"),
+  createPattern("SHORT_PRODUCTION", "produzir resposta curta com apoio", "HIGH", 1, 3, "LARGE", false, "producao curta"),
+  createPattern("CONTEXT_PROBLEM", "resolver situacao contextualizada", "HIGH", 1, 3, "LARGE", true, "resposta curta contextual"),
+  createPattern("TABLE_COMPLETION", "preencher tabela ou quadro", "MEDIUM", 3, 6, "MEDIUM", false, "tabela preenchivel"),
+  createPattern("SELF_ASSESSMENT", "registrar autoavaliacao simples", "LOW", 2, 4, "SMALL", true, "checklist visual"),
+  createPattern("FINAL_CHALLENGE", "integrar aprendizagens em desafio final", "HIGH", 2, 4, "LARGE", true, "sintese ou producao curta")
+];
+
+function createPattern(
+  id: PedagogicalActivityPatternId,
+  objective: string,
+  complexity: PedagogicalActivityPattern["complexity"],
+  minItems: number,
+  maxItems: number,
+  space: PedagogicalActivityPattern["space"],
+  requiresVisual: boolean,
+  responseType: string
+): PedagogicalActivityPattern {
+  return {
+    id,
+    objective,
+    complexity,
+    recommendedItems: { min: minItems, max: maxItems },
+    space,
+    suitableProfiles: ["DI", "TEA", "DV", "DA", "TDAH", "AH/SD", "CAA"],
+    requiresVisual,
+    responseType,
+    incompatibilities: [],
+    editorialConstraints: [
+      "uma acao principal por comando",
+      "espaco de resposta proporcional",
+      "visual com funcao pedagogica quando solicitado"
+    ]
+  };
+}
+
+function resolvePattern(id: PedagogicalActivityPatternId): PedagogicalActivityPattern {
+  return PEDAGOGICAL_ACTIVITY_PATTERNS.find((pattern) => pattern.id === id) ??
+    PEDAGOGICAL_ACTIVITY_PATTERNS[0]!;
+}
+
+function resolvePrimaryPattern(actionType: ActivityActionType | undefined): PedagogicalActivityPatternId {
+  switch (actionType) {
+    case "OBSERVE":
+      return "IMAGE_QUESTION";
+    case "MATCH":
+    case "CONNECT":
+      return "MATCH_COLUMNS";
+    case "CLASSIFY":
+      return "CLASSIFY";
+    case "ORDER":
+      return "ORDER_SEQUENCE";
+    case "SOLVE":
+      return "CONTEXT_PROBLEM";
+    case "CREATE_GUIDED_EXAMPLE":
+      return "SHORT_PRODUCTION";
+    default:
+      return "COMPLETE_WITH_WORD_BANK";
+  }
+}
+
+function resolveSecondaryPattern(
+  actionType: ActivityActionType | undefined,
+  primaryPattern: PedagogicalActivityPatternId
+): PedagogicalActivityPatternId {
+  const candidate = resolvePrimaryPattern(actionType);
+
+  return candidate === primaryPattern ? "MARK_ONE" : candidate;
+}
+
+function resolveVisualPlanFromResources(resources: string[]): string[] {
+  return resources.length > 0
+    ? resources
+    : ["quadro visual funcional", "cartoes ou organizador simples"];
+}
+
+function adaptSupportPlanForProfile(supportPlan: string[], materialBlueprint: MaterialBlueprint): string[] {
+  const profile = normalizeComparable(materialBlueprint.studentProfile);
+  const supportLevel = normalizeComparable(materialBlueprint.supportLevel);
+  const additions = profile.includes("intelectual") || profile.includes("di") || supportLevel.includes("moderado")
+    ? [
+        "2 a 4 itens por bloco",
+        "uma acao por comando",
+        "exemplo antes de tarefa complexa",
+        "resposta curta e mediada"
+      ]
+    : [];
+
+  return uniqueStrings([...supportPlan, ...additions]);
+}
+
+function adaptAccessibilityConstraints(values: string[], materialBlueprint: MaterialBlueprint): string[] {
+  return uniqueStrings([
+    ...values,
+    ...materialBlueprint.antiInfantilizationGuidance.slice(0, 2),
+    "nao infantilizar linguagem, visual ou contexto"
+  ]);
+}
+
+function calculateWorksheetDiversityScore(template: WorksheetTemplate, plannedTasks: PlannedTask[]): number {
+  const actionDiversity = new Set(plannedTasks.map((task) => task.actionType)).size * 12;
+  const responseDiversity = new Set(plannedTasks.map((task) => task.responseMode)).size * 8;
+  const visualScore = (template.visualPlan ?? template.resources).length >= 2 ? 20 : 8;
+  const patternScore = template.primaryPattern !== template.secondaryPattern ? 20 : 8;
+
+  return Math.min(100, actionDiversity + responseDiversity + visualScore + patternScore);
+}
+
+function calculateWorksheetQualityScore(
+  template: WorksheetTemplate,
+  plannedTasks: PlannedTask[],
+  diversityScore: number
+): number {
+  let score = 48;
+
+  if (template.pedagogicalRole || template.learningFocus) score += 8;
+  if (template.primaryPattern || plannedTasks.length > 0) score += 8;
+  if ((template.visualPlan ?? template.resources).length > 0) score += 8;
+  if ((template.supportPlan ?? []).length > 0 || template.resources.length > 0) score += 6;
+  if (template.responsePlan || plannedTasks.some((task) => task.responseMode)) score += 6;
+  if ((template.editorialConstraints ?? []).length > 0 || template.editorialPattern) score += 6;
+  if (diversityScore >= 70) score += 10;
+
+  return Math.min(100, score);
 }
 
 const WORKSHEET_SEQUENCE: WorksheetTemplate[] = [
@@ -379,13 +662,167 @@ const WORKSHEET_SEQUENCE: WorksheetTemplate[] = [
   }
 ];
 
+const NARRATIVE_WORKSHEET_SEQUENCE: WorksheetTemplate[] = [
+  {
+    pedagogicalRole: "reconhecimento e ativacao",
+    title: "conhecendo as narrativas",
+    objective: "Reconhecer conto, fabula e mito por meio de cenas e exemplos concretos",
+    strategy: "Observacao de imagens, escolha e marcacao com baixa carga textual",
+    methodology: "Apresentar cenas simples, nomear tipos de narrativa e pedir reconhecimento visual.",
+    primaryPattern: "IMAGE_QUESTION",
+    secondaryPattern: "MARK_ONE",
+    interactionMode: "marcar, circular e escolher entre poucas alternativas",
+    resources: ["conjunto de imagens narrativas", "cartoes conto fabula mito", "quadro visual de exemplo"],
+    visualPlan: ["imagem central com tres cenas", "cartoes visuais de conto, fabula e mito"],
+    supportPlan: ["exemplo resolvido", "comando curto", "poucas alternativas"],
+    responsePlan: "marcacao objetiva e circulo em elementos da cena",
+    visualIdentity: "imagem grande, poucas palavras e alternativas visiveis",
+    learningFocus: "reconhecimento de generos narrativos",
+    contentScope: "conto, fabula e mito em exemplos concretos",
+    contentRequirements: ["conto", "fabula", "mito", "personagem", "cenario"],
+    forbiddenContent: ["definicao longa", "producao textual longa", "metadados curriculares"],
+    requiredExamples: ["menina na floresta", "animais conversando", "deus ou heroi de mito"],
+    requiredTaskTypes: ["observar imagem", "marcar", "circular"],
+    expectedProgression: "reconhecer antes de relacionar caracteristicas",
+    editorialPattern: "IMAGE_FOCUS",
+    editorialConstraints: ["maximo de tres cenas", "baixa carga textual", "alternativas grandes"],
+    accessibilityConstraints: ["2 a 4 itens por bloco", "uma acao por comando", "apoio visual funcional"],
+    validationRules: ["deve conter imagem ou conjunto visual central", "nao exigir producao longa"],
+    assessmentEvidence: "identifica o tipo de narrativa com apoio visual",
+    cognitiveProgression: "lembrar e reconhecer",
+    actionTypes: ["OBSERVE", "CLASSIFY", "COMPLETE"],
+    teacherGuideFocus: ["ativacao de repertorio", "reconhecimento visual", "mediacao por escolha"]
+  },
+  {
+    pedagogicalRole: "relacao e compreensao",
+    title: "quem e quem na historia?",
+    objective: "Relacionar personagens, cenarios e caracteristicas aos tipos de narrativa",
+    strategy: "Pareamento e classificacao com cartoes de elementos narrativos",
+    methodology: "Usar cartoes de personagem, lugar e ensinamento para construir relacoes.",
+    primaryPattern: "MATCH_COLUMNS",
+    secondaryPattern: "CLASSIFY",
+    interactionMode: "ligar colunas, classificar e completar com banco de palavras",
+    resources: ["cartoes de personagem", "duas colunas", "banco de palavras narrativas"],
+    visualPlan: ["duas colunas alinhadas", "cartoes com personagem, cenario e mensagem"],
+    supportPlan: ["banco de palavras", "pista visual", "exemplo de pareamento"],
+    responsePlan: "ligacao entre pares e classificacao em grupos",
+    visualIdentity: "grade de pareamento com linhas e cartoes claros",
+    learningFocus: "relacoes entre elementos narrativos",
+    contentScope: "personagens, cenarios, acontecimentos e ensinamentos",
+    contentRequirements: ["personagem", "cenario", "acontecimento", "ensinamento"],
+    forbiddenContent: ["pares repetidos", "caracteristicas ambiguas"],
+    requiredExamples: ["personagem", "lugar", "problema", "ensinamento"],
+    requiredTaskTypes: ["ligar colunas", "classificar", "completar com banco"],
+    expectedProgression: "relacionar caracteristicas antes de ordenar acontecimentos",
+    editorialPattern: "MATCHING",
+    editorialConstraints: ["itens alinhados", "minimo de tres pares reais", "sem alternativas vazias"],
+    accessibilityConstraints: ["palavras curtas", "pistas visuais", "espaco amplo para ligacao"],
+    validationRules: ["deve ter pelo menos tres pares reais", "nao repetir itens da folha 1"],
+    assessmentEvidence: "relaciona elementos narrativos a suas funcoes",
+    cognitiveProgression: "compreender e relacionar",
+    actionTypes: ["MATCH", "CLASSIFY", "COMPLETE"],
+    teacherGuideFocus: ["compreensao de relacoes", "classificacao com apoio", "vocabulos narrativos"]
+  },
+  {
+    pedagogicalRole: "organizacao e sequencia",
+    title: "organize os acontecimentos",
+    objective: "Organizar comeco, meio e fim de uma narrativa curta",
+    strategy: "Sequencia de cenas e ordenacao de acontecimentos",
+    methodology: "Apresentar cartoes/cenas, numerar a ordem e completar a estrutura narrativa.",
+    primaryPattern: "ORDER_SEQUENCE",
+    secondaryPattern: "CUT_AND_PASTE",
+    interactionMode: "ordenar, numerar, recortar simbolicamente e completar etapas",
+    resources: ["sequencia de cenas", "cartoes com comeco meio fim", "setas de ordem"],
+    visualPlan: ["tres cenas numeraveis", "linha de sequencia com setas"],
+    supportPlan: ["rotina visual", "numeracao 1 2 3", "pista comeco meio fim"],
+    responsePlan: "numeracao de cenas e preenchimento de quadro curto",
+    visualIdentity: "cartoes de cena, setas e espaco para ordenar",
+    learningFocus: "estrutura narrativa",
+    contentScope: "comeco, meio, fim, problema e solucao",
+    contentRequirements: ["comeco", "meio", "fim", "problema", "solucao"],
+    forbiddenContent: ["sequencia sem imagens", "texto longo sem apoio"],
+    requiredExamples: ["inicio da historia", "acontecimento principal", "final"],
+    requiredTaskTypes: ["ordenar cenas", "numerar", "completar etapas"],
+    expectedProgression: "organizar acontecimentos antes de interpretar mensagem",
+    editorialPattern: "SEQUENCE",
+    editorialConstraints: ["cartoes grandes", "setas claras", "sem excesso de texto"],
+    accessibilityConstraints: ["pouca informacao simultanea", "etapas numeradas", "comando objetivo"],
+    validationRules: ["deve conter ordem narrativa", "deve diferenciar comeco meio e fim"],
+    assessmentEvidence: "ordena acontecimentos em sequencia coerente",
+    cognitiveProgression: "organizar e sequenciar",
+    actionTypes: ["ORDER", "CONNECT", "COMPLETE"],
+    teacherGuideFocus: ["organizacao temporal", "estrutura narrativa", "mediacao por cenas"]
+  },
+  {
+    pedagogicalRole: "aplicacao contextualizada",
+    title: "qual e a mensagem?",
+    objective: "Identificar mensagem ou ensinamento em uma narrativa curta",
+    strategy: "Leitura curta, escolha justificada e producao breve",
+    methodology: "Usar microtexto narrativo com apoio visual e perguntas de sentido.",
+    primaryPattern: "CONTEXT_PROBLEM",
+    secondaryPattern: "SHORT_PRODUCTION",
+    interactionMode: "ler texto curto, escolher mensagem e escrever frase curta",
+    resources: ["microconto ilustrado", "banco de mensagens", "quadro de resposta curta"],
+    visualPlan: ["cena contextual", "quadro mensagem da historia", "banco de palavras"],
+    supportPlan: ["texto curto", "banco de palavras", "frase iniciada"],
+    responsePlan: "escolha justificada e resposta curta",
+    visualIdentity: "texto curto com imagem de contexto e linhas amplas",
+    learningFocus: "interpretacao de mensagem",
+    contentScope: "mensagem, ensinamento e sentido da narrativa",
+    contentRequirements: ["mensagem", "ensinamento", "personagem", "acontecimento"],
+    forbiddenContent: ["pergunta abstrata sem apoio", "producao longa"],
+    requiredExamples: ["ajuda", "cuidado", "respeito", "aprendizagem"],
+    requiredTaskTypes: ["ler cena", "marcar mensagem", "produzir frase curta"],
+    expectedProgression: "aplicar compreensao em situacao contextualizada",
+    editorialPattern: "PRODUCTION",
+    editorialConstraints: ["microtexto curto", "linhas amplas", "uma pergunta por bloco"],
+    accessibilityConstraints: ["frase iniciada", "vocabulos concretos", "resposta curta"],
+    validationRules: ["deve conter mensagem da narrativa", "producao deve ser curta"],
+    assessmentEvidence: "identifica mensagem e registra justificativa curta",
+    cognitiveProgression: "aplicar e interpretar",
+    actionTypes: ["OBSERVE", "COMPLETE", "CREATE_GUIDED_EXAMPLE"],
+    teacherGuideFocus: ["interpretacao com apoio", "mensagem da narrativa", "producao curta"]
+  },
+  {
+    pedagogicalRole: "sintese e avaliacao",
+    title: "desafio final",
+    objective: "Integrar reconhecimento, sequencia e mensagem em uma tarefa final com menor apoio",
+    strategy: "Desafio integrador com autoavaliacao simples",
+    methodology: "Reduzir pistas, solicitar sintese curta e registrar autoavaliacao visual.",
+    primaryPattern: "FINAL_CHALLENGE",
+    secondaryPattern: "SELF_ASSESSMENT",
+    interactionMode: "classificar, ordenar, produzir frase curta e autoavaliar",
+    resources: ["checklist visual", "quadro de sintese", "estrela de autoavaliacao"],
+    visualPlan: ["quadro integrador", "checklist visual", "autoavaliacao por marcacao"],
+    supportPlan: ["menos pistas", "exemplo apenas se necessario", "checklist simples"],
+    responsePlan: "sintese curta, classificacao final e autoavaliacao",
+    visualIdentity: "folha final com blocos curtos, checklist e desafio",
+    learningFocus: "sintese e avaliacao formativa",
+    contentScope: "tipo de narrativa, estrutura, personagem e mensagem",
+    contentRequirements: ["tipo de narrativa", "comeco meio fim", "mensagem", "autoavaliacao"],
+    forbiddenContent: ["repetir folha inicial", "avaliacao apenas de marcar"],
+    requiredExamples: ["conto", "fabula", "mito", "mensagem final"],
+    requiredTaskTypes: ["classificar", "ordenar", "produzir", "autoavaliar"],
+    expectedProgression: "demonstrar aprendizagem com menor apoio",
+    editorialPattern: "FINAL_CHALLENGE",
+    editorialConstraints: ["sem repetir estrutura anterior", "menos apoios", "espaco amplo para frase final"],
+    accessibilityConstraints: ["autoavaliacao visual", "comando curto", "resposta curta"],
+    validationRules: ["deve integrar pelo menos tres conceitos", "deve conter autoavaliacao simples"],
+    assessmentEvidence: "demonstra aprendizagem em sintese final com menor apoio",
+    cognitiveProgression: "avaliar e criar",
+    actionTypes: ["CLASSIFY", "ORDER", "CREATE_GUIDED_EXAMPLE"],
+    teacherGuideFocus: ["avaliacao formativa", "autonomia", "proximos passos"]
+  }
+];
+
 const SUBSTANTIVE_WORKSHEET_SEQUENCE: WorksheetTemplate[] = [
   {
     title: "reconhecimento de substantivos",
     objective: "Reconhecer substantivos em texto curto sem exigir classificacao complexa",
     strategy: "Leitura guiada com destaque visual de nomes de pessoa, lugar, animal e objeto",
     methodology: "Apresentar texto curto, destacar exemplos e pedir identificacao com marcacao visual.",
-    resources: ["texto curto", "cartoes pessoa lugar animal objeto", "quadro de apoio visual"],
+    resources: ["texto curto com substantivos destacados", "cartoes pessoa lugar animal objeto", "quadro de reconhecimento pessoa lugar animal objeto"],
+    visualPlan: ["texto curto com palavras destacadas", "cartoes pessoa lugar animal objeto", "quadro pessoa lugar animal objeto"],
     visualIdentity: "texto curto com palavras destacadas, legenda simples e quadro de reconhecimento",
     learningFocus: "reconhecimento",
     contentScope: "identificar substantivos em texto curto",
@@ -404,7 +841,8 @@ const SUBSTANTIVE_WORKSHEET_SEQUENCE: WorksheetTemplate[] = [
     objective: "Classificar substantivos proprios e comuns usando exemplos inequívocos",
     strategy: "Classificacao com cartoes e pareamento entre palavra e categoria",
     methodology: "Separar nomes proprios com inicial maiuscula de substantivos comuns em minuscula.",
-    resources: ["cartoes de palavras", "duas colunas", "pistas de letra maiuscula"],
+    resources: ["cartoes de palavras proprio comum", "duas colunas proprio comum", "pistas de letra maiuscula"],
+    visualPlan: ["cartoes de palavras proprio comum", "duas colunas proprio comum", "pistas de letra maiuscula"],
     visualIdentity: "duas colunas grandes para proprio e comum com cartoes recortaveis",
     learningFocus: "classificacao proprio/comum",
     contentScope: "Ana, Vitoria e Rex como proprios; escola, livro e cachorro como comuns",
@@ -498,7 +936,7 @@ function resolveCompetencies(
   materialBlueprint: MaterialBlueprint
 ): string[] {
   return uniqueStrings([
-    request.input.skill ?? materialBlueprint.skillCode,
+    request.input.skill ?? "",
     materialBlueprint.learningObjective,
     `Competencia relacionada a ${materialBlueprint.knowledgeObject}`
   ]);

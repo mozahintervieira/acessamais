@@ -154,5 +154,16 @@ export async function requireCurrentUser(): Promise<AuthenticatedUser> {
   return user;
 }
 
-const devSessions = new Map<string, { userId: string; expiresAt: Date }>();
-export const devUsers = new Map<string, AuthenticatedUser>();
+type DevSession = { userId: string; expiresAt: Date };
+
+const globalSessionStore = globalThis as typeof globalThis & {
+  __acessaPlusDevSessions?: Map<string, DevSession>;
+  __acessaPlusDevUsers?: Map<string, AuthenticatedUser>;
+};
+
+const devSessions = globalSessionStore.__acessaPlusDevSessions ?? new Map<string, DevSession>();
+globalSessionStore.__acessaPlusDevSessions = devSessions;
+
+export const devUsers =
+  globalSessionStore.__acessaPlusDevUsers ?? new Map<string, AuthenticatedUser>();
+globalSessionStore.__acessaPlusDevUsers = devUsers;

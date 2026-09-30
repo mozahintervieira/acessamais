@@ -88,6 +88,7 @@ model User {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   name           String
   email          String       @unique
+  phone          String?
   passwordHash   String?
   role           UserRole
   missions       Mission[]
@@ -98,11 +99,30 @@ model User {
   students        Student[]
   sessions        AuthSession[]
   usageEvents     UsageEvent[]
+  referralLeads   ReferralLead[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
   @@index([role])
+}
+
+model ReferralLead {
+  id               String   @id @default(cuid())
+  referrerUserId   String
+  referrer          User     @relation(fields: [referrerUserId], references: [id], onDelete: Cascade)
+  name              String?
+  email             String?
+  phone             String?
+  consentConfirmed  Boolean  @default(false)
+  source             String   @default("REGISTRATION")
+  status             String   @default("PENDING")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([referrerUserId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model AuthSession {
@@ -337,4 +357,324 @@ model AuditLog {
   @@index([actorUserId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+model CurriculumProvider {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  jurisdiction String
+  official    Boolean  @default(true)
+  status      String   @default("ACTIVE")
+  sources     CurriculumSource[]
+  documents   CurriculumDocument[]
+  skills      CurriculumSkill[]
+  importRuns  CurriculumImportRun[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+model CurriculumSource {
+  id         String             @id @default(cuid())
+  providerId String
+  provider   CurriculumProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  title      String
+  sourceUrl  String
+  sourceType String
+  official   Boolean            @default(true)
+  accessedAt DateTime?
+  status     String             @default("ACTIVE")
+  documents  CurriculumDocument[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@unique([providerId, sourceUrl])
+  @@index([providerId, status])
+  @@index([sourceType])
+}
+
+model CurriculumDocument {
+  id              String                      @id @default(cuid())
+  providerId      String
+  provider        CurriculumProvider          @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  sourceId        String
+  source          CurriculumSource            @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  title           String
+  slug            String
+  documentType    String
+  educationStage  String?
+  modality        String?
+  knowledgeArea   String?
+  subject         String?
+  grade           String?
+  schoolYear      String?
+  publicationYear Int?
+  officialUrl     String
+  official        Boolean                     @default(true)
+  status          String                      @default("DISCOVERED")
+  versions        CurriculumDocumentVersion[]
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  @@unique([providerId, title, documentType])
+  @@unique([providerId, slug])
+  @@index([providerId, status])
+  @@index([educationStage, subject, grade])
+}
+
+model CurriculumDocumentVersion {
+  id                    String                          @id @default(cuid())
+  documentId            String
+  document              CurriculumDocument              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionLabel          String
+  sourceUrl             String
+  fileName              String
+  mimeType              String
+  contentHash           String
+  fileSize              Int
+  localStorageKey       String?
+  publishedAt           DateTime?
+  accessedAt            DateTime?
+  importedAt            DateTime?
+  processingStatus      String                          @default("PENDING")
+  validationStatus      String                          @default("PENDING")
+  extractionConfidence  Float?
+  effectiveFrom         DateTime?
+  effectiveUntil        DateTime?
+  importItems           CurriculumImportItem[]
+  skills                CurriculumSkill[]
+  knowledgeObjects      CurriculumKnowledgeObject[]
+  learningExpectations  CurriculumLearningExpectation[]
+  contents              CurriculumContent[]
+  guidances             CurriculumGuidance[]
+  reviewIssues          CurriculumReviewIssue[]
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+
+  @@unique([documentId, contentHash])
+  @@index([contentHash])
+  @@index([documentId, processingStatus])
+  @@index([validationStatus])
+}
+
+model CurriculumImportRun {
+  id                  String                 @id @default(cuid())
+  providerId          String
+  provider            CurriculumProvider     @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  startedAt           DateTime               @default(now())
+  finishedAt          DateTime?
+  status              String                 @default("RUNNING")
+  triggerType         String
+  documentsDiscovered Int                    @default(0)
+  documentsDownloaded Int                    @default(0)
+  documentsSkipped    Int                    @default(0)
+  documentsProcessed  Int                    @default(0)
+  recordsCreated      Int                    @default(0)
+  recordsUpdated      Int                    @default(0)
+  recordsRejected     Int                    @default(0)
+  reviewIssuesCreated Int                    @default(0)
+  errorSummary        String?
+  items               CurriculumImportItem[]
+  reviewIssues        CurriculumReviewIssue[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([providerId, status])
+  @@index([startedAt])
+}
+
+model CurriculumImportItem {
+  id                 String                    @id @default(cuid())
+  importRunId        String
+  importRun          CurriculumImportRun       @relation(fields: [importRunId], references: [id], onDelete: Cascade)
+  documentVersionId  String
+  documentVersion    CurriculumDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  status             String                    @default("PENDING")
+  stage              String
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  extractedTextSize  Int?
+  tableCount         Int?
+  skillCount         Int?
+  warningCount       Int?
+  errorMessage       String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  @@index([importRunId, status])
+  @@index([documentVersionId])
+}
+
+model CurriculumSkill {
+  id                    String                    @id @default(cuid())
+  providerId            String
+  provider              CurriculumProvider        @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  documentVersionId     String
+  documentVersion       CurriculumDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  code                  String
+  normalizedCode        String
+  officialDescription   String
+  educationStage        String?
+  grade                 String?
+  subject               String?
+  knowledgeArea         String?
+  thematicUnit          String?
+  fieldOfAction         String?
+  trimester             String?
+  schoolYear            String?
+  sourcePage            Int?
+  sourceSection         String?
+  rawSourceText         String?
+  extractionConfidence  Float?
+  validationStatus      String                    @default("PENDING")
+  publicationStatus     String                    @default("DRAFT")
+  official              Boolean                   @default(true)
+  relationsFrom         CurriculumSkillRelation[] @relation("SourceSkillRelations")
+  reviewIssues          CurriculumReviewIssue[]
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  @@unique([documentVersionId, normalizedCode, grade, subject])
+  @@index([normalizedCode])
+  @@index([grade, subject])
+  @@index([providerId, publicationStatus])
+  @@index([validationStatus])
+}
+
+model CurriculumKnowledgeObject {
+  id                   String                    @id @default(cuid())
+  documentVersionId    String
+  documentVersion      CurriculumDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  officialText         String
+  normalizedText       String
+  sourcePage           Int?
+  sourceSection        String?
+  extractionConfidence Float?
+  validationStatus     String                    @default("PENDING")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@unique([documentVersionId, normalizedText, sourceSection])
+  @@index([normalizedText])
+  @@index([validationStatus])
+}
+
+model CurriculumLearningExpectation {
+  id                   String                    @id @default(cuid())
+  documentVersionId    String
+  documentVersion      CurriculumDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  officialText         String
+  normalizedText       String
+  sourcePage           Int?
+  sourceSection        String?
+  extractionConfidence Float?
+  validationStatus     String                    @default("PENDING")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@unique([documentVersionId, normalizedText, sourceSection])
+  @@index([normalizedText])
+  @@index([validationStatus])
+}
+
+model CurriculumContent {
+  id                   String                    @id @default(cuid())
+  documentVersionId    String
+  documentVersion      CurriculumDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  title                String?
+  officialText         String
+  normalizedText       String
+  sourcePage           Int?
+  sourceSection        String?
+  extractionConfidence Float?
+  validationStatus     String                    @default("PENDING")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@unique([documentVersionId, normalizedText, sourceSection])
+  @@index([normalizedText])
+  @@index([validationStatus])
+}
+
+model CurriculumGuidance {
+  id                   String                    @id @default(cuid())
+  documentVersionId    String
+  documentVersion      CurriculumDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  guidanceType         String
+  officialText         String
+  trimester            String?
+  schoolYear           String?
+  sourcePage           Int?
+  sourceSection        String?
+  extractionConfidence Float?
+  validationStatus     String                    @default("PENDING")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@index([documentVersionId, guidanceType])
+  @@index([validationStatus])
+}
+
+model CurriculumSkillRelation {
+  id               String          @id @default(cuid())
+  sourceSkillId    String
+  sourceSkill      CurriculumSkill @relation("SourceSkillRelations", fields: [sourceSkillId], references: [id], onDelete: Cascade)
+  targetEntityType String
+  targetEntityId   String
+  relationType     String
+  confidence       Float?
+  validationStatus String          @default("PENDING")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([sourceSkillId, targetEntityType, targetEntityId, relationType])
+  @@index([targetEntityType, targetEntityId])
+  @@index([relationType])
+}
+
+model CurriculumReviewIssue {
+  id                 String                     @id @default(cuid())
+  importRunId        String?
+  importRun          CurriculumImportRun?       @relation(fields: [importRunId], references: [id], onDelete: SetNull)
+  documentVersionId  String?
+  documentVersion    CurriculumDocumentVersion? @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  skillId            String?
+  skill              CurriculumSkill?           @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  entityType         String
+  entityId           String?
+  issueType          String
+  severity           String
+  message            String
+  rawValue           String?
+  suggestedValue     String?
+  sourcePage         Int?
+  status             String                     @default("OPEN")
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  resolution         String?
+  decisions          CurriculumReviewDecision[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([status, severity])
+  @@index([entityType, entityId])
+  @@index([importRunId])
+  @@index([documentVersionId])
+}
+
+model CurriculumReviewDecision {
+  id            String                @id @default(cuid())
+  issueId       String
+  issue         CurriculumReviewIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  action        String
+  previousValue String?
+  approvedValue String?
+  reviewer      String
+  reason        String?
+  decidedAt     DateTime              @default(now())
+
+  @@index([issueId])
+  @@index([reviewer])
 }

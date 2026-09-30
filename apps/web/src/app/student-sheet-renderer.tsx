@@ -27,6 +27,20 @@ export type RenderableStudentSheet = {
   context?: string;
   instructions?: string[];
   baseText?: string;
+  guidedReading?: {
+    title?: string;
+    text?: string;
+    keyIdea?: string;
+    imageKind?: string;
+    imageAlt?: string;
+  };
+  workedExample?: {
+    title?: string;
+    problem?: string;
+    steps?: string[];
+    answer?: string;
+    check?: string;
+  };
   didacticBoxes?: string[];
   visualElements?: string[];
   tableRows?: string[];
@@ -41,6 +55,8 @@ export type StudentSheetPlan = {
   context?: string;
   instructions?: string[];
   baseText?: string;
+  guidedReading?: RenderableStudentSheet["guidedReading"];
+  workedExample?: RenderableStudentSheet["workedExample"];
   didacticBoxes?: string[];
   visualElements?: string[];
   tableRows?: string[];
@@ -57,6 +73,14 @@ type QuestionRendererKind =
   | "order"
   | "connect"
   | "generic";
+
+type ResolvedStudentSheet = Omit<
+  Required<RenderableStudentSheet>,
+  "guidedReading" | "workedExample"
+> & {
+  guidedReading: Required<NonNullable<RenderableStudentSheet["guidedReading"]>>;
+  workedExample: Required<NonNullable<RenderableStudentSheet["workedExample"]>>;
+};
 
 export function StudentSheetRenderer({
   plan,
@@ -77,48 +101,76 @@ export function StudentSheetRenderer({
         <span>{plan.grade ?? "Folha A4 pronta para imprimir"}</span>
       </header>
 
+      <div className="studentIdentityLine" aria-label="Identificação do estudante">
+        <span>Nome: <i /></span>
+        <span>Turma: <i /></span>
+        <span>Data: <i /></span>
+      </div>
+
       <section className="editorialTitleRow">
         <div>
-          <span className="activityRibbon">Atividade pronta para imprimir</span>
           <h2>{sheet.title}</h2>
-          {sheet.context ? <p>{sheet.context}</p> : null}
+          {sheet.context ? <p><strong>Sua missão:</strong> {sheet.context}</p> : null}
         </div>
-        <SheetVisualSummary sheet={sheet} />
       </section>
 
-      {sheet.didacticBoxes[0] ? (
-        <section className="editorialTipBox">
-          <span aria-hidden="true">!</span>
-          <p>{sheet.didacticBoxes[0]}</p>
-        </section>
+      {sheet.guidedReading.text ? (
+        <GuidedLearningPanel
+          guidedReading={sheet.guidedReading}
+          workedExample={sheet.workedExample}
+        />
       ) : null}
 
-      {sheet.instructions.length > 0 ? (
-        <section className="studentInstructions">
-          <strong>Como realizar</strong>
-          <ul>
-            {sheet.instructions.slice(0, compact ? 2 : 4).map((instruction) => (
-              <li key={instruction}>{instruction}</li>
-            ))}
-          </ul>
-        </section>
+      {!sheet.guidedReading.text && (sheet.didacticBoxes[0] || sheet.instructions.length > 0) ? (
+        <div className="studentStartGrid">
+          {sheet.didacticBoxes[0] ? (
+            <section className="editorialTipBox">
+              <span aria-hidden="true">!</span>
+              <p>{sheet.didacticBoxes[0]}</p>
+            </section>
+          ) : null}
+
+          {sheet.instructions.length > 0 ? (
+            <section className="studentInstructions">
+              <strong>Antes de começar</strong>
+              <ul>
+                {sheet.instructions.slice(0, compact ? 2 : 3).map((instruction) => (
+                  <li key={instruction}>{instruction}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
       ) : null}
 
-      {sheet.baseText ? (
+      {!sheet.guidedReading.text && sheet.baseText ? (
         <section className="studentBaseText">
           <strong>Texto de apoio</strong>
           <p>{sheet.baseText}</p>
         </section>
       ) : null}
 
-      {sheet.visualElements.length > 0 ? <StudentVisualResources items={sheet.visualElements} /> : null}
+      {sheet.guidedReading.text && sheet.instructions.length > 0 ? (
+        <section className="studentInstructionStrip" aria-label="Como realizar a atividade">
+          <strong>Como realizar</strong>
+          <div>
+            {sheet.instructions.slice(0, compact ? 2 : 3).map((instruction, index) => (
+              <span key={instruction}><b>{index + 1}</b>{instruction}</span>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-      {sheet.didacticBoxes.length > 1 ? (
+      {sheet.visualElements.length > 0 && sheet.questions.length === 0 ? (
+        <StudentVisualResources items={sheet.visualElements} />
+      ) : null}
+
+      {!sheet.guidedReading.text && sheet.didacticBoxes.length > 1 ? (
         <section className="worksheetBoxes">
           {sheet.didacticBoxes.slice(1, compact ? 3 : 4).map((box) => (
             <div key={box}>
-              <strong>Apoio</strong>
-              <p>{box}</p>
+              <strong>{supportBoxLabel(box)}</strong>
+              <p>{supportBoxText(box)}</p>
             </div>
           ))}
         </section>
@@ -135,8 +187,66 @@ export function StudentSheetRenderer({
         ))}
       </ol>
 
-      <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
+      <footer>ACESSA+ · educação inclusiva na prática · @mozahintervieira</footer>
     </article>
+  );
+}
+
+function GuidedLearningPanel({
+  guidedReading,
+  workedExample
+}: {
+  guidedReading: Required<NonNullable<RenderableStudentSheet["guidedReading"]>>;
+  workedExample: Required<NonNullable<RenderableStudentSheet["workedExample"]>>;
+}): React.ReactElement {
+  const isEquationVisual = normalize(guidedReading.imageKind).includes("equation");
+
+  return (
+    <section className="guidedLearningPanel" aria-label="Leitura guiada e exemplo resolvido">
+      <div className="guidedReadingCard">
+        <div className="guidedReadingCopy">
+          <span className="guidedSectionLabel">Leitura guiada</span>
+          <h3>{guidedReading.title}</h3>
+          <p>{guidedReading.text}</p>
+          {guidedReading.keyIdea ? (
+            <div className="guidedKeyIdea"><b>Ideia-chave</b>{guidedReading.keyIdea}</div>
+          ) : null}
+        </div>
+        {isEquationVisual ? (
+          <figure className="guidedSupportImage">
+            <img src="/equation-balance-support-v1.png" alt={guidedReading.imageAlt} />
+            <figcaption>Os dois lados precisam manter o mesmo valor.</figcaption>
+          </figure>
+        ) : null}
+      </div>
+
+      {workedExample.problem ? (
+        <div className="workedExampleCard">
+          <div className="workedExampleCopy">
+            <span className="guidedSectionLabel example">Exemplo resolvido</span>
+            <h3>{workedExample.title}</h3>
+            <div className="workedExampleProblem">{workedExample.problem}</div>
+            <ol>
+              {workedExample.steps.map((step, index) => (
+                <li key={step}><b>{index + 1}</b><span>{step}</span></li>
+              ))}
+            </ol>
+            <div className="workedExampleAnswer">
+              <strong>{workedExample.answer}</strong>
+              {workedExample.check ? <span>{workedExample.check}</span> : null}
+            </div>
+          </div>
+          {isEquationVisual ? (
+            <img
+              aria-hidden="true"
+              className="workedExampleStudent"
+              src="/math-student-guide-v1.png"
+              alt=""
+            />
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -183,7 +293,11 @@ function ObservationRenderer({ question }: { question: StudentSheetQuestion }): 
   return (
     <QuestionFrame question={question}>
       <div className="questionVisual dynamicTaskVisual observe">
-        <EquationVisual expression={representation} />
+        {isMathRepresentation(representation) ? (
+          <EquationVisual expression={representation} />
+        ) : (
+          <ObservationTextVisual text={representation} />
+        )}
         <strong>{prompt}</strong>
       </div>
       <div className="answerChoiceGrid">
@@ -303,10 +417,16 @@ function ClassificationRenderer({ question }: { question: StudentSheetQuestion }
 
 function GuidedCreationRenderer({ question }: { question: StudentSheetQuestion }): React.ReactElement {
   const data = question.taskData ?? {};
-  const contextPrompt = textValue(data.contextPrompt);
-  const values = stringList(data.availableValues);
-  const steps = stringList(data.constructionSteps);
-  const fields = stringList(data.fieldsToComplete);
+  const contextPrompt = studentTaskDataText(textValue(data.contextPrompt), 96);
+  const values = stringList(data.availableValues)
+    .map((value) => studentTaskDataText(value, 48))
+    .filter(Boolean);
+  const steps = stringList(data.constructionSteps)
+    .map((value) => studentTaskDataText(value, 72))
+    .filter(Boolean);
+  const fields = stringList(data.fieldsToComplete)
+    .map((value) => studentTaskDataText(value, 40))
+    .filter((value) => value && normalize(value) !== "p/c");
 
   if (!contextPrompt || values.length === 0 || fields.length === 0) {
     return <InvalidTaskRenderer question={question} />;
@@ -316,11 +436,11 @@ function GuidedCreationRenderer({ question }: { question: StudentSheetQuestion }
     <QuestionFrame question={question}>
       <div className="guidedExampleVisual dynamicTaskVisual">
         <strong>{contextPrompt}</strong>
-        {values.slice(0, 6).map((value) => <span key={value}>{value}</span>)}
+        {values.slice(0, 3).map((value) => <span key={value}>{value}</span>)}
       </div>
       {steps.length > 0 ? (
         <div className="studentMiniSteps">
-          {steps.slice(0, 3).map((step) => <span key={step}>{step}</span>)}
+          {steps.slice(0, 2).map((step) => <span key={step}>{step}</span>)}
         </div>
       ) : null}
       <div className="fillBlankArea">
@@ -396,16 +516,22 @@ function QuestionFrame({
   question: StudentSheetQuestion;
   children: React.ReactNode;
 }): React.ReactElement {
+  const command = studentCommandText(question.command);
+  const support = studentSupportText(question.support);
+
   return (
-    <div
-      data-answer-space={question.answerSpace}
-      data-pedagogical-purpose={question.pedagogicalPurpose}
-      data-response-mode={question.responseMode}
-      data-visual-function={question.visualFunction}
-    >
-      <p>{question.command}</p>
-      {question.support ? <small>{question.support}</small> : null}
+    <div>
+      <p>{command}</p>
+      {support ? <small>{support}</small> : null}
       {children}
+    </div>
+  );
+}
+
+function ObservationTextVisual({ text }: { text: string }): React.ReactElement {
+  return (
+    <div className="textObservationVisual" aria-label={text}>
+      <span>{text}</span>
     </div>
   );
 }
@@ -422,6 +548,10 @@ function EquationVisual({ expression }: { expression: string }): React.ReactElem
   );
 }
 
+function isMathRepresentation(value: string): boolean {
+  return /[=+\-×÷*/]|\b\d+\b/.test(value);
+}
+
 function ConceptVisual({ label }: { label: string }): React.ReactElement {
   return (
     <svg className="svgVisual conceptVisual" viewBox="0 0 160 96" role="img" aria-label={label}>
@@ -433,12 +563,18 @@ function ConceptVisual({ label }: { label: string }): React.ReactElement {
   );
 }
 
-function StudentVisualResources({ items }: { items: string[] }): React.ReactElement {
+function StudentVisualResources({ items }: { items: string[] }): React.ReactElement | null {
+  const visuals = items.filter(isFunctionalVisualResource).slice(0, 3);
+
+  if (visuals.length === 0) {
+    return null;
+  }
+
   return (
     <section className="visualResourceGrid" aria-label="Recursos visuais da atividade">
-      {items.slice(0, 4).map((item) => (
+      {visuals.map((item) => (
         <div className="visualResourceCard picture" aria-label={item} key={item}>
-          <ConceptVisual label={item} />
+          <FunctionalVisualIcon label={item} />
           <span>{item}</span>
         </div>
       ))}
@@ -446,19 +582,43 @@ function StudentVisualResources({ items }: { items: string[] }): React.ReactElem
   );
 }
 
-function SheetVisualSummary({ sheet }: { sheet: Required<RenderableStudentSheet> }): React.ReactElement {
-  const label =
-    sheet.visualElements[0] ??
-    sheet.questions[0]?.visualFunction ??
-    sheet.questions[0]?.responseMode ??
-    "recurso visual";
+function FunctionalVisualIcon({ label }: { label: string }): React.ReactElement {
+  const kind = normalize(label);
+
+  if (kind.includes("tabela") || kind.includes("quadro")) {
+    return (
+      <svg className="svgVisual visualIconTable" viewBox="0 0 120 90" role="img" aria-label={label}>
+        <rect x="18" y="18" width="84" height="54" rx="8" />
+        <path d="M18 36 H102 M18 54 H102 M46 18 V72 M74 18 V72" />
+      </svg>
+    );
+  }
+
+  if (kind.includes("sequencia") || kind.includes("linha do tempo")) {
+    return (
+      <svg className="svgVisual visualIconSequence" viewBox="0 0 120 90" role="img" aria-label={label}>
+        <path d="M20 45 H100" />
+        <circle cx="28" cy="45" r="10" />
+        <circle cx="60" cy="45" r="10" />
+        <circle cx="92" cy="45" r="10" />
+      </svg>
+    );
+  }
+
+  if (kind.includes("balanca")) {
+    return (
+      <svg className="svgVisual visualIconBalance" viewBox="0 0 120 90" role="img" aria-label={label}>
+        <path d="M60 18 V70 M34 34 H86" />
+        <path d="M34 34 L22 58 H46 Z M86 34 L74 58 H98 Z" />
+      </svg>
+    );
+  }
 
   return (
-    <svg className="worksheetHeroIllustration" viewBox="0 0 220 160" role="img" aria-label={label}>
-      <rect x="24" y="28" width="172" height="104" rx="22" />
-      <path d="M52 104 C80 54 118 54 146 104" />
-      <path d="M76 116 H164" />
-      <circle cx="154" cy="62" r="12" />
+    <svg className="svgVisual visualIconCards" viewBox="0 0 120 90" role="img" aria-label={label}>
+      <rect x="20" y="22" width="30" height="42" rx="6" />
+      <rect x="45" y="18" width="30" height="42" rx="6" />
+      <rect x="70" y="26" width="30" height="42" rx="6" />
     </svg>
   );
 }
@@ -481,18 +641,105 @@ function StudentDataTable({ rows }: { rows: string[] }): React.ReactElement {
   );
 }
 
-function resolveRenderableStudentSheet(plan: StudentSheetPlan): Required<RenderableStudentSheet> {
+function resolveRenderableStudentSheet(plan: StudentSheetPlan): ResolvedStudentSheet {
   const source = plan.studentSheet ?? {};
+  const title = sanitizeStudentTitle(source.title ?? plan.worksheetTitle ?? "Atividade");
+  const baseText = sanitizeLongStudentText(source.baseText ?? plan.baseText ?? "", 900);
+  const normalizedSheetIdentity = normalize([
+    plan.subject,
+    title,
+    source.context,
+    baseText,
+    JSON.stringify(source.questions ?? plan.questions ?? [])
+  ].filter(Boolean).join(" "));
+  const isEquationSheet = normalizedSheetIdentity.includes("equac") ||
+    normalizedSheetIdentity.includes("valor de x") ||
+    normalizedSheetIdentity.includes("descubra o valor de x");
 
   return {
-    title: source.title ?? plan.worksheetTitle ?? "Atividade pronta para imprimir",
-    context: source.context ?? plan.context ?? "",
-    instructions: source.instructions ?? plan.instructions ?? [],
-    baseText: source.baseText ?? plan.baseText ?? "",
-    didacticBoxes: source.didacticBoxes ?? plan.didacticBoxes ?? [],
-    visualElements: source.visualElements ?? plan.visualElements ?? [],
-    tableRows: source.tableRows ?? plan.tableRows ?? [],
+    title,
+    context: sanitizeStudentContext(source.context ?? plan.context ?? ""),
+    instructions: sanitizeStudentList(source.instructions ?? plan.instructions ?? [], 4),
+    baseText,
+    guidedReading: resolveGuidedReading(
+      source.guidedReading ?? plan.guidedReading,
+      baseText,
+      isEquationSheet
+    ),
+    workedExample: resolveWorkedExample(
+      source.workedExample ?? plan.workedExample,
+      isEquationSheet
+    ),
+    didacticBoxes: sanitizeSupportBoxes(source.didacticBoxes ?? plan.didacticBoxes ?? []),
+    visualElements: sanitizeVisualElements(source.visualElements ?? plan.visualElements ?? []),
+    tableRows: sanitizeTableRows(source.tableRows ?? plan.tableRows ?? []),
     questions: source.questions ?? plan.questions ?? []
+  };
+}
+
+function resolveGuidedReading(
+  value: RenderableStudentSheet["guidedReading"],
+  baseText: string,
+  isEquationSheet: boolean
+): Required<NonNullable<RenderableStudentSheet["guidedReading"]>> {
+  const defaultText = isEquationSheet
+    ? "Uma equação é uma igualdade com um valor desconhecido. Pense nela como uma balança: os dois lados precisam representar a mesma quantidade. Para descobrir x, fazemos a mesma transformação nos dois lados e, no final, substituímos o valor encontrado para conferir."
+    : baseText;
+
+  return {
+    title: sanitizeLongStudentText(
+      value?.title ?? (isEquationSheet ? "Equação é uma balança em equilíbrio" : "Vamos compreender"),
+      90
+    ),
+    text: sanitizeLongStudentText(value?.text ?? defaultText, 900),
+    keyIdea: sanitizeLongStudentText(
+      value?.keyIdea ?? (isEquationSheet
+        ? "O sinal de igual mostra que o valor do lado esquerdo é o mesmo do lado direito."
+        : ""),
+      220
+    ),
+    imageKind: isEquationSheet ? "equation-balance" : normalize(value?.imageKind ?? ""),
+    imageAlt: sanitizeLongStudentText(
+      value?.imageAlt ?? (isEquationSheet
+        ? "Balança em equilíbrio com uma caixa marcada com x e peças de contagem."
+        : ""),
+      180
+    )
+  };
+}
+
+function resolveWorkedExample(
+  value: RenderableStudentSheet["workedExample"],
+  isEquationSheet: boolean
+): Required<NonNullable<RenderableStudentSheet["workedExample"]>> {
+  const defaultSteps = isEquationSheet
+    ? [
+        "Retire 3 dos dois lados: 2x + 3 - 3 = 11 - 3.",
+        "Simplifique a igualdade: 2x = 8.",
+        "Divida os dois lados por 2: x = 4."
+      ]
+    : [];
+
+  return {
+    title: sanitizeLongStudentText(
+      value?.title ?? (isEquationSheet ? "Vamos resolver juntos" : ""),
+      90
+    ),
+    problem: sanitizeLongStudentText(
+      value?.problem ?? (isEquationSheet ? "Resolva: 2x + 3 = 11" : ""),
+      180
+    ),
+    steps: sanitizeStudentList(value?.steps ?? defaultSteps, 5),
+    answer: sanitizeLongStudentText(
+      value?.answer ?? (isEquationSheet ? "Resposta: x = 4" : ""),
+      140
+    ),
+    check: sanitizeLongStudentText(
+      value?.check ?? (isEquationSheet
+        ? "Conferindo: 2 × 4 + 3 = 8 + 3 = 11. A igualdade está correta."
+        : ""),
+      220
+    )
   };
 }
 
@@ -522,6 +769,229 @@ function resolveSubjectTheme(subject?: string): { className: string; label: stri
   }
 
   return { className: "subjectLanguage", label: subject ?? "Lingua Portuguesa" };
+}
+
+function sanitizeStudentTitle(value: string): string {
+  const firstPart = value.split(":")[0]?.trim() ?? value.trim();
+  const title = firstPart || "Atividade";
+
+  if (!isStudentTitleValid(title)) {
+    return "Atividade";
+  }
+
+  return title.length > 60 ? `${title.slice(0, 57).trimEnd()}...` : title;
+}
+
+function isStudentTitleValid(value: string): boolean {
+  const comparable = normalize(value);
+
+  if (!value || value.length > 90) {
+    return false;
+  }
+
+  return !internalTextPatterns().some((pattern) => comparable.includes(pattern));
+}
+
+function sanitizeStudentContext(value: string): string {
+  const text = value.trim();
+
+  if (!text || text.length > 150 || isInternalText(text)) {
+    return "";
+  }
+
+  return text;
+}
+
+function sanitizeLongStudentText(value: string, maxLength: number): string {
+  const text = value.trim().replace(/\s+/g, " ");
+
+  if (!text || isInternalText(text)) {
+    return "";
+  }
+
+  return text.length > maxLength
+    ? `${text.slice(0, maxLength - 3).trimEnd()}...`
+    : text;
+}
+
+function sanitizeStudentList(values: string[], limit: number): string[] {
+  return uniqueValues(values)
+    .map((value) => value.trim())
+    .filter((value) => value && !isInternalText(value) && value.length <= 120)
+    .slice(0, limit);
+}
+
+function sanitizeSupportBoxes(values: string[]): string[] {
+  return sanitizeStudentList(values, 4)
+    .filter((value) => /lembrete|banco|exemplo|pista|dica|palavra|observe/i.test(value));
+}
+
+function sanitizeVisualElements(values: string[]): string[] {
+  return uniqueValues(values)
+    .filter(isFunctionalVisualResource)
+    .slice(0, 3);
+}
+
+function sanitizeTableRows(values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value && !isInternalText(value))
+    .filter((value) => !/\b(FOCO|ESCOPO|EVIDENCIA|OBSERVE|MATCH|CLASSIFY|COMPLETE|CONNECT|CREATE_GUIDED_EXAMPLE)\b/i.test(value))
+    .slice(0, 3);
+}
+
+function supportBoxLabel(value: string): string {
+  const [label] = value.split(":");
+  const normalized = normalize(label ?? "");
+
+  if (normalized.includes("banco")) return "Banco de palavras";
+  if (normalized.includes("exemplo")) return "Exemplo";
+  if (normalized.includes("pista")) return "Pista";
+  if (normalized.includes("dica")) return "Dica";
+
+  return "Lembrete";
+}
+
+function supportBoxText(value: string): string {
+  const [, ...rest] = value.split(":");
+  const text = rest.join(":").trim();
+
+  return text || value;
+}
+
+function studentCommandText(value: string): string {
+  const text = value.trim();
+  const comparable = normalize(text);
+
+  if (comparable.includes("observe o recurso visual sobre")) {
+    return "Observe o recurso visual e responda a pergunta.";
+  }
+
+  if (comparable.includes("pareie cada representacao")) {
+    return "Ligue cada item ao seu significado.";
+  }
+
+  if (comparable.includes("crie um exemplo simples de")) {
+    return "Crie um exemplo simples seguindo o modelo.";
+  }
+
+  if (text.length > 130) {
+    return `${text.slice(0, 120).trimEnd()}...`;
+  }
+
+  return text;
+}
+
+function studentSupportText(value?: string): string {
+  const text = value?.trim() ?? "";
+
+  if (!text || isInternalText(text) || /instrucoes curtas|passos numerados/i.test(text)) {
+    return "";
+  }
+
+  const visualSupport = /balan[cç]a|blocos?|caixas?|pictograma|reta num[eé]rica|apoio visual/i.test(text);
+  const cleaned = text.replace(/\s*;\s*/g, " e ").replace(/\.$/, "");
+  const editorialText = visualSupport && !/^apoio visual\s*:/i.test(cleaned)
+    ? `Apoio visual: ${cleaned}.`
+    : text;
+
+  return editorialText.length > 110
+    ? `${editorialText.slice(0, 105).trimEnd()}...`
+    : editorialText;
+}
+
+function studentTaskDataText(value: string, maxLength: number): string {
+  const text = value.trim();
+
+  if (!text || isInternalText(text) || /instrucoes curtas|instruções curtas|passos numerados/i.test(text)) {
+    return "";
+  }
+
+  const deduplicated = removeRepeatedSegment(text);
+
+  return deduplicated.length > maxLength ? `${deduplicated.slice(0, maxLength - 3).trimEnd()}...` : deduplicated;
+}
+
+function removeRepeatedSegment(value: string): string {
+  const halves = value.split(":").map((part) => part.trim()).filter(Boolean);
+  const first = halves[0];
+  const second = halves[1];
+
+  if (first && second && normalize(first) === normalize(second)) {
+    return first;
+  }
+
+  return value;
+}
+
+function isFunctionalVisualResource(value: string): boolean {
+  const comparable = normalize(value);
+
+  if (
+    !comparable ||
+    comparable.includes("generico") ||
+    comparable.includes("placeholder") ||
+    comparable.includes("representar conceitos abstratos") ||
+    comparable.includes("usar visual") ||
+    comparable.includes("boa separacao visual") ||
+    comparable === "organizador visual" ||
+    comparable === "quadro de apoio visual" ||
+    comparable === "apoio visual funcional"
+  ) {
+    return false;
+  }
+
+  return [
+    "banco de palavras",
+    "quadro",
+    "tabela",
+    "sequencia",
+    "linha do tempo",
+    "mapa",
+    "balanca",
+    "blocos",
+    "cartoes",
+    "pictogramas",
+    "organizador",
+    "exemplo"
+  ].some((term) => comparable.includes(term));
+}
+
+function isInternalText(value: string): boolean {
+  const comparable = normalize(value);
+
+  return internalTextPatterns().some((pattern) => comparable.includes(pattern));
+}
+
+function internalTextPatterns(): string[] {
+  return [
+    "essa combinacao trabalha",
+    "demonstrar aprendizagem",
+    "objetivo curricular",
+    "habilidade",
+    "expectativa de aprendizagem",
+    "capacidade do estudante",
+    "progressao esperada",
+    "evidencia esperada",
+    "a folha utiliza",
+    "para promover",
+    "foco da folha",
+    "foco | escopo",
+    "assessment",
+    "pedagogical",
+    "blueprint",
+    "actiontype",
+    "plannedtask",
+    "classify",
+    "match",
+    "connect",
+    "complete",
+    "create_guided_example"
+  ];
+}
+
+function uniqueValues(values: string[]): string[] {
+  return values.filter((value, index) => values.indexOf(value) === index);
 }
 
 function textValue(value: unknown): string {

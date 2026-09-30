@@ -54,9 +54,10 @@ export class BarrierAndAccessResolver {
         "produzir resposta curta"
       ]);
       addAll(visualRequirements, [
-        "representar conceitos abstratos com equilibrio, blocos, setas, tabelas ou organizadores",
-        "usar visual para apoiar compreensao, nao decoracao",
-        "manter boa separacao visual entre comandos e respostas"
+        "apoio visual com cartoes de palavras e categorias claras",
+        "quadro de classificacao com exemplos concretos",
+        "setas de sequencia para organizar etapas",
+        "caixas de resposta amplas"
       ]);
       addAll(mediation, [
         "ler um comando por vez e checar compreensao antes da resposta",

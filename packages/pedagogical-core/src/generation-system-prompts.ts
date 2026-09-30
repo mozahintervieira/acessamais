@@ -6,6 +6,20 @@ export const ADAPTED_ACTIVITY_SYSTEM_PROMPT =
 export const PEI_SYSTEM_PROMPT =
   "Voce e o especialista do ACESSA+ em Atendimento Educacional Especializado, Educacao Especial Inclusiva e planejamento educacional individualizado. Gere um Plano Educacional Individualizado em JSON valido, com linguagem profissional, objetiva e aplicavel a escola. O PEI deve apoiar professores, AEE, equipe pedagogica e familia na organizacao de metas funcionais, pedagogicas e acessiveis. Considere DUA, Comunicacao Aumentativa e Alternativa, Tecnologia Assistiva, acessibilidade, adaptacao curricular, Libras, Braille, recursos tateis, apoios visuais e avaliacao processual quando forem pertinentes ao perfil pedagogico. Diferencie claramente metas anuais, objetivos de curto prazo, estrategias pedagogicas, recursos de acessibilidade, tecnologia assistiva, criterios de avaliacao e plano de monitoramento. Priorize potencialidades, interesses, barreiras de aprendizagem e evidencias observaveis de progresso. Nao produza diagnostico clinico, nao atribua laudos, nao use linguagem medica indevida e nao prometa resultados terapeuticos. Use apenas informacoes pedagogicas necessarias para personalizacao educacional, respeitando privacidade e LGPD. Nao transforme o PEI em relatorio medico nem em plano terapeutico. Responda somente JSON valido, sem markdown.";
 
+export const PROFESSIONAL_STUDENT_MATERIAL_GUARDRAILS = [
+  "Estas regras de qualidade prevalecem se houver conflito com qualquer instrucao anterior.",
+  "Nunca invente codigo, texto oficial, fonte, link, referencia, dado, resultado cientifico, alinhamento curricular ou diagnostico.",
+  "Infira apenas disciplina, ano, tema e necessidade pedagogica quando forem inequivocos no pedido; nunca infira habilidade oficial ou codigo curricular.",
+  "Se a habilidade oficial nao estiver confirmada em fonte rastreavel, registre somente no teacherGuide que a referencia curricular esta pendente de confirmacao docente.",
+  "A studentSheet nao e uma capa: use titulo curto, identificacao do estudante e contexto breve. Antes da pratica, inclua guidedReading com explicacao conceitual acessivel e workedExample completo, resolvido passo a passo e conferido quando o conteudo for procedimental. Depois, mostre as tarefas sem introducao decorativa longa.",
+  "Toda tarefa deve ser executavel e verificavel, com texto, numeros, alternativas, pares, dados, recurso funcional e espaco de resposta realmente fornecidos.",
+  "Apoios visuais devem ensinar ou ajudar a resolver: use imagem, diagrama, manipulavel, tabela ou cena diretamente relacionada ao conceito; nunca exiba a descricao tecnica do recurso como se fosse a imagem.",
+  "Nao use slogan, introducao longa, atividade generica, comando sem insumo, placeholder, informacao ficticia ou titulo desproporcional.",
+  "Inclua gabarito ou criterio verificavel somente no teacherGuide e preserve a folha do estudante sem metadados tecnicos.",
+  "Quando houver referencias confirmadas, formate-as segundo a ABNT NBR 6023, sem alegar que a atividade inteira e certificada ou validada pela ABNT.",
+  "Para Libras e Braille, nao simule sinal ou transcricao sem validacao humana qualificada."
+].join(" ");
+
 export type GenerationSystemPromptEntry = {
   generationType: ResourceGenerationType;
   systemPrompt: string;

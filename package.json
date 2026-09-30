@@ -14,6 +14,11 @@
     "db:generate": "pnpm --filter @acessa-plus/database prisma:generate",
     "db:deploy:production": "node scripts/deploy-prisma.mjs",
     "db:migrate": "pnpm --filter @acessa-plus/database prisma:migrate",
+    "db:seed:curriculum": "node scripts/seed-curriculum.mjs",
+    "curriculum:sync": "node scripts/curriculum-sync.mjs",
+    "curriculum:status": "node scripts/curriculum-status.mjs",
+    "curriculum:review": "node scripts/curriculum-review.mjs",
+    "prisma:generate": "pnpm db:generate",
     "db:studio": "pnpm --filter @acessa-plus/database prisma:studio"
   },
   "dependencies": {

@@ -18,6 +18,7 @@ import {
   PEDAGOGICAL_RESOURCE_OUTPUT_CONTRACT,
   PEI_SYSTEM_PROMPT,
   PEI_OUTPUT_CONTRACT,
+  PEDAGOGICAL_ACTIVITY_PATTERNS,
   PedagogicalProjectError,
   PedagogicalValidator,
   RegenerationPolicy,
@@ -724,6 +725,11 @@ describe("Ciclo 2 pedagogical pipeline", () => {
     expect(new Set(ppe.worksheetBlueprints.map((sheet) => sheet.strategy)).size).toBe(5);
     expect(ppe.worksheetBlueprints[0]?.title).toContain(materialBlueprint.content);
     expect(ppe.worksheetBlueprints[4]?.teacherGuideFocus).toContain("avaliacao formativa");
+    expect(PEDAGOGICAL_ACTIVITY_PATTERNS).toHaveLength(17);
+    expect(new Set(ppe.worksheetBlueprints.map((sheet) => sheet.primaryPattern)).size).toBeGreaterThanOrEqual(4);
+    expect(ppe.worksheetBlueprints.every((sheet) => sheet.qualityScore >= 80)).toBe(true);
+    expect(ppe.worksheetBlueprints.every((sheet) => sheet.diversityScore >= 70)).toBe(true);
+    expect(ppe.worksheetBlueprints.every((sheet) => sheet.validationRules.length > 0)).toBe(true);
   });
 
   it("rejects a clear discipline and BNCC skill mismatch before generation", () => {

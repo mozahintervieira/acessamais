@@ -141,7 +141,7 @@ export function MissionDetailView({
       try {
         setError(null);
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions/${missionId}`
+          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/missions/${missionId}?organizationId=demo-organization`
         );
 
         if (!response.ok) {
@@ -193,6 +193,7 @@ export function MissionDetailView({
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
+            organizationId: "demo-organization",
             contentJson: {
               ...version?.contentJson,
               objectives: editablePlan.objectives,

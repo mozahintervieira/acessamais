@@ -2859,6 +2859,77 @@ body {
   gap: 10px;
 }
 
+.curriculumAuditCard {
+  background: linear-gradient(135deg, rgba(230, 247, 238, 0.96), rgba(255, 255, 255, 0.98));
+  border: 1px solid rgba(18, 128, 79, 0.22);
+  border-radius: 18px;
+  color: #111827;
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+}
+
+.curriculumAuditCard.neutral {
+  background: rgba(248, 251, 255, 0.96);
+  border-color: rgba(20, 52, 107, 0.16);
+}
+
+.curriculumAuditCard.warning {
+  background: rgba(255, 248, 230, 0.96);
+  border-color: rgba(180, 122, 0, 0.26);
+}
+
+.curriculumAuditCard strong {
+  color: #0b2c66;
+  display: block;
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.curriculumAuditCard span,
+.curriculumAuditCard small {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.curriculumAuditCard dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.curriculumAuditCard dl div {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(20, 52, 107, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.curriculumAuditCard dt {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.curriculumAuditCard dd,
+.curriculumAuditCard p {
+  margin: 0;
+}
+
+.curriculumAuditCard dd {
+  color: #0b2c66;
+  font-weight: 900;
+}
+
+.curriculumAuditCard ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .toggleLine {
   display: flex;
   gap: 10px;
@@ -3090,12 +3161,10 @@ body {
   --subject-border: #1d4ed8;
   width: min(100%, 794px);
   min-height: 1123px;
-  padding: 28px 28px 22px;
-  border: 3px solid #0f172a;
-  border-radius: 10px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 1)),
-    radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.1), transparent 30%);
+  padding: 20px 28px 18px;
+  border: 2px solid #0f172a;
+  border-radius: 6px;
+  background: #ffffff;
   box-shadow: 0 22px 45px rgba(15, 23, 42, 0.16);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -3127,7 +3196,7 @@ body {
 .editorialHeader {
   align-items: center;
   border: 0;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 0;
 }
 
@@ -3135,12 +3204,12 @@ body {
 .editorialHeader span {
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
-  border-radius: 8px;
-  padding: 8px 18px;
+  min-height: 34px;
+  border-radius: 7px;
+  padding: 6px 14px;
   background: var(--subject);
   color: #ffffff;
-  font-size: 1.14rem;
+  font-size: 0.98rem;
   font-weight: 950;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -3152,11 +3221,8 @@ body {
 }
 
 .editorialTitleRow {
-  display: grid;
-  grid-template-columns: 1fr 145px;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 12px;
+  display: block;
+  margin-bottom: 10px;
 }
 
 .activityRibbon {
@@ -3175,8 +3241,8 @@ body {
 .editorialA4 h2 {
   margin: 0;
   color: #061b49;
-  font-size: clamp(2rem, 5vw, 3rem);
-  line-height: 0.95;
+  font-size: clamp(1.55rem, 3.3vw, 2.1rem);
+  line-height: 1.05;
   text-align: center;
   text-transform: uppercase;
   word-break: normal;
@@ -3187,11 +3253,11 @@ body {
   margin: 8px auto 0;
   max-width: 560px;
   color: var(--subject);
-  font-size: 1.25rem;
-  font-weight: 950;
-  line-height: 1.15;
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.35;
   text-align: center;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .worksheetHeroIllustration {
@@ -3224,7 +3290,7 @@ body {
   gap: 14px;
   align-items: center;
   margin: 10px 0 16px;
-  border: 2px solid var(--subject-border);
+  border: 1.5px solid var(--subject-border);
   border-radius: 14px;
   padding: 12px 16px;
   background: linear-gradient(90deg, #fff7df, #ffffff);
@@ -3249,15 +3315,15 @@ body {
   font-size: 1.02rem;
   font-weight: 950;
   line-height: 1.38;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .editorialA4 .studentInstructions,
 .editorialA4 .studentBaseText {
-  border: 2px solid #111827;
+  border: 1.5px solid #cbd5e1;
   border-radius: 12px;
-  margin: 12px 0;
-  padding: 13px 16px;
+  margin: 8px 0;
+  padding: 10px 14px;
   background: #ffffff;
 }
 
@@ -3269,18 +3335,19 @@ body {
 .editorialA4 .studentInstructions ul,
 .editorialA4 .studentBaseText p {
   color: #111827;
-  font-weight: 800;
+  font-weight: 650;
+  line-height: 1.38;
 }
 
 .editorialA4 .visualResourceGrid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin: 12px 0;
+  margin: 8px 0;
 }
 
 .editorialA4 .visualResourceCard {
-  min-height: 92px;
-  border: 2px solid var(--subject-border);
+  min-height: 72px;
+  border: 1.5px solid var(--subject-border);
   border-radius: 12px;
   background: #ffffff;
 }
@@ -3300,7 +3367,7 @@ body {
 }
 
 .editorialA4 .worksheetBoxes div {
-  border: 2px dashed var(--subject-border);
+  border: 1.5px dashed var(--subject-border);
   border-radius: 12px;
   padding: 11px;
   background: var(--subject-soft);
@@ -3313,7 +3380,7 @@ body {
 }
 
 .editorialA4 .studentTable {
-  border: 2px solid #111827;
+  border: 1.5px solid #cbd5e1;
   border-radius: 8px;
   margin: 12px 0;
 }
@@ -3327,8 +3394,8 @@ body {
 
 .editorialActivities {
   display: grid;
-  gap: 10px;
-  margin: 12px 0 16px;
+  gap: 8px;
+  margin: 8px 0 12px;
   padding: 0;
   list-style: none;
 }
@@ -3336,48 +3403,48 @@ body {
 .activityCard {
   display: grid;
   grid-template-columns: 42px 1fr;
-  gap: 10px;
+  gap: 8px;
   align-items: start;
-  border: 2px solid var(--subject-border);
+  border: 1.5px solid var(--subject-border);
   border-radius: 14px;
-  padding: 12px;
+  padding: 10px;
   background: #ffffff;
 }
 
 .activityNumber {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   background: var(--subject);
   color: #ffffff;
-  font-size: 1.35rem;
+  font-size: 1.18rem;
   font-weight: 950;
 }
 
 .editorialActivities p {
   margin: 0;
   color: #111827;
-  font-size: 1rem;
-  font-weight: 950;
+  font-size: 0.93rem;
+  font-weight: 850;
   line-height: 1.35;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .editorialActivities small {
   display: block;
   margin-top: 5px;
   color: #334155;
-  font-weight: 800;
-  text-transform: uppercase;
+  font-weight: 650;
+  text-transform: none;
 }
 
 .questionVisual {
-  margin: 10px 0;
+  margin: 7px 0;
   border: 2px solid color-mix(in srgb, var(--subject-border), #ffffff 30%);
   border-radius: 12px;
-  padding: 10px;
+  padding: 8px;
   background: linear-gradient(180deg, #ffffff, var(--subject-soft));
 }
 
@@ -3434,16 +3501,33 @@ body {
   text-align: center;
 }
 
+.textObservationVisual {
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 2px solid var(--subject);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.textObservationVisual span {
+  display: block;
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .studentMiniSteps {
   display: grid;
-  gap: 6px;
-  margin: 8px 0;
+  gap: 4px;
+  margin: 6px 0;
 }
 
 .studentMiniSteps span {
   border: 1px solid color-mix(in srgb, var(--subject-border), #ffffff 35%);
   border-radius: 8px;
-  padding: 6px 8px;
+  padding: 4px 7px;
   background: var(--subject-soft);
   color: #111827;
   font-size: 0.78rem;
@@ -3612,15 +3696,15 @@ body {
 .calculationStepsVisual,
 .guidedExampleVisual {
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .calculationStepsVisual span,
 .guidedExampleVisual span {
-  min-height: 34px;
+  min-height: 26px;
   border: 2px solid var(--subject-border);
   border-radius: 10px;
-  padding: 8px;
+  padding: 5px 7px;
   background: #ffffff;
   color: #111827;
   font-size: 0.78rem;
@@ -3643,18 +3727,18 @@ body {
 .answerChoiceGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 7px;
 }
 
 .choiceBox {
   display: flex;
   gap: 8px;
   align-items: center;
-  min-height: 38px;
+  min-height: 32px;
   border: 2px solid #cbd5e1;
   border-radius: 10px;
-  padding: 8px;
+  padding: 6px;
   color: #111827;
   font-weight: 950;
 }
@@ -3670,13 +3754,13 @@ body {
 .matchingArea {
   display: grid;
   grid-template-columns: 1fr 28px 1fr;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 7px;
 }
 
 .matchingArea span {
-  height: 34px;
+  height: 28px;
   border: 2px solid #cbd5e1;
   border-radius: 8px;
 }
@@ -3688,12 +3772,12 @@ body {
 
 .fillBlankArea {
   display: grid;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 7px;
 }
 
 .fillBlankArea span {
-  height: 30px;
+  height: 24px;
   border-bottom: 2px solid #111827;
 }
 
@@ -3709,6 +3793,196 @@ body {
   font-size: 1rem;
   font-weight: 950;
   text-align: center;
+}
+
+.editorialA4 {
+  padding: 16px 22px 14px;
+  font-size: 12.5px;
+}
+
+.editorialA4 .editorialHeader {
+  margin-bottom: 6px;
+}
+
+.editorialA4 .editorialHeader strong,
+.editorialA4 .editorialHeader span {
+  min-height: 28px;
+  padding: 5px 11px;
+  font-size: 0.86rem;
+}
+
+.editorialA4 .editorialTitleRow {
+  margin-bottom: 7px;
+}
+
+.editorialA4 h2 {
+  font-size: clamp(1.3rem, 2.7vw, 1.8rem);
+}
+
+.editorialA4 .editorialTitleRow p {
+  margin-top: 5px;
+  font-size: 0.86rem;
+  line-height: 1.22;
+}
+
+.editorialA4 .editorialTipBox {
+  grid-template-columns: 40px 1fr;
+  gap: 9px;
+  margin: 6px 0 8px;
+  padding: 8px 11px;
+}
+
+.editorialA4 .editorialTipBox span {
+  width: 36px;
+  height: 36px;
+  font-size: 1.18rem;
+}
+
+.editorialA4 .editorialTipBox p {
+  font-size: 0.84rem;
+  line-height: 1.22;
+}
+
+.editorialA4 .studentInstructions,
+.editorialA4 .studentBaseText {
+  margin: 7px 0;
+  padding: 7px 11px;
+}
+
+.editorialA4 .studentInstructions ul,
+.editorialA4 .studentBaseText p {
+  line-height: 1.24;
+}
+
+.editorialA4 .visualResourceGrid {
+  gap: 7px;
+  margin: 7px 0;
+}
+
+.editorialA4 .visualResourceCard {
+  min-height: 58px;
+}
+
+.editorialA4 .editorialActivities {
+  gap: 7px;
+  margin: 7px 0 9px;
+}
+
+.editorialA4 .activityCard {
+  grid-template-columns: 32px 1fr;
+  gap: 7px;
+  padding: 7px;
+}
+
+.editorialA4 .activityNumber {
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+}
+
+.editorialA4 .editorialActivities p {
+  font-size: 0.82rem;
+  line-height: 1.22;
+}
+
+.editorialA4 .editorialActivities small {
+  margin-top: 3px;
+}
+
+.editorialA4 .questionVisual {
+  margin: 5px 0;
+  padding: 6px;
+}
+
+.editorialA4 .textObservationVisual {
+  margin: 5px 0;
+  padding: 8px 10px;
+}
+
+.editorialA4 .textObservationVisual span {
+  font-size: 0.86rem;
+  line-height: 1.22;
+}
+
+.editorialA4 .studentMiniSteps {
+  gap: 4px;
+  margin: 5px 0;
+}
+
+.editorialA4 .studentMiniSteps span,
+.editorialA4 .guidedExampleVisual span,
+.editorialA4 .calculationStepsVisual span {
+  min-height: 22px;
+  padding: 4px 6px;
+  font-size: 0.66rem;
+}
+
+.editorialA4 .choiceBox {
+  min-height: 28px;
+  padding: 5px;
+  font-size: 0.78rem;
+}
+
+.editorialA4 .matchingArea {
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.editorialA4 .matchingArea span {
+  height: 23px;
+}
+
+.editorialA4 .fillBlankArea {
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.editorialA4 .fillBlankArea span {
+  height: 18px;
+}
+
+.editorialA4 footer {
+  min-height: 30px;
+  margin: 7px -12px -8px;
+  font-size: 0.86rem;
+}
+
+.editorialA4 {
+  padding: 12px 18px 10px;
+  font-size: 11.2px;
+}
+
+.editorialA4 .visualResourceCard {
+  min-height: 48px;
+}
+
+.editorialA4 .activityCard {
+  padding: 6px;
+}
+
+.editorialA4 .editorialActivities {
+  gap: 5px;
+}
+
+.editorialA4 .studentInstructions,
+.editorialA4 .studentBaseText {
+  margin: 5px 0;
+  padding: 6px 9px;
+}
+
+.editorialA4 .studentMiniSteps span,
+.editorialA4 .guidedExampleVisual span,
+.editorialA4 .calculationStepsVisual span {
+  min-height: 18px;
+  padding: 3px 5px;
+}
+
+.editorialA4 .matchingArea span {
+  height: 20px;
+}
+
+.editorialA4 .fillBlankArea span {
+  height: 15px;
 }
 
 .previewCard .editorialTitleRow {
@@ -3799,6 +4073,7 @@ body {
   .formGridPro,
   .profileGrid,
   .visualOptions,
+  .curriculumAuditCard dl,
   .libraryCards {
     grid-template-columns: 1fr;
   }
@@ -4963,6 +5238,272 @@ body.simpleMode .helperText {
 .exportWorksheetItem .productA4 {
   margin: 0;
   box-shadow: none;
+}
+
+.guidedLearningPanel {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 10px;
+}
+
+.guidedReadingCard,
+.workedExampleCard {
+  position: relative;
+  overflow: hidden;
+  border: 1.5px solid var(--subject-border);
+  border-radius: 16px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.guidedReadingCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  background:
+    radial-gradient(circle at 10% 12%, color-mix(in srgb, var(--subject-soft) 86%, white) 0 5px, transparent 6px),
+    linear-gradient(135deg, #ffffff 0%, var(--subject-soft) 100%);
+}
+
+.guidedReadingCopy {
+  min-width: 0;
+}
+
+.guidedSectionLabel {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-bottom: 5px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: var(--subject);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.guidedSectionLabel.example {
+  background: #ef7d00;
+}
+
+.guidedLearningPanel h3 {
+  margin: 0 0 5px;
+  color: #061b49;
+  font-size: 1rem;
+  line-height: 1.16;
+}
+
+.guidedLearningPanel p {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.38;
+}
+
+.guidedKeyIdea {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px;
+  margin-top: 7px;
+  border-left: 4px solid #f5b400;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #fff9d9;
+  color: #172033;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.guidedKeyIdea b {
+  color: #8a4b00;
+  text-transform: uppercase;
+}
+
+.guidedSupportImage {
+  display: grid;
+  gap: 3px;
+  place-items: center;
+  margin: 0;
+}
+
+.guidedSupportImage img {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  max-height: 125px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(6, 27, 73, 0.16));
+}
+
+.guidedSupportImage figcaption {
+  color: #334155;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.workedExampleCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  min-height: 185px;
+  padding: 10px 10px 8px 13px;
+  background: linear-gradient(120deg, #ffffff 0 72%, #fff6dd 72% 100%);
+}
+
+.workedExampleCopy {
+  min-width: 0;
+}
+
+.workedExampleProblem {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin: 1px 0 7px;
+  border: 2px solid var(--subject-border);
+  border-radius: 10px;
+  padding: 5px 12px;
+  background: #ffffff;
+  color: #061b49;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.workedExampleCard ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workedExampleCard li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 5px;
+  align-items: start;
+  min-height: 54px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 6px;
+  background: #f8fbff;
+  color: #172033;
+  font-size: 0.66rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.workedExampleCard li b {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 6px;
+  background: var(--subject);
+  color: #ffffff;
+  font-size: 0.72rem;
+}
+
+.workedExampleAnswer {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  margin-top: 7px;
+  border-radius: 9px;
+  padding: 6px 8px;
+  background: #e9f8ef;
+  color: #065f46;
+}
+
+.workedExampleAnswer strong {
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.workedExampleAnswer span {
+  font-size: 0.63rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.workedExampleStudent {
+  align-self: end;
+  justify-self: center;
+  width: 108px;
+  height: 168px;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 12px rgba(6, 27, 73, 0.16));
+}
+
+.studentInstructionStrip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin: 7px 0 9px;
+  border-radius: 12px;
+  padding: 7px 9px;
+  background: #061b49;
+  color: #ffffff;
+}
+
+.studentInstructionStrip > strong {
+  color: #fcd34d;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.studentInstructionStrip > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.studentInstructionStrip span {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.studentInstructionStrip span b {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #061b49;
+}
+
+@media (max-width: 720px) {
+  .guidedReadingCard {
+    grid-template-columns: 1fr;
+  }
+
+  .guidedSupportImage img {
+    max-height: 105px;
+  }
+
+  .workedExampleCard {
+    grid-template-columns: 1fr;
+  }
+
+  .workedExampleStudent {
+    display: none;
+  }
 }
 
 @media print {

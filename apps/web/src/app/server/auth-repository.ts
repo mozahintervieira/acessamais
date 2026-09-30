@@ -5,6 +5,15 @@ import { hashPassword, verifyPassword } from "./password";
 
 type StoredDevUser = AuthenticatedUser & {
   passwordHash: string;
+  phone: string;
+  referrals: ReferralInput[];
+};
+
+export type ReferralInput = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  consentConfirmed: boolean;
 };
 
 const devPasswordUsers = new Map<string, StoredDevUser>();
@@ -13,12 +22,30 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+export function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+export function isValidPhone(phone: string): boolean {
+  const digits = normalizePhone(phone);
+  return digits.length >= 10 && digits.length <= 15;
+}
+
 export async function createTeacherAccount(input: {
   name: string;
   email: string;
+  phone: string;
   password: string;
+  referrals?: ReferralInput[];
 }): Promise<AuthenticatedUser> {
   const email = input.email.trim().toLowerCase();
+  const phone = normalizePhone(input.phone);
+  const referrals = (input.referrals ?? []).map((referral) => ({
+    name: referral.name?.trim() || undefined,
+    email: referral.email?.trim().toLowerCase() || undefined,
+    phone: referral.phone ? normalizePhone(referral.phone) : undefined,
+    consentConfirmed: referral.consentConfirmed
+  }));
   const passwordHash = await hashPassword(input.password);
 
   if (!hasDatabaseUrl()) {
@@ -35,8 +62,10 @@ export async function createTeacherAccount(input: {
       organizationId: `dev_org_${randomUUID()}`,
       name: input.name.trim(),
       email,
+      phone,
       role: "TEACHER",
-      passwordHash
+      passwordHash,
+      referrals
     };
 
     devPasswordUsers.set(user.id, user);
@@ -59,8 +88,19 @@ export async function createTeacherAccount(input: {
         organizationId: organization.id,
         name: input.name.trim(),
         email,
+        phone,
         passwordHash,
-        role: "TEACHER"
+        role: "TEACHER",
+        referralLeads: referrals.length
+          ? {
+              create: referrals.map((referral) => ({
+                name: referral.name,
+                email: referral.email,
+                phone: referral.phone,
+                consentConfirmed: referral.consentConfirmed
+              }))
+            }
+          : undefined
       }
     });
   });

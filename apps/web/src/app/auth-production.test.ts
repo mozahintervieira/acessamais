@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createTeacherAccount, authenticateTeacher, isValidEmail } from "./server/auth-repository";
+import {
+  createTeacherAccount,
+  authenticateTeacher,
+  isValidEmail,
+  isValidPhone,
+  normalizePhone
+} from "./server/auth-repository";
 import { canUseMemoryFallback, hasDatabaseUrl } from "./server/db";
 import { hashPassword, validatePassword, verifyPassword } from "./server/password";
 
@@ -7,6 +13,12 @@ describe("production MVP auth foundation", () => {
   it("validates teacher email before account creation", () => {
     expect(isValidEmail("professor@escola.edu.br")).toBe(true);
     expect(isValidEmail("email-invalido")).toBe(false);
+  });
+
+  it("normalizes and validates Brazilian contact phone numbers", () => {
+    expect(normalizePhone("(27) 99999-9999")).toBe("27999999999");
+    expect(isValidPhone("(27) 99999-9999")).toBe(true);
+    expect(isValidPhone("1234")).toBe(false);
   });
 
   it("stores passwords as secure hashes instead of plain text", async () => {
@@ -37,6 +49,7 @@ describe("production MVP auth foundation", () => {
       const created = await createTeacherAccount({
         name: "Professor A",
         email,
+        phone: "(27) 99999-9999",
         password: "Senha12345"
       });
       const authenticated = await authenticateTeacher({ email, password: "Senha12345" });
@@ -67,6 +80,7 @@ describe("production MVP auth foundation", () => {
         createTeacherAccount({
           name: "Professor A",
           email,
+          phone: "(27) 99999-9999",
           password: "Senha12345"
         })
       ).rejects.toThrow("DATA_INFRASTRUCTURE_UNAVAILABLE");

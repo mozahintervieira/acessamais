@@ -291,7 +291,13 @@ function dataUrlToUint8Array(dataUrl: string): Uint8Array {
 
 function buildDocxWorksheet(plan: ExportWorksheetPlan, order: number): Array<Paragraph | Table> {
   const sheet = plan.studentSheet ?? {};
-  const title = sheet.title ?? plan.worksheetTitle ?? `Folha ${order}`;
+  const title = sanitizeStudentTitle(sheet.title ?? plan.worksheetTitle ?? `Folha ${order}`);
+  const context = sanitizeStudentText(sheet.context);
+  const baseText = sanitizeStudentText(sheet.baseText);
+  const instructions = sanitizeStudentList(sheet.instructions ?? [], 4);
+  const visualElements = sanitizeVisualElements(sheet.visualElements ?? []);
+  const didacticBoxes = sanitizeSupportBoxes(sheet.didacticBoxes ?? []);
+  const tableRows = sanitizeTableRows(sheet.tableRows ?? []);
   const children: Array<Paragraph | Table> = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -304,14 +310,14 @@ function buildDocxWorksheet(plan: ExportWorksheetPlan, order: number): Array<Par
     })
   ];
 
-  addParagraph(children, sheet.context, true);
-  addParagraph(children, sheet.baseText);
-  addListSection(children, "Como realizar", sheet.instructions ?? []);
-  addListSection(children, "Apoios visuais", sheet.visualElements ?? []);
-  addListSection(children, "Dicas", sheet.didacticBoxes ?? []);
+  addParagraph(children, context, true);
+  addParagraph(children, baseText);
+  addListSection(children, "Como realizar", instructions);
+  addListSection(children, "Apoios visuais", visualElements);
+  addListSection(children, "Dicas", didacticBoxes);
 
-  if ((sheet.tableRows ?? []).length > 0) {
-    children.push(buildTable(sheet.tableRows ?? []));
+  if (tableRows.length > 0) {
+    children.push(buildTable(tableRows));
   }
 
   (sheet.questions ?? []).forEach((question, index) => {
@@ -356,16 +362,12 @@ function addListSection(children: Array<Paragraph | Table>, title: string, items
 }
 
 function addQuestion(children: Array<Paragraph | Table>, question: ExportQuestion, order: number): void {
-  addParagraph(children, `${order}. ${question.command ?? "Atividade"}`, true);
+  addParagraph(children, `${order}. ${studentCommandText(question.command ?? "Atividade")}`, true);
 
-  if (question.support) {
-    addParagraph(children, question.support);
-  }
+  const support = studentSupportText(question.support);
 
-  const taskData = formatTaskData(question.taskData);
-
-  if (taskData.length > 0) {
-    children.push(buildTable(taskData));
+  if (support) {
+    addParagraph(children, support);
   }
 
   children.push(
@@ -400,28 +402,139 @@ function buildTable(rows: string[]): Table {
   });
 }
 
-function formatTaskData(taskData: Record<string, unknown> | undefined): string[] {
-  if (!taskData) {
-    return [];
+function sanitizeStudentTitle(value: string): string {
+  const firstPart = value.split(":")[0]?.trim() ?? value.trim();
+  const title = firstPart || "Atividade";
+
+  if (!title || title.length > 90 || isInternalText(title)) {
+    return "Atividade";
   }
 
-  return Object.entries(taskData)
-    .flatMap(([key, value]) => {
-      if (Array.isArray(value)) {
-        return value.map((item) => `${formatLabel(key)} | ${String(item)}`);
-      }
-
-      if (typeof value === "string" || typeof value === "number") {
-        return [`${formatLabel(key)} | ${String(value)}`];
-      }
-
-      return [];
-    })
-    .slice(0, 10);
+  return title.length > 60 ? `${title.slice(0, 57).trimEnd()}...` : title;
 }
 
-function formatLabel(value: string): string {
+function sanitizeStudentText(value: string | undefined): string {
+  const text = value?.trim() ?? "";
+
+  if (!text || text.length > 180 || isInternalText(text)) {
+    return "";
+  }
+
+  return text;
+}
+
+function sanitizeStudentList(values: string[], limit: number): string[] {
+  return values
+    .map((value) => sanitizeStudentText(value))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function sanitizeSupportBoxes(values: string[]): string[] {
+  return sanitizeStudentList(values, 4)
+    .filter((value) => /lembrete|banco|exemplo|pista|dica|palavra|observe/i.test(value));
+}
+
+function sanitizeVisualElements(values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value && isFunctionalVisualResource(value))
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .slice(0, 3);
+}
+
+function sanitizeTableRows(values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value && !isInternalText(value))
+    .filter((value) => !/\b(FOCO|ESCOPO|EVIDENCIA|OBSERVE|MATCH|CLASSIFY|COMPLETE|CONNECT|CREATE_GUIDED_EXAMPLE)\b/i.test(value))
+    .slice(0, 3);
+}
+
+function isFunctionalVisualResource(value: string): boolean {
+  const comparable = normalizeText(value);
+
+  if (!comparable || comparable.includes("generico") || comparable.includes("placeholder")) {
+    return false;
+  }
+
+  return [
+    "banco de palavras",
+    "quadro",
+    "tabela",
+    "sequencia",
+    "linha do tempo",
+    "mapa",
+    "balanca",
+    "blocos",
+    "cartoes",
+    "pictogramas",
+    "organizador",
+    "exemplo"
+  ].some((term) => comparable.includes(term));
+}
+
+function isInternalText(value: string): boolean {
+  const comparable = normalizeText(value);
+
+  return [
+    "essa combinacao trabalha",
+    "demonstrar aprendizagem",
+    "objetivo curricular",
+    "habilidade",
+    "expectativa de aprendizagem",
+    "capacidade do estudante",
+    "progressao esperada",
+    "evidencia esperada",
+    "a folha utiliza",
+    "para promover",
+    "foco da folha",
+    "foco | escopo",
+    "assessment",
+    "pedagogical",
+    "blueprint",
+    "actiontype",
+    "plannedtask",
+    "classify",
+    "match",
+    "connect",
+    "complete",
+    "create_guided_example"
+  ].some((term) => comparable.includes(term));
+}
+
+function studentCommandText(value: string): string {
+  const text = value.trim();
+  const comparable = normalizeText(text);
+
+  if (comparable.includes("observe o recurso visual sobre")) {
+    return "Observe o recurso visual e responda a pergunta.";
+  }
+
+  if (comparable.includes("pareie cada representacao")) {
+    return "Ligue cada item ao seu significado.";
+  }
+
+  if (comparable.includes("crie um exemplo simples de")) {
+    return "Crie um exemplo simples seguindo o modelo.";
+  }
+
+  return text.length > 130 ? `${text.slice(0, 120).trimEnd()}...` : text;
+}
+
+function studentSupportText(value?: string): string {
+  const text = sanitizeStudentText(value);
+
+  if (!text || /instrucoes curtas|passos numerados/i.test(text)) {
+    return "";
+  }
+
+  return text.length > 100 ? `${text.slice(0, 95).trimEnd()}...` : text;
+}
+
+function normalizeText(value: string): string {
   return value
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (letter) => letter.toUpperCase());
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }

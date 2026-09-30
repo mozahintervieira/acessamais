@@ -111,6 +111,36 @@ function createPortugueseSubstantiveRequest(): CreateMissionRequest {
   };
 }
 
+function createPortugueseNarrativeRequest(): CreateMissionRequest {
+  return {
+    userId: "professor-demo",
+    organizationId: "organizacao-demo",
+    missionType: "ADAPT_ACTIVITY",
+    input: {
+      rawPrompt:
+        "Crie 5 folhas A4 de Lingua Portuguesa sobre contos, fabulas, mitos e estrutura narrativa para estudante com DI e apoio moderado.",
+      discipline: "Lingua Portuguesa",
+      gradeYear: "6 ano",
+      skill: "EF06LP04/ES",
+      knowledgeObject: "contos, fabulas, mitos e estrutura narrativa",
+      theme: "contos, fabulas, mitos, comeco, meio, fim, personagens e mensagem do texto",
+      lessonObjective: "Reconhecer tipos de narrativa, organizar acontecimentos e identificar a mensagem do texto.",
+      specificNeed: "Deficiencia Intelectual",
+      readingWritingLevel: "Leitor inicial",
+      expectedProductType: "Atividade Adaptada",
+      activityType: "Atividade Adaptada",
+      questionCount: "5",
+      outputFormat: "Folha A4 e guia do professor",
+      adaptationProfile: {
+        enabled: true,
+        targetAudience: "Deficiencia Intelectual",
+        learningProfile: "Leitor inicial",
+        supports: ["apoio moderado", "imagens educativas", "pictogramas", "elementos visuais"]
+      }
+    }
+  };
+}
+
 function createBlueprintForRequest(request: CreateMissionRequest) {
   const registry = new KnowledgeRegistry();
 
@@ -433,25 +463,32 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
 
     expect(guided?.taskDataStatus).toBe("VALID");
     expect(guided?.taskDataIssue).toBe("");
-    expect(guided?.taskData?.contextPrompt).toBe("Crie uma equacao simples usando os valores disponiveis.");
+    expect(guided?.taskData?.contextPrompt).toBe("Crie uma equação simples usando os valores disponíveis.");
     expect(guided?.taskData?.availableValues?.length).toBeGreaterThanOrEqual(3);
     expect(guided?.taskData?.constructionSteps).toEqual([
       "Escolha o valor desconhecido.",
-      "Escolha a operacao.",
-      "Complete a equacao.",
+      "Escolha a operação.",
+      "Complete a equação.",
       "Resolva para conferir."
     ]);
     expect(guided?.taskData?.fieldsToComplete).toEqual([
       "valor desconhecido",
-      "operacao",
-      "numero conhecido",
+      "operação",
+      "número conhecido",
       "resultado"
     ]);
-    expect(guided?.taskData?.exampleAnswer).toMatch(/x [+-] \d+ = -?\d+, entao x = \d+/);
+    expect(guided?.taskData?.exampleAnswer).toMatch(/x [+-] \d+ = -?\d+, então x = \d+/);
     expect(JSON.stringify(guided?.taskData)).not.toMatch(/valor 1|item A|complete aqui|placeholder|paisagem/i);
     expect(html).toContain("valor desconhecido");
-    expect(html).toContain("numero conhecido");
-    expect(html).toContain("Crie uma equacao simples usando os valores disponiveis.");
+    expect(html).toContain("número conhecido");
+    expect(html).toContain("Crie uma equação simples usando os valores disponíveis.");
+    expect(html).toContain("Leitura guiada");
+    expect(html).toContain("Equação é uma balança em equilíbrio");
+    expect(html).toContain("Retire 3 dos dois lados");
+    expect(html).toContain("Resposta: x = 4");
+    expect(html).toContain("Conferindo: 2 × 4 + 3 = 8 + 3 = 11");
+    expect(html).toContain("/equation-balance-support-v1.png");
+    expect(html).toContain("/math-student-guide-v1.png");
   });
 
   it("adds concrete fallbacks for OBSERVE, MATCH, COMPLETE and SOLVE when AI taskData is incomplete", () => {
@@ -528,7 +565,7 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     ]);
     expect(questions.map((question) => question.taskDataIssue)).toEqual(["", "", "", "", ""]);
     expect(observe?.taskData?.representation).toMatch(/x [+-] \d+ = -?\d+/);
-    expect(observe?.taskData?.question).toBe("Qual numero ocupa o lugar de x?");
+    expect(observe?.taskData?.question).toBe("Qual número ocupa o lugar de x?");
     expect(observe?.taskData?.options).toContain(observe?.taskData?.correctOption);
     expect(match?.taskData?.leftItems).toHaveLength(3);
     expect(match?.taskData?.rightItems).toHaveLength(3);
@@ -539,6 +576,7 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(solve?.taskData?.equation).toMatch(/x [+-] \d+ = -?\d+/);
     expect(solve?.taskData?.guidedSteps?.length).toBeGreaterThanOrEqual(3);
     expect(solve?.taskData?.answer).toMatch(/^\d+$/);
+    expect(JSON.stringify(questions)).not.toMatch(/=\s*-/);
     expect(JSON.stringify(questions)).not.toMatch(/valor 1|item A|complete aqui|placeholder|paisagem|Progressao|P\.A\.|\bSIM\b|\bNAO\b|\bLER\b|\bOK\b/i);
   });
 
@@ -643,9 +681,9 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     ]);
     expect(questions.map((question) => question.taskDataIssue)).toEqual(["", "", "", "", ""]);
     expect(guided?.taskData?.availableValues?.join(" ")).toMatch(/valor desconhecido: \d+/);
-    expect(guided?.taskData?.availableValues?.join(" ")).toMatch(/numero conhecido: \d+/);
-    expect(guided?.taskData?.exampleAnswer).toMatch(/x [+-] \d+ = -?\d+, entao x = \d+/);
-    expect(html).toContain("Crie uma equacao simples usando os valores disponiveis.");
+    expect(guided?.taskData?.availableValues?.join(" ")).toMatch(/número conhecido: \d+/);
+    expect(guided?.taskData?.exampleAnswer).toMatch(/x [+-] \d+ = -?\d+, então x = \d+/);
+    expect(html).toContain("Crie uma equação simples usando os valores disponíveis.");
     expect(html).not.toContain("Tarefa aguardando dados concretos");
     expect(html).not.toContain("MISSING_GUIDED_CREATION_DATA");
     expect(html).not.toContain("Progressao Aritmetica");
@@ -764,6 +802,73 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(renderedSheets.join(" ")).not.toMatch(/\bSIM\b|\bNAO\b|\bLER\b|\bOK\b/i);
   });
 
+  it("keeps internal pedagogical metadata out of the student A4 sheet", () => {
+    const { request, blueprint } = createBlueprint();
+    const sheet = buildStudentSheet(
+      {
+        worksheetTitle:
+          "ESSA COMBINACAO TRABALHA DIRETAMENTE A CAPACIDADE DO ESTUDANTE DE DEMONSTRAR APRENDIZAGEM EM TAREFA FINAL COM MENOR APOIO",
+        studentSheet: {
+          title:
+            "ESSA COMBINACAO TRABALHA DIRETAMENTE A CAPACIDADE DO ESTUDANTE DE DEMONSTRAR APRENDIZAGEM EM TAREFA FINAL COM MENOR APOIO",
+          context:
+            "Resolver problemas que possam ser representados por equacoes do primeiro grau. A folha utiliza mediacao pedagogica para promover reconhecimento inicial.",
+          didacticBoxes: [
+            "Foco da folha: reconhecimento inicial.",
+            "LEMBRETE: use o exemplo antes de responder."
+          ],
+          visualElements: ["visual generico", "placeholder interno", "tabela simples"],
+          tableRows: [
+            "Foco | Escopo | Evidencia",
+            "OBSERVE | marcar | criterio de sucesso"
+          ],
+          questions: [
+            {
+              actionType: "COMPLETE",
+              command: "Complete a equacao.",
+              taskData: {
+                actionType: "COMPLETE",
+                statements: ["x + 2 = 6, entao x = ___"]
+              }
+            },
+            {
+              actionType: "CREATE_GUIDED_EXAMPLE",
+              command: "Crie um exemplo simples de equacoes do primeiro grau seguindo o modelo.",
+              taskData: {
+                actionType: "CREATE_GUIDED_EXAMPLE",
+                contextPrompt: "Crie um exemplo simples usando os apoios disponiveis.",
+                availableValues: ["instrucoes curtas", "passos numerados", "x + 2 = 6"],
+                constructionSteps: ["Escolha o valor desconhecido.", "passos numerados"],
+                fieldsToComplete: ["valor desconhecido", "instrucoes curtas"]
+              }
+            }
+          ]
+        }
+      },
+      request,
+      blueprint
+    ) as StudentSheetPlan["studentSheet"];
+    const html = renderToStaticMarkup(
+      React.createElement(StudentSheetRenderer, {
+        plan: {
+          subject: "Matematica",
+          grade: "6 ano",
+          studentSheet: sheet
+        }
+      })
+    );
+
+    expect(sheet?.title).toBe("Descubra o valor de x");
+    expect(sheet?.title).not.toMatch(/essa combinacao|demonstrar aprendizagem|capacidade do estudante/i);
+    expect(sheet?.context).toBe("Observe os exemplos e descubra o valor que falta.");
+    expect(sheet?.context).not.toMatch(/a folha utiliza|para promover|objetivo curricular/i);
+    expect(sheet?.didacticBoxes).not.toContain("Foco da folha: reconhecimento inicial.");
+    expect(sheet?.tableRows).toEqual([]);
+    expect(html).not.toMatch(/Foco da folha|Foco \\| Escopo|Evidencia|CREATE_GUIDED_EXAMPLE|placeholder|visual generico|instrucoes curtas|passos numerados/i);
+    expect(html).toMatch(/LEMBRETE|tabela simples|Complete a equacao/i);
+    expect(html).toMatch(/x \+ 2 = 6|valor desconhecido/i);
+  });
+
   it("keeps worksheet navigation and Word export compatible with the multi-sheet contract", () => {
     const { request, context, decision, blueprint } = createBlueprint();
     const projectOutput = buildPedagogicalProject({
@@ -863,5 +968,55 @@ describe("MaterialBlueprint as studentSheet source of truth", () => {
     expect(worksheets[2]?.title).toContain("flexoes");
     expect(worksheets[3]?.title).toContain("contexto");
     expect(worksheets[4]?.title).toContain("avaliacao");
+  });
+
+  it("builds a real pedagogical blueprint sequence for Portuguese narratives", () => {
+    const setup = createBlueprintForRequest(createPortugueseNarrativeRequest());
+    const projectOutput = buildPedagogicalProject({
+      request: setup.request,
+      context: setup.context,
+      decision: setup.decision,
+      materialBlueprint: setup.blueprint
+    });
+    const worksheets = buildWorksheetsFromBlueprints(
+      {},
+      setup.request,
+      setup.blueprint,
+      projectOutput.project,
+      projectOutput.worksheetBlueprints
+    );
+    const blueprints = projectOutput.worksheetBlueprints;
+    const serializedSheets = worksheets.map((worksheet) => JSON.stringify(worksheet.studentSheet));
+    const actionSignatures = worksheets.map((worksheet) => {
+      const questions = (worksheet.studentSheet.questions ?? []) as Array<{ actionType?: string }>;
+
+      return questions.map((question) => question.actionType).join(">");
+    });
+
+    expect(blueprints).toHaveLength(5);
+    expect(blueprints.map((sheet) => sheet.pedagogicalRole)).toEqual([
+      "reconhecimento e ativacao",
+      "relacao e compreensao",
+      "organizacao e sequencia",
+      "aplicacao contextualizada",
+      "sintese e avaliacao"
+    ]);
+    expect(blueprints.map((sheet) => sheet.primaryPattern)).toEqual([
+      "IMAGE_QUESTION",
+      "MATCH_COLUMNS",
+      "ORDER_SEQUENCE",
+      "CONTEXT_PROBLEM",
+      "FINAL_CHALLENGE"
+    ]);
+    expect(new Set(actionSignatures).size).toBe(5);
+    expect(blueprints.every((sheet) => sheet.qualityScore >= 80)).toBe(true);
+    expect(blueprints.every((sheet) => sheet.diversityScore >= 70)).toBe(true);
+    expect(worksheets.every((worksheet) => worksheet.validationStatus === "VALID")).toBe(true);
+    expect(serializedSheets[0]).toMatch(/conto|fabula|mito|cena|animais/i);
+    expect(serializedSheets[1]).toMatch(/personagem|cenario|problema|mensagem/i);
+    expect(serializedSheets[2]).toMatch(/comeco|meio|fim|ordem|sequencia/i);
+    expect(serializedSheets[3]).toMatch(/mensagem|ensinamento|aprend/i);
+    expect(serializedSheets[4]).toMatch(/desafio|autoavalia|frase final|sintese|mensagem/i);
+    expect(JSON.stringify(worksheets)).not.toMatch(/Progressao Aritmetica|valor desconhecido|cartoes SIM|\bLER\b|\bOK\b|placeholder/i);
   });
 });

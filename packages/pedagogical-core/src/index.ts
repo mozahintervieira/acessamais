@@ -14,4 +14,6 @@ export * from "./material-blueprint-builder.js";
 export * from "./pedagogical-project-engine.js";
 export * from "./pedagogical-validator.js";
 export * from "./regeneration-policy.js";
+export * from "./curriculum-intelligence.js";
+export * from "./curriculum-import-engine.js";
 export * from "./ai-prompt-builder.js";

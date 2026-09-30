@@ -159,6 +159,30 @@ type StudioForm = {
   includeVisualElements: boolean;
 };
 
+type CurriculumPreview = {
+  providerId: string;
+  sourceDocument: {
+    title: string;
+    version: string;
+    url: string;
+  };
+  skill: {
+    code: string;
+    discipline: string;
+    grade: string;
+    skillText: string;
+    knowledgeObjects: string[];
+    learningExpectations: string[];
+    descriptors: string[];
+    validationStatus: string;
+  };
+  match: {
+    status: string;
+    score: number;
+    warnings: string[];
+  };
+};
+
 const materialTypes = [
   "Atividade Adaptada",
   "Plano de Aula",
@@ -205,6 +229,8 @@ export function ProductStudio(): React.ReactElement {
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] = useState<string | null>(null);
+  const [curriculumPreview, setCurriculumPreview] = useState<CurriculumPreview | null>(null);
+  const [curriculumMessage, setCurriculumMessage] = useState<string | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
   const exportSheetRefs = useRef<Array<HTMLElement | null>>([]);
 
@@ -235,6 +261,65 @@ export function ProductStudio(): React.ReactElement {
 
     void loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    const skill = form.skillOrObjective.trim();
+
+    if (!skill || skill.length < 6) {
+      setCurriculumPreview(null);
+      setCurriculumMessage(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams({
+        code: skill,
+        discipline: form.discipline,
+        grade: form.grade,
+        knowledgeObject: form.knowledgeObject,
+        curriculumReference: form.curriculumReference
+      });
+
+      fetch(`/api/curriculum/skills/context?${params.toString()}`, {
+        signal: controller.signal
+      })
+        .then(async (response) => {
+          const payload = (await response.json().catch(() => null)) as {
+            curriculumKnowledgePack?: CurriculumPreview;
+            message?: string;
+          } | null;
+
+          if (!response.ok || !payload?.curriculumKnowledgePack) {
+            setCurriculumPreview(null);
+            setCurriculumMessage(payload?.message ?? "Habilidade ainda não localizada na base curricular oficial carregada.");
+            return;
+          }
+
+          setCurriculumPreview(payload.curriculumKnowledgePack);
+          setCurriculumMessage(null);
+        })
+        .catch((caughtError) => {
+          if (caughtError instanceof DOMException && caughtError.name === "AbortError") {
+            return;
+          }
+
+          setCurriculumPreview(null);
+          setCurriculumMessage("Não foi possível consultar a base curricular agora.");
+        });
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [
+    form.curriculumReference,
+    form.discipline,
+    form.grade,
+    form.knowledgeObject,
+    form.skillOrObjective
+  ]);
 
   const selectedStudent = useMemo(
     () => students.find((student) => student.id === form.selectedStudentId),
@@ -454,6 +539,8 @@ export function ProductStudio(): React.ReactElement {
             <Field label="Necessidade de imagens/elementos visuais" value={form.visualNeed} onChange={(value) => updateForm("visualNeed", value)} wide />
           </div>
 
+          <CurriculumAuditCard preview={curriculumPreview} message={curriculumMessage} />
+
           <div className="visualOptions">
             <Toggle checked={form.includeImages} label="Inserir imagens educativas" onChange={(value) => updateForm("includeImages", value)} />
             <Toggle checked={form.includePictograms} label="Inserir pictogramas" onChange={(value) => updateForm("includePictograms", value)} />
@@ -669,6 +756,70 @@ function GenerationSteps({ activeStep }: { activeStep: number }): React.ReactEle
         </span>
       ))}
     </div>
+  );
+}
+
+function CurriculumAuditCard({
+  preview,
+  message
+}: {
+  preview: CurriculumPreview | null;
+  message: string | null;
+}): React.ReactElement {
+  if (!preview && !message) {
+    return (
+      <aside className="curriculumAuditCard neutral">
+        <strong>Inteligencia curricular</strong>
+        <span>Informe uma habilidade do Curriculo do Espirito Santo para recuperar contexto oficial.</span>
+      </aside>
+    );
+  }
+
+  if (!preview) {
+    return (
+      <aside className="curriculumAuditCard warning">
+        <strong>Habilidade ainda nao localizada</strong>
+        <span>{message}</span>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="curriculumAuditCard">
+      <div>
+        <strong>Habilidade encontrada na base SEDU-ES</strong>
+        <span>{preview.sourceDocument.title} · {preview.sourceDocument.version}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>Codigo</dt>
+          <dd>{preview.skill.code}</dd>
+        </div>
+        <div>
+          <dt>Componente</dt>
+          <dd>{preview.skill.discipline}</dd>
+        </div>
+        <div>
+          <dt>Ano</dt>
+          <dd>{preview.skill.grade}</dd>
+        </div>
+        <div>
+          <dt>Objeto</dt>
+          <dd>{preview.skill.knowledgeObjects.join(", ")}</dd>
+        </div>
+      </dl>
+      <p>{preview.skill.skillText}</p>
+      <ul>
+        {preview.skill.learningExpectations.slice(0, 2).map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+      {preview.match.warnings.length > 0 ? (
+        <small>{preview.match.warnings.join(" ")}</small>
+      ) : (
+        <small>Esta habilidade sera usada como fonte curricular antes da geracao.</small>
+      )}
+    </aside>
   );
 }
 

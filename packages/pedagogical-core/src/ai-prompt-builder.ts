@@ -15,6 +15,7 @@ import {
 import { resolveGenerationContract } from "./generation-contract-registry.js";
 import {
   ADAPTED_ACTIVITY_SYSTEM_PROMPT,
+  PROFESSIONAL_STUDENT_MATERIAL_GUARDRAILS,
   resolveGenerationSystemPrompt
 } from "./generation-system-prompts.js";
 import {
@@ -25,6 +26,7 @@ import type {
   PedagogicalProject,
   WorksheetBlueprint
 } from "./pedagogical-project-engine.js";
+import type { CurriculumKnowledgePack } from "./curriculum-intelligence.js";
 
 export const PEDAGOGICAL_GENERATION_SYSTEM_PROMPT =
   ADAPTED_ACTIVITY_SYSTEM_PROMPT;
@@ -42,7 +44,8 @@ export function buildPedagogicalGenerationPrompt(
   generationType?: ResourceGenerationType,
   materialBlueprint?: MaterialBlueprint,
   pedagogicalProject?: PedagogicalProject,
-  worksheetBlueprints?: WorksheetBlueprint[]
+  worksheetBlueprints?: WorksheetBlueprint[],
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): PedagogicalGenerationPrompt {
   const contractEntry = resolveGenerationContract(generationType);
   const systemPromptEntry = resolveGenerationSystemPrompt(generationType);
@@ -50,7 +53,9 @@ export function buildPedagogicalGenerationPrompt(
     materialBlueprint ?? buildMaterialBlueprint(request, context, decision);
 
   return {
-    systemPrompt: systemPromptEntry.systemPrompt,
+    systemPrompt: generationType === "PEI"
+      ? systemPromptEntry.systemPrompt
+      : `${systemPromptEntry.systemPrompt} ${PROFESSIONAL_STUDENT_MATERIAL_GUARDRAILS}`,
     userPayload: {
       tarefa:
         "Analisar primeiro a habilidade curricular e somente depois gerar o recurso educacional solicitado pelo professor em dois documentos separados. O documento principal deve ser a folha do estudante, sem informacoes tecnicas. O guia do professor deve conter as informacoes pedagogicas e tecnicas separadamente.",
@@ -60,12 +65,18 @@ export function buildPedagogicalGenerationPrompt(
         "O PedagogicalProject e o projeto pedagogico aprovado antes da geracao. A IA nao deve decidir a sequencia didatica, nem trocar objetivo, habilidade, objeto, metodologia, estrategias ou criterios. Use este projeto como fonte de verdade pedagogica.",
       worksheetBlueprintObrigatorio:
         "O WorksheetBlueprint define o mapa das folhas A4. A quantidade informada pelo professor representa quantidade de folhas, nao quantidade de questoes. Cada folha deve seguir sua identidade, objetivo, estrategia, metodologia, recurso, progressao cognitiva e foco do guia do professor.",
+      curriculumKnowledgePackObrigatorio:
+        curriculumKnowledgePack
+          ? "O CurriculumKnowledgePack abaixo foi recuperado de fonte curricular oficial antes da geracao. Use-o como fonte de verdade para habilidade, objeto, expectativa de aprendizagem, descritores e limites de conteudo. Se houver conflito entre pedido livre e fonte oficial, preserve a intencao do professor sem violar a habilidade oficial."
+          : "Nenhum CurriculumKnowledgePack oficial foi recuperado para esta solicitacao. Nao invente texto oficial; declare no guia do professor que a referencia curricular precisa de revisao humana.",
       taskDataObrigatorio:
         "Cada atividade deve conter taskData completo e concreto conforme o actionType. Nao use placeholders, alternativas vazias, pares ausentes, lacunas sem enunciado, visuais decorativos ou instrucao sem recurso correspondente.",
       contratoTaskDataPorActionType: TASK_DATA_OUTPUT_CONTRACT,
       materialBlueprint: blueprint,
       pedagogicalProject,
       worksheetBlueprints,
+      curriculumKnowledgePack,
+      generationBrief: curriculumKnowledgePack?.generationBrief,
       referenciaCurricular:
         "Usar a BNCC como referencia nacional e, quando o professor informar Espirito Santo, SEDU-ES, Curriculo do Espirito Santo ou ano 2026, considerar essa referencia curricular na analise. Se a habilidade estadual for informada, preservar seu codigo e interpretar a competencia antes de criar atividades.",
       etapaObrigatoriaDeAnaliseCurricular: CURRICULAR_ANALYSIS_STEPS,

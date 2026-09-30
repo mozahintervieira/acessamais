@@ -18,10 +18,14 @@ import {
   buildPedagogicalGenerationPrompt,
   RegenerationPolicy,
   selectRegenerationOutput,
-  type PedagogicalCorrectionPrompt
+  type PedagogicalCorrectionPrompt,
+  resolveCurriculumKnowledgePack,
+  validateCurriculumAlignment,
+  type CurriculumKnowledgePack
 } from "@acessa-plus/pedagogical-core";
 import { getPrisma, hasDatabaseUrl } from "../server/db";
 import { recordUsageEvent } from "../server/usage-events";
+import { resolvePersistedCurriculumKnowledgePack } from "./curriculum/server";
 import type {
   CreateMissionRequest,
   DecisionResult,
@@ -647,6 +651,9 @@ async function generatePedagogicalPlan(
   decision: DecisionResult
 ): Promise<PedagogicalPlan & Record<string, unknown>> {
   const materialBlueprint = buildMaterialBlueprint(request, context, decision);
+  const curriculumKnowledgePack =
+    await resolvePersistedCurriculumKnowledgePack(request) ??
+    resolveCurriculumKnowledgePack(request);
   const pedagogicalProjectOutput = buildPedagogicalProject({
     request,
     context,
@@ -659,7 +666,8 @@ async function generatePedagogicalPlan(
     decision,
     materialBlueprint,
     pedagogicalProjectOutput.project,
-    pedagogicalProjectOutput.worksheetBlueprints
+    pedagogicalProjectOutput.worksheetBlueprints,
+    curriculumKnowledgePack
   );
   const fallback = buildGeneratedFallbacks(request);
   const worksheets = buildWorksheetsFromBlueprints(
@@ -667,9 +675,20 @@ async function generatePedagogicalPlan(
     request,
     materialBlueprint,
     pedagogicalProjectOutput.project,
-    pedagogicalProjectOutput.worksheetBlueprints
+    pedagogicalProjectOutput.worksheetBlueprints,
+    curriculumKnowledgePack
   );
   const firstWorksheet = worksheets[0];
+  const curriculumAlignmentReport = validateCurriculumAlignment({
+    generated: {
+      ...generated,
+      worksheets,
+      teacherGuide:
+        firstWorksheet?.teacherGuide ??
+        buildTeacherGuide(generated, request, materialBlueprint, curriculumKnowledgePack)
+    },
+    pack: curriculumKnowledgePack
+  });
 
   return {
     intent: request.missionType,
@@ -689,13 +708,16 @@ async function generatePedagogicalPlan(
       "Verificar acessibilidade, clareza dos comandos e evidencias de aprendizagem.",
       "Evitar dados sensiveis ou diagnosticos alem do necessario pedagogicamente."
     ]),
-    curricularAnalysis: buildCurricularAnalysis(generated, request),
+    curricularAnalysis: buildCurricularAnalysis(generated, request, curriculumKnowledgePack),
     warnings: normalizeStringArray(generated.warnings, []),
     pedagogicalProject: pedagogicalProjectOutput.project,
     worksheetBlueprints: pedagogicalProjectOutput.worksheetBlueprints,
+    curriculumKnowledgePack,
+    generationBrief: curriculumKnowledgePack?.generationBrief,
+    curriculumAlignmentReport,
     worksheets,
     studentSheet: firstWorksheet?.studentSheet ?? buildStudentSheet(generated, request, materialBlueprint),
-    teacherGuide: firstWorksheet?.teacherGuide ?? buildTeacherGuide(generated, request, materialBlueprint),
+    teacherGuide: firstWorksheet?.teacherGuide ?? buildTeacherGuide(generated, request, materialBlueprint, curriculumKnowledgePack),
     worksheetTitle: normalizeString(
       generated.worksheetTitle,
       `Atividade: ${request.input.theme ?? request.input.knowledgeObject ?? "conteudo"}`
@@ -767,7 +789,8 @@ async function callOpenAI(
   decision: DecisionResult,
   materialBlueprint: MaterialBlueprint,
   pedagogicalProject?: PedagogicalProject,
-  worksheetBlueprints?: WorksheetBlueprint[]
+  worksheetBlueprints?: WorksheetBlueprint[],
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): Promise<InternallyValidatedGeneration> {
   const prompt = buildPedagogicalGenerationPrompt(
     request,
@@ -776,7 +799,8 @@ async function callOpenAI(
     undefined,
     materialBlueprint,
     pedagogicalProject,
-    worksheetBlueprints
+    worksheetBlueprints,
+    curriculumKnowledgePack
   );
   const response = await generateJsonWithConfiguredProvider<Record<string, unknown>>(
     {
@@ -804,7 +828,8 @@ async function generateAndSelectPedagogicalOutput(
   decision: DecisionResult,
   materialBlueprint: MaterialBlueprint,
   pedagogicalProject?: PedagogicalProject,
-  worksheetBlueprints?: WorksheetBlueprint[]
+  worksheetBlueprints?: WorksheetBlueprint[],
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): Promise<InternallyValidatedGeneration> {
   const validator = new PedagogicalValidator();
   const firstOutput = await callOpenAI(
@@ -813,7 +838,8 @@ async function generateAndSelectPedagogicalOutput(
     decision,
     materialBlueprint,
     pedagogicalProject,
-    worksheetBlueprints
+    worksheetBlueprints,
+    curriculumKnowledgePack
   );
   const firstReport = validateGeneratedOutput(
     validator,
@@ -1551,7 +1577,7 @@ function normalizeQuestions(
 function buildFallbackQuestionCommands(theme: string, subject: string): string[] {
   const normalizedTheme = normalizeComparable(theme);
 
-  if (subject.includes("matematica") && normalizedTheme.includes("equacao")) {
+  if (subject.includes("matematica") && normalizedTheme.includes("equac")) {
     return [
       "Observe a representacao de equilibrio e identifique qual numero deixa os dois lados iguais.",
       "Pareie cada equacao simples ao resultado correto.",
@@ -1637,42 +1663,299 @@ export function buildStudentSheet(
   );
 
   return {
-    title: normalizeString(
-      source.title,
+    title: sanitizeStudentFacingTitle(
       normalizeString(
-        generated.worksheetTitle,
-        fallback.title
-      )
+        source.title,
+        normalizeString(
+          generated.worksheetTitle,
+          fallback.title
+        )
+      ),
+      materialBlueprint.content
     ),
-    context: normalizeString(
-      source.context,
+    context: sanitizeStudentFacingContext(
       normalizeString(
-        generated.context,
-        fallback.context
-      )
+        source.context,
+        normalizeString(
+          generated.context,
+          fallback.context
+        )
+      ),
+      materialBlueprint
     ),
     instructions: normalizeStringArray(source.instructions, [
       "Leia cada comando com atencao.",
       "Responda nos espacos indicados."
     ]),
     baseText: normalizeString(source.baseText, normalizeString(generated.baseText, fallback.baseText)),
-    didacticBoxes: normalizeStringArray(
-      source.didacticBoxes,
-      normalizeStringArray(generated.didacticBoxes, fallback.didacticBoxes)
-    ),
-    visualElements: normalizeStringArray(
-      source.visualElements,
+    guidedReading: isRecord(source.guidedReading)
+      ? source.guidedReading
+      : fallback.guidedReading,
+    workedExample: isRecord(source.workedExample)
+      ? source.workedExample
+      : fallback.workedExample,
+    didacticBoxes: sanitizeStudentFacingDidacticBoxes(
       normalizeStringArray(
-        generated.visualElements,
-        buildBlueprintVisualElements(materialBlueprint)
+        source.didacticBoxes,
+        normalizeStringArray(generated.didacticBoxes, fallback.didacticBoxes)
+      ),
+      materialBlueprint
+    ),
+    visualElements: filterStudentFacingVisualResources(
+      normalizeStringArray(
+        source.visualElements,
+        normalizeStringArray(
+          generated.visualElements,
+          buildBlueprintVisualElements(materialBlueprint)
+        )
       )
     ),
-    tableRows: normalizeStringArray(
-      source.tableRows,
-      normalizeStringArray(generated.tableRows, fallback.tableRows)
-    ),
+    tableRows: [],
     questions
   };
+}
+
+function sanitizeStudentFacingTitle(title: string, fallbackContent: string): string {
+  const firstPart = normalizeString(title.split(":")[0], title);
+  const candidate = normalizeString(firstPart, buildShortStudentTitle(fallbackContent));
+  const comparable = normalizeComparable(`${candidate} ${fallbackContent}`);
+
+  if (
+    comparable.includes("equac") &&
+    !/(descubra|ligue|complete|resolva|crie|confira|marque)/.test(normalizeComparable(candidate))
+  ) {
+    return "Descubra o valor de x";
+  }
+
+  if (!isValidStudentFacingTitle(candidate)) {
+    return buildShortStudentTitle(fallbackContent);
+  }
+
+  return candidate.length > 60 ? buildShortStudentTitle(fallbackContent) : candidate;
+}
+
+function buildStudentFacingTitle(title: string, fallbackContent: string): string {
+  return sanitizeStudentFacingTitle(title, fallbackContent);
+}
+
+function buildShortStudentTitle(content: string): string {
+  const cleaned = normalizeString(content, "Atividade");
+  const comparable = normalizeComparable(cleaned);
+  const firstSegment = normalizeString(cleaned.split(/[.;:]/)[0], cleaned);
+
+  if (comparable.includes("substantivo")) {
+    return "Substantivos em acao";
+  }
+
+  if (comparable.includes("conto") || comparable.includes("fabula") || comparable.includes("mito")) {
+    return "Historias em ordem";
+  }
+
+  if (comparable.includes("equac")) {
+    return "Equacoes simples";
+  }
+
+  return firstSegment.length > 60 ? firstSegment.slice(0, 57).trimEnd() : firstSegment;
+}
+
+function isValidStudentFacingTitle(title: string): boolean {
+  const comparable = normalizeComparable(title);
+
+  if (!title || title.length > 90) {
+    return false;
+  }
+
+  return ![
+    "essa combinacao trabalha",
+    "demonstrar aprendizagem",
+    "reconstrucao da textualidade",
+    "objetivo curricular",
+    "habilidade",
+    "expectativa de aprendizagem",
+    "capacidade do estudante",
+    "progressao esperada",
+    "evidencia esperada"
+  ].some((term) => comparable.includes(term));
+}
+
+function sanitizeStudentFacingContext(context: string, materialBlueprint: MaterialBlueprint): string {
+  const content = normalizeComparable(`${materialBlueprint.knowledgeObject} ${materialBlueprint.content}`);
+
+  if (content.includes("equac")) {
+    return "Observe os exemplos e descubra o valor que falta.";
+  }
+
+  if (isStudentFacingTechnicalText(context)) {
+    return buildStudentFacingOrientationFromMaterial(materialBlueprint);
+  }
+
+  return context.length > 120
+    ? buildStudentFacingOrientationFromMaterial(materialBlueprint)
+    : context;
+}
+
+function buildStudentFacingOrientation(worksheetBlueprint: WorksheetBlueprint): string {
+  const comparable = normalizeComparable(worksheetBlueprint.contentScope);
+
+  if (comparable.includes("conto") || comparable.includes("fabula") || comparable.includes("mito")) {
+    return "Leia, observe as pistas e resolva cada atividade com calma.";
+  }
+
+  if (comparable.includes("substantivo")) {
+    return "Observe as palavras, leia os exemplos e responda nos espacos indicados.";
+  }
+
+  if (comparable.includes("equac")) {
+    return "Observe os exemplos e descubra o valor que falta.";
+  }
+
+  return "Leia os comandos, observe os apoios e responda com atencao.";
+}
+
+function buildStudentFacingOrientationFromMaterial(materialBlueprint: MaterialBlueprint): string {
+  const comparable = normalizeComparable(`${materialBlueprint.knowledgeObject} ${materialBlueprint.content}`);
+
+  if (comparable.includes("conto") || comparable.includes("fabula") || comparable.includes("mito")) {
+    return "Leia, observe as pistas e resolva cada atividade com calma.";
+  }
+
+  if (comparable.includes("substantivo")) {
+    return "Observe as palavras, leia os exemplos e responda nos espacos indicados.";
+  }
+
+  if (comparable.includes("equac")) {
+    return "Observe os exemplos e descubra o valor que falta.";
+  }
+
+  return "Leia os comandos, observe os apoios e responda com atencao.";
+}
+
+function sanitizeStudentFacingDidacticBoxes(
+  boxes: string[],
+  materialBlueprint: MaterialBlueprint
+): string[] {
+  const content = normalizeComparable(`${materialBlueprint.knowledgeObject} ${materialBlueprint.content}`);
+
+  if (content.includes("equac") || content.includes("substantivo")) {
+    return buildStudentFacingDidacticBoxesFromMaterial(materialBlueprint);
+  }
+
+  const clean = uniqueStrings(
+    boxes
+      .map((box) => normalizeString(box, ""))
+      .filter((box) => box && !isStudentFacingTechnicalText(box))
+      .filter((box) => /lembrete|banco|exemplo|pista|dica|palavra|observe/i.test(box))
+      .filter((box) => box.length <= 140)
+  );
+
+  if (clean.length > 0) {
+    return clean.slice(0, 3);
+  }
+
+  return buildStudentFacingDidacticBoxesFromMaterial(materialBlueprint);
+}
+
+function buildStudentFacingDidacticBoxes(worksheetBlueprint: WorksheetBlueprint): string[] {
+  const comparable = normalizeComparable(worksheetBlueprint.contentScope);
+
+  if (comparable.includes("substantivo")) {
+    return [
+      "LEMBRETE: substantivos nomeiam pessoas, lugares, objetos, animais e ideias.",
+      "BANCO DE PALAVRAS: Ana, escola, cachorro, Vitoria, livro, alegria."
+    ];
+  }
+
+  if (comparable.includes("equac")) {
+    return [
+      "LEMBRETE: uma equação fica correta quando os dois lados têm o mesmo valor.",
+      "EXEMPLO: se x + 2 = 6, então x vale 4."
+    ];
+  }
+
+  return ["PISTA: observe primeiro o exemplo e depois responda uma parte por vez."];
+}
+
+function buildStudentFacingDidacticBoxesFromMaterial(materialBlueprint: MaterialBlueprint): string[] {
+  const comparable = normalizeComparable(`${materialBlueprint.knowledgeObject} ${materialBlueprint.content}`);
+
+  if (comparable.includes("substantivo")) {
+    return [
+      "LEMBRETE: substantivos nomeiam pessoas, lugares, objetos, animais e ideias.",
+      "BANCO DE PALAVRAS: Ana, escola, cachorro, Vitoria, livro, alegria."
+    ];
+  }
+
+  if (comparable.includes("equac")) {
+    return [
+      "LEMBRETE: uma equação fica correta quando os dois lados têm o mesmo valor.",
+      "EXEMPLO: se x + 2 = 6, então x vale 4."
+    ];
+  }
+
+  return ["PISTA: observe primeiro o exemplo e depois responda uma parte por vez."];
+}
+
+function filterStudentFacingVisualResources(resources: string[]): string[] {
+  return uniqueStrings(resources.filter(isStudentFacingVisualResource)).slice(0, 3);
+}
+
+function isStudentFacingVisualResource(resource: string): boolean {
+  const comparable = normalizeComparable(resource);
+
+  if (
+    !comparable ||
+    comparable.includes("generico") ||
+    comparable.includes("placeholder") ||
+    comparable.includes("representar conceitos abstratos") ||
+    comparable.includes("usar visual") ||
+    comparable.includes("boa separacao visual") ||
+    comparable === "organizador visual" ||
+    comparable === "quadro de apoio visual" ||
+    comparable === "apoio visual funcional"
+  ) {
+    return false;
+  }
+
+  return [
+    "banco de palavras",
+    "quadro",
+    "tabela",
+    "sequencia",
+    "linha do tempo",
+    "mapa",
+    "balanca",
+    "blocos",
+    "cartoes",
+    "pictogramas",
+    "organizador",
+    "exemplo"
+  ].some((term) => comparable.includes(term));
+}
+
+function isStudentFacingTechnicalText(text: string): boolean {
+  const comparable = normalizeComparable(text);
+
+  return [
+    "foco da folha",
+    "foco | escopo",
+    "evidencia",
+    "assessment",
+    "pedagogical",
+    "blueprint",
+    "actiontype",
+    "classify",
+    "match",
+    "connect",
+    "complete",
+    "create_guided_example",
+    "plannedtask",
+    "progressao esperada",
+    "padrao editorial",
+    "criterio de sucesso",
+    "objetivo curricular",
+    "a folha utiliza",
+    "para promover"
+  ].some((term) => comparable.includes(term));
 }
 
 export function buildWorksheetsFromBlueprints(
@@ -1680,31 +1963,45 @@ export function buildWorksheetsFromBlueprints(
   request: CreateMissionRequest,
   materialBlueprint: MaterialBlueprint,
   pedagogicalProject: PedagogicalProject,
-  worksheetBlueprints: WorksheetBlueprint[]
+  worksheetBlueprints: WorksheetBlueprint[],
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): GeneratedWorksheet[] {
   const worksheets = worksheetBlueprints.length > 0
     ? worksheetBlueprints
     : [{
         sheetNumber: 1,
+        pedagogicalRole: "atividade guiada",
         title: materialBlueprint.content,
         objective: materialBlueprint.learningObjective,
         strategy: "Atividade guiada",
         methodology: "Mediação pedagógica com apoio visual funcional.",
+        primaryPattern: "IMAGE_QUESTION",
+        secondaryPattern: "COMPLETE_WITH_WORD_BANK",
+        interactionMode: "resposta curta com apoio visual",
         resources: materialBlueprint.visualRequirements,
+        visualPlan: materialBlueprint.visualRequirements,
+        supportPlan: materialBlueprint.recommendedSupports,
+        responsePlan: "marcacao, pareamento ou resposta curta",
         learningFocus: "atividade guiada",
         contentScope: materialBlueprint.content,
+        contentRequirements: [materialBlueprint.content, materialBlueprint.knowledgeObject],
         forbiddenContent: ["placeholder", "conteudo desconectado"],
         requiredExamples: [materialBlueprint.content],
         requiredTaskTypes: ["observar", "responder", "registrar"],
         expectedProgression: "reconhecer, aplicar e registrar",
         editorialPattern: "folha A4 com organizacao clara",
+        editorialConstraints: ["comandos curtos", "espaco de resposta adequado", "visual funcional"],
+        accessibilityConstraints: ["linguagem concreta", "pouca informacao simultanea"],
+        validationRules: ["tarefas devem corresponder ao conteudo", "nao usar placeholder"],
         assessmentEvidence: "resposta correta com apoio adequado",
         visualIdentity: "folha A4 com organização clara",
         cognitiveProgression: "reconhecer, aplicar e registrar",
         actionTypes: materialBlueprint.plannedTasks.map((task) => task.actionType),
         teacherGuideFocus: ["mediação", "acessibilidade", "evidências"],
         successCriteria: materialBlueprint.successCriteria,
-        plannedTasks: materialBlueprint.plannedTasks
+        plannedTasks: materialBlueprint.plannedTasks,
+        qualityScore: 80,
+        diversityScore: 80
       } satisfies WorksheetBlueprint];
 
   return worksheets.map((worksheetBlueprint) => {
@@ -1716,7 +2013,8 @@ export function buildWorksheetsFromBlueprints(
       request,
       sheetBlueprint,
       pedagogicalProject,
-      worksheetBlueprint
+      worksheetBlueprint,
+      curriculumKnowledgePack
     );
     const validationIssues = collectWorksheetValidationIssues(
       studentSheet,
@@ -1820,22 +2118,25 @@ function buildWorksheetGeneratedInput(
   worksheetBlueprint: WorksheetBlueprint
 ): Record<string, unknown> {
   const source = isRecord(generated.studentSheet) ? generated.studentSheet : {};
+  const editorialTitle = buildWorksheetEditorialTitle(worksheetBlueprint);
 
   return {
     ...generated,
-    worksheetTitle: worksheetBlueprint.title,
+    worksheetTitle: editorialTitle,
     learningObjective: worksheetBlueprint.objective,
-    context: `${worksheetBlueprint.objective} A folha utiliza ${worksheetBlueprint.strategy.toLowerCase()} para promover ${worksheetBlueprint.cognitiveProgression}.`,
+    context: buildStudentFacingOrientation(worksheetBlueprint),
     studentSheet: {
       ...source,
-      title: worksheetBlueprint.title,
-      context: worksheetBlueprint.objective,
+      title: editorialTitle,
+      context: buildStudentFacingOrientation(worksheetBlueprint),
       instructions: [
         "Leia cada comando com atenção.",
         "Use os apoios visuais da folha antes de responder.",
         "Registre suas respostas nos espaços indicados."
       ],
       baseText: buildWorksheetBaseText(worksheetBlueprint),
+      guidedReading: buildWorksheetGuidedReading(worksheetBlueprint),
+      workedExample: buildWorksheetWorkedExample(worksheetBlueprint),
       didacticBoxes: [
         `${worksheetBlueprint.strategy}: observe as pistas, responda com calma e confira sua produção.`,
         `Foco da folha: ${worksheetBlueprint.learningFocus}.`,
@@ -1845,6 +2146,68 @@ function buildWorksheetGeneratedInput(
       tableRows: buildWorksheetTableRows(worksheetBlueprint)
     }
   };
+}
+
+function buildWorksheetEditorialTitle(worksheetBlueprint: WorksheetBlueprint): string {
+  const source = normalizeComparable(
+    `${worksheetBlueprint.title} ${worksheetBlueprint.learningFocus} ${worksheetBlueprint.contentScope}`
+  );
+
+  if (source.includes("equac")) {
+    const titles = [
+      "Descubra o valor de x",
+      "Ligue equações e respostas",
+      "Complete as equações",
+      "Problemas com equações",
+      "Crie e confira uma equação"
+    ];
+
+    return titles[worksheetBlueprint.sheetNumber - 1] ?? "Equações: encontre o valor de x";
+  }
+
+  if (source.includes("substantivo")) {
+    if (worksheetBlueprint.sheetNumber === 1) {
+      return "Substantivos em acao";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 2) {
+      return "Proprios e comuns";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 3) {
+      return "Flexoes dos substantivos";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 4) {
+      return "Substantivos nas frases";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 5) {
+      return "Desafio dos substantivos";
+    }
+
+    if (source.includes("reconhecimento") || source.includes("identificar")) {
+      return "Substantivos em acao";
+    }
+
+    if (source.includes("flex")) {
+      return "Singular, plural, masculino e feminino";
+    }
+
+    if (source.includes("proprio") || source.includes("comum")) {
+      return "Proprios e comuns";
+    }
+
+    if (source.includes("contexto") || source.includes("frase")) {
+      return "Substantivos nas frases";
+    }
+
+    if (source.includes("sintese") || source.includes("avaliacao") || source.includes("integr")) {
+      return "Desafio dos substantivos";
+    }
+  }
+
+  return buildStudentFacingTitle(worksheetBlueprint.title, worksheetBlueprint.contentScope);
 }
 
 function buildWorksheetTableRows(worksheetBlueprint: WorksheetBlueprint): string[] {
@@ -1858,6 +2221,34 @@ function buildWorksheetTableRows(worksheetBlueprint: WorksheetBlueprint): string
 }
 
 function buildWorksheetBaseText(worksheetBlueprint: WorksheetBlueprint): string {
+  const comparable = normalizeComparable([
+    worksheetBlueprint.title,
+    worksheetBlueprint.contentScope,
+    worksheetBlueprint.learningFocus
+  ].join(" "));
+
+  if (comparable.includes("equac")) {
+    return "Uma equação é uma igualdade com um valor desconhecido. Pense nela como uma balança: os dois lados precisam representar a mesma quantidade. Para descobrir x, fazemos a mesma transformação nos dois lados e depois substituímos o valor encontrado para conferir.";
+  }
+
+  if (isNarrativeWorksheetBlueprint(worksheetBlueprint)) {
+    if (worksheetBlueprint.sheetNumber === 1) {
+      return "Observe as cenas: uma historia com castelo, uma historia com animais conversando e uma historia com heroi antigo.";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 3) {
+      return "Toda narrativa tem uma ordem: comeco, meio e fim. Primeiro conhecemos os personagens. Depois aparece um problema. No final, vem a solucao ou mensagem.";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 4) {
+      return "A tartaruga ajudou o passarinho a encontrar agua. Depois, os dois dividiram o caminho e aprenderam que colaborar torna a jornada mais leve.";
+    }
+
+    if (worksheetBlueprint.sheetNumber === 5) {
+      return "Agora use o que aprendeu sobre conto, fabula, mito, personagens, acontecimentos e mensagem final.";
+    }
+  }
+
   if (normalizeComparable(worksheetBlueprint.contentScope).includes("substantivo")) {
     if (worksheetBlueprint.sheetNumber === 1) {
       return "Ana levou o cachorro Rex para passear na praca de Vitoria. Depois, ela guardou o livro na mochila.";
@@ -1871,14 +2262,79 @@ function buildWorksheetBaseText(worksheetBlueprint: WorksheetBlueprint): string 
   return "";
 }
 
+function buildWorksheetGuidedReading(
+  worksheetBlueprint: WorksheetBlueprint
+): Record<string, unknown> | undefined {
+  const comparable = normalizeComparable([
+    worksheetBlueprint.title,
+    worksheetBlueprint.contentScope,
+    worksheetBlueprint.learningFocus
+  ].join(" "));
+
+  if (!comparable.includes("equac")) {
+    return undefined;
+  }
+
+  return {
+    title: "Equação é uma balança em equilíbrio",
+    text: buildWorksheetBaseText(worksheetBlueprint),
+    keyIdea: "O sinal de igual mostra que o valor do lado esquerdo é o mesmo do lado direito.",
+    imageKind: "equation-balance",
+    imageAlt: "Balança em equilíbrio com uma caixa marcada com x e peças de contagem."
+  };
+}
+
+function buildWorksheetWorkedExample(
+  worksheetBlueprint: WorksheetBlueprint
+): Record<string, unknown> | undefined {
+  const comparable = normalizeComparable([
+    worksheetBlueprint.title,
+    worksheetBlueprint.contentScope,
+    worksheetBlueprint.learningFocus
+  ].join(" "));
+
+  if (!comparable.includes("equac")) {
+    return undefined;
+  }
+
+  return {
+    title: "Vamos resolver juntos",
+    problem: "Resolva: 2x + 3 = 11",
+    steps: [
+      "Retire 3 dos dois lados: 2x + 3 - 3 = 11 - 3.",
+      "Simplifique a igualdade: 2x = 8.",
+      "Divida os dois lados por 2: x = 4."
+    ],
+    answer: "Resposta: x = 4",
+    check: "Conferindo: 2 × 4 + 3 = 8 + 3 = 11. A igualdade está correta."
+  };
+}
+
+function isNarrativeWorksheetBlueprint(worksheetBlueprint: WorksheetBlueprint): boolean {
+  const comparable = normalizeComparable([
+    worksheetBlueprint.title,
+    worksheetBlueprint.contentScope,
+    worksheetBlueprint.learningFocus,
+    worksheetBlueprint.requiredExamples.join(" ")
+  ].join(" "));
+
+  return comparable.includes("narrativa") ||
+    comparable.includes("conto") ||
+    comparable.includes("fabula") ||
+    comparable.includes("mito") ||
+    comparable.includes("personagem") ||
+    comparable.includes("mensagem");
+}
+
 function buildWorksheetTeacherGuide(
   generated: Record<string, unknown>,
   request: CreateMissionRequest,
   materialBlueprint: MaterialBlueprint,
   pedagogicalProject: PedagogicalProject,
-  worksheetBlueprint: WorksheetBlueprint
+  worksheetBlueprint: WorksheetBlueprint,
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): Record<string, unknown> {
-  const guide = buildTeacherGuide(generated, request, materialBlueprint);
+  const guide = buildTeacherGuide(generated, request, materialBlueprint, curriculumKnowledgePack);
 
   return {
     ...guide,
@@ -1930,8 +2386,46 @@ function collectWorksheetValidationIssues(
 
   return uniqueStrings([
     ...taskIssues,
+    ...collectBlueprintQualityIssues(worksheetBlueprint, allWorksheetBlueprints),
+    ...collectNarrativeEditorialIssues(studentSheet, materialBlueprint, worksheetBlueprint, allWorksheetBlueprints),
     ...collectSubstantiveEditorialIssues(studentSheet, materialBlueprint, worksheetBlueprint, allWorksheetBlueprints)
   ]);
+}
+
+function collectBlueprintQualityIssues(
+  worksheetBlueprint?: WorksheetBlueprint,
+  allWorksheetBlueprints: WorksheetBlueprint[] = []
+): string[] {
+  if (!worksheetBlueprint) {
+    return [];
+  }
+
+  const issues: string[] = [];
+  const previous = allWorksheetBlueprints.find((candidate) =>
+    candidate.sheetNumber === worksheetBlueprint.sheetNumber - 1
+  );
+
+  if ((worksheetBlueprint.qualityScore ?? 80) < 80) {
+    issues.push("LOW_PEDAGOGICAL_EDITORIAL_SCORE");
+  }
+
+  if ((worksheetBlueprint.diversityScore ?? 80) < 70) {
+    issues.push("LOW_ACTIVITY_DIVERSITY_SCORE");
+  }
+
+  if (previous?.primaryPattern === worksheetBlueprint.primaryPattern) {
+    issues.push("CONSECUTIVE_PRIMARY_PATTERN_REPETITION");
+  }
+
+  if ((worksheetBlueprint.visualPlan ?? []).length === 0 && worksheetBlueprint.resources.length === 0) {
+    issues.push("MISSING_FUNCTIONAL_VISUAL_PLAN");
+  }
+
+  if ((worksheetBlueprint.supportPlan ?? []).length === 0) {
+    issues.push("MISSING_ACCESSIBILITY_SUPPORT_PLAN");
+  }
+
+  return issues;
 }
 
 function collectSubstantiveEditorialIssues(
@@ -1985,6 +2479,56 @@ function collectSubstantiveEditorialIssues(
 
   if (worksheetBlueprint.sheetNumber === 5 && !/autoavalia|frase final|singular|plural|proprio|comum/i.test(serialized)) {
     issues.push("WEAK_FINAL_ASSESSMENT");
+  }
+
+  return issues;
+}
+
+function collectNarrativeEditorialIssues(
+  studentSheet: Record<string, unknown>,
+  materialBlueprint?: MaterialBlueprint,
+  worksheetBlueprint?: WorksheetBlueprint,
+  allWorksheetBlueprints: WorksheetBlueprint[] = []
+): string[] {
+  if (!materialBlueprint || !worksheetBlueprint || !isPortugueseNarratives(materialBlueprint)) {
+    return [];
+  }
+
+  const issues: string[] = [];
+  const serialized = JSON.stringify(studentSheet);
+  const normalized = normalizeComparable(serialized);
+  const signature = worksheetBlueprint.actionTypes.join(">");
+  const repeatedSignature = allWorksheetBlueprints.some((candidate) =>
+    candidate.sheetNumber !== worksheetBlueprint.sheetNumber &&
+    candidate.actionTypes.join(">") === signature
+  );
+
+  if (repeatedSignature) {
+    issues.push("NARRATIVE_WORKSHEET_STRUCTURE_REPETITION");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 1 && !/conto|fabula|mito|cena|animais/i.test(serialized)) {
+    issues.push("MISSING_NARRATIVE_RECOGNITION_VISUAL");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 2 && !/personagem|cenario|problema|mensagem/i.test(serialized)) {
+    issues.push("MISSING_NARRATIVE_RELATION_CONTENT");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 3 && !/comeco|comeÃ§o|meio|fim|ordem|sequencia/i.test(serialized)) {
+    issues.push("MISSING_NARRATIVE_SEQUENCE_CONTENT");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 4 && !/mensagem|ensinamento|aprend/i.test(serialized)) {
+    issues.push("MISSING_NARRATIVE_MESSAGE_CONTENT");
+  }
+
+  if (worksheetBlueprint.sheetNumber === 5 && !/desafio|autoavalia|frase final|sintese|mensagem/i.test(serialized)) {
+    issues.push("WEAK_NARRATIVE_FINAL_ASSESSMENT");
+  }
+
+  if (normalized.includes("valor desconhecido") || normalized.includes("equac")) {
+    issues.push("CROSS_DISCIPLINE_FALLBACK");
   }
 
   return issues;
@@ -2115,13 +2659,17 @@ function buildConcreteTaskDataFallback(
     ...plannedTask.supportRequired
   ].join(" "));
 
-  if (source.includes("matematica") && (source.includes("equacao") || source.includes("equacoes"))) {
+  if (source.includes("matematica") && source.includes("equac")) {
     return buildEquationTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion) ??
       buildGenericTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
   }
 
   if (isPortugueseSubstantives(materialBlueprint, source)) {
     return buildSubstantiveTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+  }
+
+  if (isPortugueseNarratives(materialBlueprint, source)) {
+    return buildNarrativeTaskDataFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
   }
 
   if (plannedTask.actionType === "CREATE_GUIDED_EXAMPLE") {
@@ -2141,6 +2689,287 @@ function isPortugueseSubstantives(materialBlueprint: MaterialBlueprint, source?:
 
   return comparable.includes("substantivo") &&
     (comparable.includes("lingua") || comparable.includes("portugues") || comparable.includes("ef06lp"));
+}
+
+function isPortugueseNarratives(materialBlueprint: MaterialBlueprint, source?: string): boolean {
+  const comparable = source ?? normalizeComparable([
+    materialBlueprint.discipline,
+    materialBlueprint.knowledgeObject,
+    materialBlueprint.content,
+    materialBlueprint.skillCode
+  ].join(" "));
+
+  return (comparable.includes("lingua") || comparable.includes("portugues") || comparable.includes("ef06lp04")) &&
+    (
+      comparable.includes("conto") ||
+      comparable.includes("fabula") ||
+      comparable.includes("mito") ||
+      comparable.includes("narrativa") ||
+      comparable.includes("comeco") ||
+      comparable.includes("fim")
+    );
+}
+
+function buildNarrativeTaskDataFallback(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string,
+  generatedQuestion: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const sheetKind = resolveNarrativeSheetKind(materialBlueprint, plannedTask, instruction, command);
+
+  switch (plannedTask.actionType) {
+    case "OBSERVE":
+      return buildNarrativeObserveFallback(sheetKind);
+    case "CLASSIFY":
+      return buildNarrativeClassifyFallback(sheetKind);
+    case "MATCH":
+      return buildNarrativeMatchFallback(sheetKind);
+    case "COMPLETE":
+      return buildNarrativeCompleteFallback(sheetKind);
+    case "ORDER":
+      return buildNarrativeOrderFallback(sheetKind);
+    case "CONNECT":
+      return buildNarrativeConnectFallback(sheetKind);
+    case "CREATE_GUIDED_EXAMPLE":
+      return buildNarrativeGuidedExampleFallback(sheetKind, plannedTask);
+    default:
+      return buildConcreteGuidedExampleFallback(materialBlueprint, plannedTask, instruction, command, generatedQuestion);
+  }
+}
+
+type NarrativeSheetKind = "recognition" | "relation" | "sequence" | "message" | "assessment";
+
+function resolveNarrativeSheetKind(
+  materialBlueprint: MaterialBlueprint,
+  plannedTask: PlannedTask,
+  instruction: string,
+  command: string
+): NarrativeSheetKind {
+  const source = normalizeComparable([
+    materialBlueprint.content,
+    plannedTask.pedagogicalPurpose,
+    plannedTask.visualFunction,
+    instruction,
+    command
+  ].join(" "));
+
+  if (source.includes("conhecendo as narrativas") || source.includes("reconhecimento")) {
+    return "recognition";
+  }
+
+  if (source.includes("quem e quem") || source.includes("relacao")) {
+    return "relation";
+  }
+
+  if (source.includes("organize os acontecimentos") || source.includes("sequencia")) {
+    return "sequence";
+  }
+
+  if (source.includes("desafio") || source.includes("sintese") || source.includes("avaliacao")) {
+    return "assessment";
+  }
+
+  if (source.includes("qual e a mensagem") || source.includes("ensinamento") || source.includes("contextual")) {
+    return "message";
+  }
+
+  if (source.includes("sequencia") || source.includes("comeÃ§o") || source.includes("comeco") || source.includes("meio") || source.includes("fim")) {
+    return "sequence";
+  }
+
+  if (source.includes("relacao") || source.includes("personagem") || source.includes("cenario") || source.includes("pareamento")) {
+    return "relation";
+  }
+
+  return "recognition";
+}
+
+function buildNarrativeObserveFallback(sheetKind: NarrativeSheetKind): Record<string, unknown> {
+  if (sheetKind === "message") {
+    return {
+      actionType: "OBSERVE",
+      representation: "Cena: a formiga guarda alimento enquanto a cigarra canta.",
+      question: "Qual mensagem combina com a cena?",
+      options: ["planejar ajuda no futuro", "guardar tudo sem dividir", "cantar e esquecer os combinados"],
+      correctOption: "planejar ajuda no futuro",
+      visualDescription: "cena de fabula com personagem trabalhando e personagem cantando"
+    };
+  }
+
+  if (sheetKind === "assessment") {
+    return {
+      actionType: "OBSERVE",
+      representation: "conto | fabula | mito",
+      question: "Qual tipo de narrativa costuma trazer um ensinamento?",
+      options: ["fabula", "lista", "receita"],
+      correctOption: "fabula",
+      visualDescription: "cartoes finais com conto, fabula e mito"
+    };
+  }
+
+  return {
+    actionType: "OBSERVE",
+    representation: "Cena 1: castelo e personagem. Cena 2: animais conversando. Cena 3: heroi antigo.",
+    question: "Qual cena parece uma fabula?",
+    options: ["animais conversando", "lista de compras", "placa de transito"],
+    correctOption: "animais conversando",
+    visualDescription: "conjunto de tres cenas para reconhecer conto, fabula e mito"
+  };
+}
+
+function buildNarrativeClassifyFallback(sheetKind: NarrativeSheetKind): Record<string, unknown> {
+  const items = sheetKind === "assessment"
+    ? ["animais com moral", "heroi antigo", "princesa no castelo", "ensinamento final"]
+    : ["animais conversando", "castelo encantado", "deus do trovÃ£o", "moral da historia"];
+  const categories = ["conto", "fabula", "mito"];
+
+  return {
+    actionType: "CLASSIFY",
+    items,
+    categories,
+    expectedClassification: items.map((item) => ({
+      item,
+      category: classifyNarrativeExample(item)
+    }))
+  };
+}
+
+function buildNarrativeMatchFallback(sheetKind: NarrativeSheetKind): Record<string, unknown> {
+  if (sheetKind === "relation") {
+    return {
+      actionType: "MATCH",
+      leftItems: ["personagem", "cenario", "problema", "mensagem"],
+      rightItems: ["quem participa", "onde acontece", "o que precisa ser resolvido", "o que aprendemos"],
+      correctPairs: [
+        { left: "personagem", right: "quem participa" },
+        { left: "cenario", right: "onde acontece" },
+        { left: "problema", right: "o que precisa ser resolvido" },
+        { left: "mensagem", right: "o que aprendemos" }
+      ],
+      connectionInstruction: "Ligue cada elemento da narrativa ao seu significado."
+    };
+  }
+
+  return {
+    actionType: "MATCH",
+    leftItems: ["conto", "fabula", "mito"],
+    rightItems: ["historia imaginada", "animais e ensinamento", "herois ou deuses antigos"],
+    correctPairs: [
+      { left: "conto", right: "historia imaginada" },
+      { left: "fabula", right: "animais e ensinamento" },
+      { left: "mito", right: "herois ou deuses antigos" }
+    ],
+    connectionInstruction: "Ligue cada tipo de narrativa a uma caracteristica."
+  };
+}
+
+function buildNarrativeCompleteFallback(sheetKind: NarrativeSheetKind): Record<string, unknown> {
+  if (sheetKind === "sequence") {
+    return {
+      actionType: "COMPLETE",
+      statements: [
+        "No comeco, conhecemos o ___.",
+        "No meio, aparece um ___.",
+        "No fim, descobrimos a ___."
+      ],
+      blanks: ["personagem", "problema", "mensagem"],
+      expectedAnswers: ["personagem", "problema", "mensagem"],
+      supportSteps: ["Observe a ordem da historia.", "Use o banco de palavras.", "Complete uma etapa por vez."]
+    };
+  }
+
+  if (sheetKind === "message") {
+    return {
+      actionType: "COMPLETE",
+      statements: [
+        "A personagem ajudou o colega. A mensagem e: devemos ___.",
+        "O animal mentiu e perdeu a confianca. O ensinamento e: falar a ___."
+      ],
+      blanks: ["ajudar", "verdade"],
+      expectedAnswers: ["ajudar", "verdade"],
+      supportSteps: ["Leia a situacao curta.", "Escolha uma palavra do banco.", "Confira se a frase ficou com sentido."]
+    };
+  }
+
+  return {
+    actionType: "COMPLETE",
+    statements: [
+      "Conto: historia com personagem e ___.",
+      "Fabula: historia com animais e ___.",
+      "Mito: historia com herois, deuses ou explicacao da ___."
+    ],
+    blanks: ["acontecimento", "ensinamento", "origem"],
+    expectedAnswers: ["acontecimento", "ensinamento", "origem"],
+    supportSteps: ["Leia a palavra antes da lacuna.", "Escolha no banco de palavras.", "Complete com calma."]
+  };
+}
+
+function buildNarrativeOrderFallback(sheetKind: NarrativeSheetKind): Record<string, unknown> {
+  const items = sheetKind === "assessment"
+    ? ["escolher o tipo de narrativa", "ordenar os acontecimentos", "escrever a mensagem final"]
+    : ["A personagem encontra um problema.", "Ela tenta resolver.", "A historia termina com uma mensagem."];
+
+  return {
+    actionType: "ORDER",
+    items,
+    correctOrder: items
+  };
+}
+
+function buildNarrativeConnectFallback(_sheetKind: NarrativeSheetKind): Record<string, unknown> {
+  return {
+    actionType: "CONNECT",
+    sourceItems: ["comeco", "meio", "fim"],
+    targetItems: ["apresenta personagem e lugar", "mostra o problema", "traz solucao ou mensagem"],
+    correctConnections: [
+      { source: "comeco", target: "apresenta personagem e lugar" },
+      { source: "meio", target: "mostra o problema" },
+      { source: "fim", target: "traz solucao ou mensagem" }
+    ]
+  };
+}
+
+function buildNarrativeGuidedExampleFallback(
+  sheetKind: NarrativeSheetKind,
+  plannedTask: PlannedTask
+): Record<string, unknown> {
+  if (sheetKind === "assessment") {
+    return {
+      actionType: "CREATE_GUIDED_EXAMPLE",
+      contextPrompt: "Escreva uma frase final sobre a mensagem da narrativa.",
+      availableValues: ["personagem", "problema", "solucao", "mensagem", "aprendi que"],
+      constructionSteps: ["Escolha o personagem.", "Lembre o problema.", "Escreva a mensagem em uma frase curta."],
+      fieldsToComplete: ["personagem", "problema", "mensagem final"],
+      exampleAnswer: "Aprendi que ajudar os colegas torna a turma mais forte.",
+      sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose
+    };
+  }
+
+  return {
+    actionType: "CREATE_GUIDED_EXAMPLE",
+    contextPrompt: "Complete uma pequena narrativa com comeco, meio e fim.",
+    availableValues: ["personagem", "lugar", "problema", "solucao", "mensagem"],
+    constructionSteps: ["Escolha o personagem.", "Escolha o lugar.", "Complete o problema.", "Escreva uma solucao curta."],
+    fieldsToComplete: ["personagem", "lugar", "problema", "solucao"],
+    exampleAnswer: "A menina perdeu o livro na escola. Ela pediu ajuda e encontrou o livro. A mensagem e cuidar dos materiais.",
+    sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose
+  };
+}
+
+function classifyNarrativeExample(item: string): "conto" | "fabula" | "mito" {
+  const normalized = normalizeComparable(item);
+
+  if (normalized.includes("animal") || normalized.includes("animais") || normalized.includes("moral") || normalized.includes("ensinamento")) {
+    return "fabula";
+  }
+
+  if (normalized.includes("deus") || normalized.includes("heroi") || normalized.includes("trovao") || normalized.includes("antigo")) {
+    return "mito";
+  }
+
+  return "conto";
 }
 
 function buildSubstantiveTaskDataFallback(
@@ -2829,10 +3658,10 @@ function buildEquationObserveFallback(
   return {
     actionType: "OBSERVE",
     representation: equation.equation,
-    question: "Qual numero ocupa o lugar de x?",
+    question: "Qual número ocupa o lugar de x?",
     options,
     correctOption: String(equation.unknownValue),
-    visualDescription: "equacao simples com numero desconhecido, valores concretos e destaque para x"
+    visualDescription: "equação simples com número desconhecido, valores concretos e destaque para x"
   };
 }
 
@@ -2858,7 +3687,7 @@ function buildEquationMatchFallback(
     leftItems,
     rightItems,
     correctPairs,
-    connectionInstruction: "Ligue cada equacao ao valor correto de x."
+    connectionInstruction: "Ligue cada equação ao valor correto de x."
   };
 }
 
@@ -2875,8 +3704,8 @@ function buildEquationCompleteFallback(
   return {
     actionType: "COMPLETE",
     statements: [
-      `${firstEquation.equation}, entao x = ___`,
-      `${secondEquation.equation}, entao x = ___`
+      `${firstEquation.equation}, então x = ___`,
+      `${secondEquation.equation}, então x = ___`
     ],
     blanks: ["x", "x"],
     expectedAnswers: [
@@ -2884,8 +3713,8 @@ function buildEquationCompleteFallback(
       String(secondEquation.unknownValue)
     ],
     supportSteps: [
-      "Observe o numero que acompanha x.",
-      "Use a operacao inversa para descobrir o valor desconhecido.",
+      "Observe o número que acompanha x.",
+      "Use a operação inversa para descobrir o valor desconhecido.",
       "Substitua x para conferir se a igualdade fica correta."
     ]
   };
@@ -2913,10 +3742,10 @@ function buildEquationSolveFallback(
       equation.operation === "+"
         ? `Retire ${equation.knownValue} dos dois lados.`
         : `Some ${equation.knownValue} aos dois lados.`,
-      "Registre o valor de x e confira na equacao."
+      "Registre o valor de x e confira na equação."
     ],
     answer: String(equation.unknownValue),
-    calculationSpace: "linhas para calculo e resposta"
+    calculationSpace: "linhas para cálculo e resposta"
   };
 }
 
@@ -2931,27 +3760,27 @@ function buildEquationGuidedExampleFallback(
 
   return {
     actionType: "CREATE_GUIDED_EXAMPLE",
-    contextPrompt: "Crie uma equacao simples usando os valores disponiveis.",
+    contextPrompt: "Crie uma equação simples usando os valores disponíveis.",
     availableValues: [
       `valor desconhecido: ${equation.unknownValue}`,
-      `operacao: ${equation.operation}`,
-      `numero conhecido: ${equation.knownValue}`,
+      `operação: ${equation.operation}`,
+      `número conhecido: ${equation.knownValue}`,
       `resultado: ${equation.result}`,
       `modelo: ${equation.equation}`
     ],
     constructionSteps: [
       "Escolha o valor desconhecido.",
-      "Escolha a operacao.",
-      "Complete a equacao.",
+      "Escolha a operação.",
+      "Complete a equação.",
       "Resolva para conferir."
     ],
     fieldsToComplete: [
       "valor desconhecido",
-      "operacao",
-      "numero conhecido",
+      "operação",
+      "número conhecido",
       "resultado"
     ],
-    exampleAnswer: `${equation.equation}, entao x = ${equation.unknownValue}`,
+    exampleAnswer: `${equation.equation}, então x = ${equation.unknownValue}`,
     sourceInstruction: instruction,
     sourcePedagogicalPurpose: plannedTask.pedagogicalPurpose,
     sourceResponseMode: plannedTask.responseMode,
@@ -2987,9 +3816,11 @@ function buildDeterministicEquation(
     command,
     offset
   ].join("|"));
-  const unknownValue = 2 + (seed % 8);
   const knownValue = 2 + (Math.floor(seed / 8) % 7);
   const useAddition = seed % 2 === 0;
+  const unknownValue = useAddition
+    ? 2 + (seed % 8)
+    : knownValue + 1 + (seed % 7);
   const result = useAddition ? unknownValue + knownValue : unknownValue - knownValue;
   const operation = useAddition ? "+" : "-";
 
@@ -3276,6 +4107,8 @@ function buildFallbackStudentSheetContent(request: CreateMissionRequest, materia
   baseText: string;
   didacticBoxes: string[];
   tableRows: string[];
+  guidedReading?: Record<string, unknown>;
+  workedExample?: Record<string, unknown>;
 } {
   const input = request.input;
   const theme = input.theme ?? input.knowledgeObject ?? "conteudo estudado";
@@ -3283,19 +4116,39 @@ function buildFallbackStudentSheetContent(request: CreateMissionRequest, materia
     `${input.discipline ?? input.subject ?? ""} ${theme} ${input.skill ?? ""}`
   );
 
-  if (source.includes("matematica") && source.includes("equacao")) {
+  if (source.includes("matematica") && source.includes("equac")) {
     return {
-      title: "Equacoes do primeiro grau: descobrindo o valor desconhecido",
+      title: "Equações do primeiro grau: descobrindo o valor desconhecido",
       context:
-        "Uma equacao mostra uma igualdade. O valor desconhecido precisa deixar os dois lados com o mesmo resultado.",
-      baseText: "",
+        "Uma equação mostra uma igualdade. O valor desconhecido precisa deixar os dois lados com o mesmo resultado.",
+      baseText:
+        "Uma equação é uma igualdade com um valor desconhecido. Pense nela como uma balança: os dois lados precisam representar a mesma quantidade. Para descobrir x, fazemos a mesma transformação nos dois lados e depois substituímos o valor encontrado para conferir.",
+      guidedReading: {
+        title: "Equação é uma balança em equilíbrio",
+        text:
+          "Uma equação é uma igualdade com um valor desconhecido. Pense nela como uma balança: os dois lados precisam representar a mesma quantidade. Para descobrir x, fazemos a mesma transformação nos dois lados e depois substituímos o valor encontrado para conferir.",
+        keyIdea: "O sinal de igual mostra que o valor do lado esquerdo é o mesmo do lado direito.",
+        imageKind: "equation-balance",
+        imageAlt: "Balança em equilíbrio com uma caixa marcada com x e peças de contagem."
+      },
+      workedExample: {
+        title: "Vamos resolver juntos",
+        problem: "Resolva: 2x + 3 = 11",
+        steps: [
+          "Retire 3 dos dois lados: 2x + 3 - 3 = 11 - 3.",
+          "Simplifique a igualdade: 2x = 8.",
+          "Divida os dois lados por 2: x = 4."
+        ],
+        answer: "Resposta: x = 4",
+        check: "Conferindo: 2 × 4 + 3 = 8 + 3 = 11. A igualdade está correta."
+      },
       didacticBoxes: [
-        "Exemplo resolvido: se x + 3 = 8, entao x = 5, porque 5 + 3 = 8.",
+        "Exemplo resolvido: se x + 3 = 8, então x = 5, porque 5 + 3 = 8.",
         "Use caixas, setas e tabela para organizar cada passo.",
         "Leia uma etapa por vez e registre somente o necessario."
       ],
       tableRows: [
-        "Problema | Equacao | Valor de x",
+        "Problema | Equação | Valor de x",
         "x + 2 = 6 | O que falta para 2 chegar a 6? | ___",
         "x + 4 = 9 | O que falta para 4 chegar a 9? | ___"
       ]
@@ -3490,8 +4343,8 @@ function buildFallbackVisualElements(request: CreateMissionRequest): string[] {
     `${input.discipline ?? input.subject ?? ""} ${input.theme ?? input.knowledgeObject ?? ""}`
   );
 
-  if (source.includes("equacao")) {
-    return ["balanca de equacao", "pares de equacoes e resultados", "tabela de passos", "caixas de calculo"];
+  if (source.includes("equac")) {
+    return ["balança de equação", "pares de equações e resultados", "tabela de passos", "caixas de cálculo"];
   }
 
   if (source.includes("progressao") || source.includes("aritmetica")) {
@@ -3532,18 +4385,22 @@ function buildFallbackVisualElements(request: CreateMissionRequest): string[] {
 function buildTeacherGuide(
   generated: Record<string, unknown>,
   request: CreateMissionRequest,
-  materialBlueprint?: MaterialBlueprint
+  materialBlueprint?: MaterialBlueprint,
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): Record<string, unknown> {
   const source = isRecord(generated.teacherGuide) ? generated.teacherGuide : {};
   const curricularAnalysis = normalizeStringArray(
     source.curricularAnalysis,
-    buildCurricularAnalysis(generated, request)
+    buildCurricularAnalysis(generated, request, curriculumKnowledgePack)
   );
 
   return {
     skillCode: normalizeString(source.skillCode, normalizeString(generated.skillCode, request.input.skill ?? "")),
     knowledgeObject: normalizeString(source.knowledgeObject, request.input.knowledgeObject ?? ""),
-    curricularAnalysis,
+    curricularAnalysis: uniqueStrings([
+      ...buildOfficialCurriculumAnalysis(curriculumKnowledgePack),
+      ...curricularAnalysis
+    ]),
     objectives: normalizeStringArray(
       source.objectives,
       normalizeStringArray(generated.objectives, [
@@ -3582,7 +4439,8 @@ function buildTeacherGuide(
 
 function buildCurricularAnalysis(
   generated: Record<string, unknown>,
-  request: CreateMissionRequest
+  request: CreateMissionRequest,
+  curriculumKnowledgePack?: CurriculumKnowledgePack
 ): string[] {
   const input = request.input;
   const skill = normalizeString(generated.skillCode, input.skill ?? "");
@@ -3599,6 +4457,7 @@ function buildCurricularAnalysis(
   const generatedAnalysis = normalizeStringArray(generated.curricularAnalysis, []);
 
   return [
+    ...buildOfficialCurriculumAnalysis(curriculumKnowledgePack),
     ...generatedAnalysis,
     `Referencia curricular usada para orientar a analise: ${curriculumReference}.`,
     skill
@@ -3612,6 +4471,23 @@ function buildCurricularAnalysis(
       : "Competencia esperada inferida a partir da solicitacao do professor.",
     "As questoes devem exigir evidencia observavel da habilidade, nao apenas repetir palavras-chave do tema.",
     "Se uma tarefa nao avaliar diretamente a competencia curricular, ela deve ser descartada e reconstruida antes da entrega."
+  ];
+}
+
+function buildOfficialCurriculumAnalysis(
+  curriculumKnowledgePack?: CurriculumKnowledgePack
+): string[] {
+  if (!curriculumKnowledgePack) {
+    return [];
+  }
+
+  return [
+    `Fonte oficial recuperada: ${curriculumKnowledgePack.sourceDocument.title} (${curriculumKnowledgePack.sourceDocument.version}).`,
+    `Documento curricular: ${curriculumKnowledgePack.sourceDocument.url}.`,
+    `Habilidade oficial ${curriculumKnowledgePack.skill.code}: ${curriculumKnowledgePack.skill.skillText}`,
+    `Objeto oficial: ${curriculumKnowledgePack.skill.knowledgeObjects.join(", ")}.`,
+    `Expectativas de aprendizagem: ${curriculumKnowledgePack.skill.learningExpectations.join(" | ")}.`,
+    `Descritores relacionados: ${curriculumKnowledgePack.skill.descriptors.join(" | ")}.`
   ];
 }
 

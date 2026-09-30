@@ -1,5 +1,5 @@
-import { PrivateDashboard } from "../private-dashboard";
+import { PedagogicalMind } from "../pedagogical-mind";
 
 export default function AppPage(): React.ReactElement {
-  return <PrivateDashboard />;
+  return <PedagogicalMind />;
 }
