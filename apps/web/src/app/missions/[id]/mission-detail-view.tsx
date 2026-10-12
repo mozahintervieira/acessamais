@@ -138,6 +138,7 @@ export function MissionDetailView({
   }, [missionId]);
 
   async function loadMission(nextSelectedVersionId?: string): Promise<void> {
+      setIsLoading(true);
       try {
         setError(null);
         const response = await fetch(
@@ -257,7 +258,7 @@ export function MissionDetailView({
     <main className="missionShell">
       <section className="missionIntro">
         <p className="eyebrow">Editor de material</p>
-        <h1>{resource?.title ?? "Missao salva"}</h1>
+        <h1>{isLoading ? "Carregando material..." : error ? "Material indisponível" : resource?.title ?? "Material indisponível"}</h1>
         <p className="lead">
           Revise a atividade A4, imprima, copie, exporte e salve uma nova
           versao sem perder o historico.
@@ -277,10 +278,15 @@ export function MissionDetailView({
           <p className="emptyState">Carregando missao...</p>
         </section>
       ) : null}
-      {error ? <section className="resultPanel formError">{error}</section> : null}
+      {error ? <section className="resultPanel formError" role="alert">
+        <p>{error}</p>
+        <button type="button" disabled={isLoading} onClick={() => void loadMission()}>
+          {isLoading ? "Carregando..." : "Tentar novamente"}
+        </button>
+      </section> : null}
       {message ? <section className="resultPanel successMessage">{message}</section> : null}
 
-      {mission && resource && version ? (
+      {!error && !isLoading && mission && resource && version ? (
         <section className="missionDetailGrid">
           <aside className="resultPanel">
             <p className="resultStatus">{formatStatus(mission.status)}</p>
