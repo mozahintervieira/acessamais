@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-type Turn = { role: "user" | "assistant"; content: string };
+type Turn = { role: "user" | "assistant"; content: string; curriculum?: { checkedAt: string; sources: Array<{ title: string; url: string }> } };
 
 export function PedagogicalChat(): React.ReactElement {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -29,7 +29,7 @@ export function PedagogicalChat(): React.ReactElement {
       if (!response.ok || typeof payload.reply !== "string" || !payload.reply.trim()) {
         throw new Error(payload.message || "Não foi possível receber a resposta. Tente novamente.");
       }
-      setTurns([...next, { role: "assistant", content: payload.reply }]);
+      setTurns([...next, { role: "assistant", content: payload.reply, curriculum: payload.curriculum }]);
       setDraft("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Não foi possível receber a resposta.");
@@ -50,6 +50,10 @@ export function PedagogicalChat(): React.ReactElement {
       {turns.map((turn, index) => <article className={`mindDialogueTurn ${turn.role === "user" ? "teacher" : "assistant"}`} key={index}>
         <span>{turn.role === "user" ? "Você" : "ACESSA+"}</span>
         <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.65 }}>{turn.content}</div>
+        {turn.curriculum ? <aside aria-label="Referências curriculares">
+          <p>Busca curricular realizada em {new Date(turn.curriculum.checkedAt).toLocaleString("pt-BR")}. Referências não equivalem a validação pedagógica.</p>
+          <ul>{turn.curriculum.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>
+        </aside> : null}
       </article>)}
       {busy ? <article className="mindDialogueTurn teacher"><span>Você</span><p style={{ whiteSpace: "pre-wrap" }}>{draft}</p></article> : null}
     </section>

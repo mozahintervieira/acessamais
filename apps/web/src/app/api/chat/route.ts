@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../server/session";
+import { curriculumEvidence, curriculumInstructions, curriculumSearchTool } from "./curriculum-evidence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
           store: false,
-          instructions,
+          instructions: instructions.replace("Você não tem ferramenta de consulta curricular nesta conversa: deixe explícito quando a referência oficial precisar de conferência ou peça o trecho.", "") + "\n" + curriculumInstructions,
+          tools: [curriculumSearchTool],
+          tool_choice: "required",
+          include: ["web_search_call.action.sources"],
           input: messages.map((item: { role: string; content: string }) => ({ role: item.role, content: item.content })),
           max_output_tokens: 6000
         })
@@ -43,12 +47,17 @@ export async function POST(request: Request): Promise<NextResponse> {
           : "O serviço de IA não respondeu corretamente. Sua mensagem foi preservada; tente novamente." }, { status: 503 });
       }
       const payload = await response.json();
+      const evidence = curriculumEvidence(payload);
+      if (!evidence.searched) return NextResponse.json({ code: "CURRICULUM_SEARCH_FAILED", message: "A consulta online ao currículo não foi concluída. Não apresentaremos uma resposta como fundamentada sem essa consulta. Seu pedido foi preservado; tente novamente." }, { status: 503 });
       if (payload.status === "incomplete") return NextResponse.json({ message: "A resposta excedeu o limite desta mensagem. Peça a entrega em partes para receber o conteúdo completo." }, { status: 502 });
       const text = (payload.output ?? []).flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content ?? [])
         .filter((item: { type?: string; text?: string }) => item.type === "output_text" && typeof item.text === "string")
         .map((item: { text: string }) => item.text).join("\n").trim();
       if (!text) return NextResponse.json({ message: "A IA não retornou uma resposta de texto. Tente reformular ou enviar novamente." }, { status: 502 });
-      return NextResponse.json({ reply: text }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({
+        reply: evidence.citations.length ? text : "ALINHAMENTO CURRICULAR NÃO CONFIRMADO: a busca não retornou uma referência oficial citada para conferir esta resposta.\n\n" + text,
+        curriculum: { status: evidence.citations.length ? "SOURCES_CITED" : "NO_OFFICIAL_CITATION", checkedAt: new Date().toISOString(), sources: evidence.citations }
+      }, { headers: { "Cache-Control": "no-store" } });
     } finally {
       clearTimeout(timer);
     }

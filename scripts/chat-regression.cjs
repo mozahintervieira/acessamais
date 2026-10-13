@@ -10,15 +10,17 @@ function compile(file) {
   return result.outputText;
 }
 const code = compile('apps/web/src/app/api/chat/route.ts');
+const evidenceModule = {};
+vm.runInNewContext(compile('apps/web/src/app/api/chat/curriculum-evidence.ts'), { exports: evidenceModule, URL });
 compile('apps/web/src/app/pedagogical-chat.tsx');
 compile('apps/web/src/app/app/page.tsx');
-async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{ role: 'user', content: 'Como pode me ajudar no AEE?' }], status = 200, payload = { output: [{ content: [{ type: 'output_text', text: 'Resposta contextual' }] }] } } = {}) {
+async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{ role: 'user', content: 'Como pode me ajudar no AEE?' }], status = 200, payload = { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Resposta contextual', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br/curriculo/documentoscurriculares/', title: 'Currículo ES' }] }] }] } } = {}) {
   const exports = {};
   let sent;
   vm.runInNewContext(code, {
     exports, AbortController, setTimeout, clearTimeout,
     console: { error() {} }, process: { env: { OPENAI_API_KEY: key } },
-    require: name => name === 'next/server' ? { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } } : { getCurrentUser: async () => user },
+    require: name => name === './curriculum-evidence' ? evidenceModule : name === 'next/server' ? { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } } : { getCurrentUser: async () => user },
     fetch: async (url, options) => { sent = JSON.parse(options.body); return { ok: status === 200, status, json: async () => payload }; }
   });
   const response = await exports.POST({ json: async () => ({ messages }) });
@@ -33,9 +35,15 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   const success = await call({ messages: history });
   assert.deepEqual(success.sent.input, history);
   assert.equal(success.sent.store, false);
+  assert.equal(success.sent.tool_choice, 'required');
+  assert.equal(success.sent.tools[0].external_web_access, true);
+  assert.ok(success.sent.tools[0].filters.allowed_domains.includes('curriculo.sedu.es.gov.br'));
   assert.equal(success.response.body.reply, 'Resposta contextual');
   assert.equal((await call({ status: 429 })).response.status, 503);
-  assert.equal((await call({ payload: { status: 'incomplete', output: [] } })).response.status, 502);
-  assert.equal((await call({ payload: { output: [] } })).response.status, 502);
+  assert.equal((await call({ payload: { status: 'incomplete', output: [] } })).response.status, 503);
+  assert.equal((await call({ payload: { output: [] } })).response.status, 503);
+  const ungrounded = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Proposta', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br.evil.test/falso' }] }] }] } });
+  assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
+  assert.ok(ungrounded.response.body.reply.startsWith('ALINHAMENTO CURRICULAR NÃO CONFIRMADO'));
   console.log('PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output');
 })().catch(error => { console.error(error); process.exitCode = 1; });
