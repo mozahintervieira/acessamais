@@ -44,7 +44,19 @@ export async function POST(request: Request): Promise<NextResponse> {
         })
       });
       if (!response.ok) {
-        console.error("chat_provider_failed", { status: response.status });
+        const providerPayload = await response.json().catch(() => null);
+        const providerError = providerPayload && typeof providerPayload === "object"
+          ? (providerPayload as { error?: unknown }).error
+          : null;
+        const safeProviderError = providerError && typeof providerError === "object"
+          ? providerError as Record<string, unknown>
+          : {};
+        console.error("chat_provider_failed", {
+          status: response.status,
+          type: safeProviderValue(safeProviderError.type),
+          code: safeProviderValue(safeProviderError.code),
+          param: safeProviderValue(safeProviderError.param)
+        });
         return NextResponse.json({ message: response.status === 429
           ? "O serviço de IA atingiu um limite de uso. Aguarde e tente novamente; se persistir, o suporte precisa verificar a cota da API."
           : "O serviço de IA não respondeu corretamente. Sua mensagem foi preservada; tente novamente." }, { status: 503 });
@@ -81,3 +93,8 @@ function validMessage(value: unknown): value is { role: "user" | "assistant"; co
   return (message.role === "user" || message.role === "assistant") &&
     typeof message.content === "string" && !!message.content.trim() && message.content.length <= 12000;
 }
+
+function safeProviderValue(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9_.\-[\]]{1,120}$/.test(value) ? value : undefined;
+}
+
