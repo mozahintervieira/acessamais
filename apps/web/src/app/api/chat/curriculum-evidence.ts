@@ -1,7 +1,6 @@
 export type CurriculumCitation = { title: string; url: string };
 export const curriculumSearchTool = {
   type: "web_search",
-  external_web_access: true,
   filters: { allowed_domains: ["curriculo.sedu.es.gov.br", "sedu.es.gov.br"] }
 };
 
@@ -35,3 +34,4 @@ export function curriculumEvidence(payload: unknown): { searched: boolean; citat
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
+
