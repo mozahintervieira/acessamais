@@ -53,6 +53,9 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   assert.equal((await call({ status: 429 })).response.status, 503);
   assert.equal((await call({ payload: { status: 'incomplete', output: [] } })).response.status, 503);
   assert.equal((await call({ payload: { output: [] } })).response.status, 503);
+  const sourceOnly = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ type: 'url', url: 'https://curriculo.sedu.es.gov.br/curriculo/documentoscurriculares/', title: 'Currículo ES' }] } }, { content: [{ type: 'output_text', text: 'Proposta com fonte oficial', annotations: [] }] }] } });
+  assert.equal(sourceOnly.response.body.curriculum.status, 'SOURCES_CITED');
+  assert.equal(sourceOnly.response.body.curriculum.sources.length, 1);
   const ungrounded = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Proposta', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br.evil.test/falso' }] }] }] } });
   assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
   assert.ok(ungrounded.response.body.reply.startsWith('ALINHAMENTO CURRICULAR NÃO CONFIRMADO'));
