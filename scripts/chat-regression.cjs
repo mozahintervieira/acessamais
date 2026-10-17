@@ -47,7 +47,8 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   assert.equal(success.sent.store, false);
   assert.equal(success.sent.tool_choice, 'required');
   assert.equal(success.sent.tools[0].external_web_access, undefined);
-  assert.ok(success.sent.tools[0].filters.allowed_domains.includes('curriculo.sedu.es.gov.br'));
+  assert.equal(success.sent.tools[0].type, 'web_search');
+  assert.equal(success.sent.tools[0].filters, undefined);
   assert.equal(success.response.body.reply, 'Resposta contextual');
   assert.equal((await call({ status: 429 })).response.status, 503);
   assert.equal((await call({ payload: { status: 'incomplete', output: [] } })).response.status, 503);
