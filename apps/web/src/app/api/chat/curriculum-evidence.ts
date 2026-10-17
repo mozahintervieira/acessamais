@@ -11,23 +11,35 @@ export function curriculumEvidence(payload: unknown): { searched: boolean; citat
   const searched = output.some(item => record(item).type === "web_search_call" && record(item).status === "completed");
   const citations = new Map<string, CurriculumCitation>();
   for (const item of output) {
-    const content = record(item).content;
+    const itemRecord = record(item);
+    const actionSources = record(itemRecord.action).sources;
+    if (Array.isArray(actionSources)) {
+      for (const source of actionSources) addOfficialCitation(citations, record(source));
+    }
+    const content = itemRecord.content;
     if (!Array.isArray(content)) continue;
     for (const part of content) {
       const annotations = record(part).annotations;
       if (!Array.isArray(annotations)) continue;
       for (const annotation of annotations) {
         const source = record(annotation);
-        if (source.type !== "url_citation" || typeof source.url !== "string") continue;
-        try {
-          const url = new URL(source.url);
-          if (url.protocol !== "https:" || !["curriculo.sedu.es.gov.br", "sedu.es.gov.br"].includes(url.hostname)) continue;
-          citations.set(url.href, { url: url.href, title: typeof source.title === "string" ? source.title : "Documento oficial SEDU/ES" });
-        } catch { /* Invalid URLs must never become clickable citations. */ }
+        if (source.type === "url_citation") addOfficialCitation(citations, source);
       }
     }
   }
   return { searched, citations: [...citations.values()] };
+}
+
+function addOfficialCitation(citations: Map<string, CurriculumCitation>, source: Record<string, unknown>): void {
+  if (typeof source.url !== "string") return;
+  try {
+    const url = new URL(source.url);
+    if (url.protocol !== "https:" || !["curriculo.sedu.es.gov.br", "sedu.es.gov.br"].includes(url.hostname)) return;
+    citations.set(url.href, {
+      url: url.href,
+      title: typeof source.title === "string" && source.title.trim() ? source.title : "Documento oficial SEDU/ES"
+    });
+  } catch { /* Invalid URLs must never become clickable citations. */ }
 }
 
 function record(value: unknown): Record<string, unknown> {
