@@ -41,7 +41,7 @@ export async function fetchCurrentCurriculumCatalog(currentYear: number): Promis
 
 export function curriculumCatalogInstructions(catalog: CurriculumCatalog, requestText = ""): string {
   if (!catalog.documentUrls.length) return "O índice oficial vigente não pôde ser lido diretamente agora; não trate essa falha como confirmação curricular.";
-  const prioritized = prioritizeDocuments(catalog.documentUrls, requestText);
+  const prioritized = selectCurriculumDocuments(catalog, requestText);
   const documentList = prioritized.length ? prioritized : catalog.documentUrls.slice(0, 80);
   const priorityInstruction = prioritized.length
     ? "Os documentos abaixo foram selecionados pela etapa e pelo componente informados no pedido. Faça a busca pelo endereço exato, leia o arquivo e cite esse PDF na resposta. Não substitua esse documento por páginas genéricas como progressão, ementas ou o índice."
@@ -49,7 +49,7 @@ export function curriculumCatalogInstructions(catalog: CurriculumCatalog, reques
   return `CATÁLOGO OFICIAL LIDO EM TEMPO REAL PARA ${catalog.year}: os endereços foram extraídos da própria página ${catalog.sourceUrl}. ${priorityInstruction} O caminho do arquivo pode conter o ano de publicação técnica anterior, mas sua presença neste índice oficial o identifica como documento disponibilizado para ${catalog.year}. Só declare habilidade, código ou objeto depois de ler o documento específico.\n${documentList.map(url => `- ${url}`).join("\n")}`;
 }
 
-export function curriculumEvidence(payload: unknown, currentYear: number, catalog: CurriculumCatalog = { year: currentYear, sourceUrl: "", documentUrls: [] }): { searched: boolean; citations: CurriculumCitation[]; status: CurriculumEvidenceStatus } {
+export function curriculumEvidence(payload: unknown, currentYear: number, catalog: CurriculumCatalog = { year: currentYear, sourceUrl: "", documentUrls: [] }, attachedDocumentUrls: string[] = []): { searched: boolean; citations: CurriculumCitation[]; status: CurriculumEvidenceStatus } {
   const root = record(payload);
   const output = Array.isArray(root.output) ? root.output : [];
   const searched = output.some(item => record(item).type === "web_search_call" && record(item).status === "completed");
@@ -70,6 +70,9 @@ export function curriculumEvidence(payload: unknown, currentYear: number, catalo
         if (source.type === "url_citation") addOfficialCitation(citations, source, currentYear, catalog);
       }
     }
+  }
+  for (const url of attachedDocumentUrls) {
+    addOfficialCitation(citations, { url, title: `Documento curricular ${currentYear}: ${decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "arquivo oficial")}` }, currentYear, catalog);
   }
   const values = [...citations.values()];
   const status: CurriculumEvidenceStatus = values.some(source => source.currentYear && source.specificDocument)
@@ -113,7 +116,8 @@ function decodeHtml(value: string): string {
   return value.replace(/&amp;/g, "&").replace(/&#0*39;|&apos;/g, "'").replace(/&quot;/g, '"');
 }
 
-function prioritizeDocuments(urls: string[], requestText: string): string[] {
+export function selectCurriculumDocuments(catalog: CurriculumCatalog, requestText: string): string[] {
+  const urls = catalog.documentUrls;
   const request = normalize(requestText);
   const stage = /anos finais|\b(?:6|7|8|9)\s*(?:o|º|°)?\s*ano\b/.test(request) ? "EFAF"
     : /anos iniciais|\b(?:1|2|3|4|5)\s*(?:o|º|°)?\s*ano\b/.test(request) ? "EFAI"
