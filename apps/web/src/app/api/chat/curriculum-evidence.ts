@@ -39,9 +39,14 @@ export async function fetchCurrentCurriculumCatalog(currentYear: number): Promis
   return catalog;
 }
 
-export function curriculumCatalogInstructions(catalog: CurriculumCatalog): string {
+export function curriculumCatalogInstructions(catalog: CurriculumCatalog, requestText = ""): string {
   if (!catalog.documentUrls.length) return "O índice oficial vigente não pôde ser lido diretamente agora; não trate essa falha como confirmação curricular.";
-  return `CATÁLOGO OFICIAL LIDO EM TEMPO REAL PARA ${catalog.year}: os endereços abaixo foram extraídos da própria página ${catalog.sourceUrl}. Escolha o arquivo coerente com etapa e componente e consulte-o antes de declarar habilidade, código ou objeto. O caminho do arquivo pode conter o ano de publicação técnica anterior, mas sua presença neste índice oficial o identifica como documento disponibilizado para ${catalog.year}.\n${catalog.documentUrls.map(url => `- ${url}`).join("\n")}`;
+  const prioritized = prioritizeDocuments(catalog.documentUrls, requestText);
+  const documentList = prioritized.length ? prioritized : catalog.documentUrls.slice(0, 80);
+  const priorityInstruction = prioritized.length
+    ? "Os documentos abaixo foram selecionados pela etapa e pelo componente informados no pedido. Faça a busca pelo endereço exato, leia o arquivo e cite esse PDF na resposta. Não substitua esse documento por páginas genéricas como progressão, ementas ou o índice."
+    : "Não foi possível selecionar automaticamente um único arquivo; localize, entre os endereços abaixo, o documento coerente com a etapa e o componente.";
+  return `CATÁLOGO OFICIAL LIDO EM TEMPO REAL PARA ${catalog.year}: os endereços foram extraídos da própria página ${catalog.sourceUrl}. ${priorityInstruction} O caminho do arquivo pode conter o ano de publicação técnica anterior, mas sua presença neste índice oficial o identifica como documento disponibilizado para ${catalog.year}. Só declare habilidade, código ou objeto depois de ler o documento específico.\n${documentList.map(url => `- ${url}`).join("\n")}`;
 }
 
 export function curriculumEvidence(payload: unknown, currentYear: number, catalog: CurriculumCatalog = { year: currentYear, sourceUrl: "", documentUrls: [] }): { searched: boolean; citations: CurriculumCitation[]; status: CurriculumEvidenceStatus } {
@@ -106,6 +111,34 @@ function canonicalUrl(value: string): string {
 
 function decodeHtml(value: string): string {
   return value.replace(/&amp;/g, "&").replace(/&#0*39;|&apos;/g, "'").replace(/&quot;/g, '"');
+}
+
+function prioritizeDocuments(urls: string[], requestText: string): string[] {
+  const request = normalize(requestText);
+  const stage = /anos finais|\b(?:6|7|8|9)\s*(?:o|º|°)?\s*ano\b/.test(request) ? "EFAF"
+    : /anos iniciais|\b(?:1|2|3|4|5)\s*(?:o|º|°)?\s*ano\b/.test(request) ? "EFAI"
+      : /ensino medio|\b[123]\s*(?:a|ª)?\s*serie\b/.test(request) ? "EM"
+        : "";
+  const components: Array<[RegExp, string[]]> = [
+    [/ciencias?\b/, ["CI"]], [/matematica\b/, ["MAT"]], [/historia\b/, ["HIS"]],
+    [/geografia\b/, ["GE", "GEO"]], [/lingua portuguesa|portugues\b/, ["LP"]],
+    [/arte\b/, ["ARTE", "ART"]], [/educacao fisica\b/, ["EF"]],
+    [/ensino religioso\b/, ["ER"]], [/lingua inglesa|ingles\b/, ["LI", "ING"]],
+    [/biologia\b/, ["BIO"]], [/fisica\b/, ["FIS"]], [/quimica\b/, ["QUI"]],
+    [/filosofia\b/, ["FIL"]], [/sociologia\b/, ["SOC"]]
+  ];
+  const codes = components.find(([pattern]) => pattern.test(request))?.[1] ?? [];
+  if (!stage || !codes.length) return [];
+  return urls.filter(value => {
+    const filename = decodeURIComponent(new URL(value).pathname.split("/").pop() ?? "").toUpperCase();
+    const hasStage = stage === "EM" ? !filename.startsWith("EFAI_") && !filename.startsWith("EFAF_") : filename.includes(`${stage}_`);
+    const hasComponent = codes.some(code => new RegExp(`(?:^|_)${code}(?:_|\\.|-)`).test(filename));
+    return hasStage && hasComponent;
+  }).slice(0, 8);
+}
+
+function normalize(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
 function record(value: unknown): Record<string, unknown> {
