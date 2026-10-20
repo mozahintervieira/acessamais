@@ -78,6 +78,10 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   assert.ok(selectedCatalog.includes('EFAF_CI_26_09_12_25.pdf'));
   assert.ok(!selectedCatalog.includes('EFAI_CI_26_09_12_25.pdf'));
   assert.ok(!selectedCatalog.includes('EFAF_MAT_26.pdf'));
+  const selectedDocument = evidenceModule.selectCurriculumDocuments({ year: new Date().getFullYear(), sourceUrl: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', documentUrls: ['https://curriculo.sedu.es.gov.br/curriculo/wp-content/uploads/2025/12/EFAF_CI_26_09_12_25.pdf'] }, 'Ciências para o 6º ano');
+  assert.equal(selectedDocument.length, 1);
+  const attachedEvidence = evidenceModule.curriculumEvidence({ output: [{ type: 'web_search_call', status: 'completed' }] }, new Date().getFullYear(), { year: new Date().getFullYear(), sourceUrl: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', documentUrls: selectedDocument }, selectedDocument);
+  assert.equal(attachedEvidence.status, 'CURRENT_YEAR_DOCUMENT_CITED');
   const ungrounded = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Proposta', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br.evil.test/falso' }] }] }] } });
   assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
   assert.ok(ungrounded.response.body.reply.startsWith(`ALINHAMENTO CURRICULAR ${new Date().getFullYear()} NÃO CONFIRMADO`));
