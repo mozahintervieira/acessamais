@@ -41,6 +41,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       stage = "provider";
       const currentYear = new Date().getFullYear();
       const curriculumCatalog = await fetchCurrentCurriculumCatalog(currentYear);
+      const latestRequest = messages[messages.length - 1].content;
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -48,7 +49,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
           store: false,
-          instructions: instructions + "\n\n" + curriculumInstructions(currentYear) + "\n\n" + curriculumCatalogInstructions(curriculumCatalog),
+          instructions: instructions + "\n\n" + curriculumInstructions(currentYear) + "\n\n" + curriculumCatalogInstructions(curriculumCatalog, latestRequest),
           tools: [curriculumSearchTool],
           tool_choice: "required",
           include: ["web_search_call.action.sources"],
@@ -82,7 +83,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         .filter((item: { type?: string; text?: string }) => item.type === "output_text" && typeof item.text === "string")
         .map((item: { text: string }) => item.text).join("\n").trim();
       if (!text) return NextResponse.json({ message: "A IA não retornou uma resposta de texto. Tente reformular ou enviar novamente." }, { status: 502 });
-      const safeText = enforceCurriculumIntegrity(text, evidence.status, currentYear);
+      const safeText = enforceCurriculumIntegrity(text, evidence.status, currentYear, latestRequest);
       const alignmentNotice = evidence.status === "CURRENT_YEAR_DOCUMENT_CITED" ? "" : evidence.status === "CURRENT_YEAR_INDEX_ONLY"
         ? `ALINHAMENTO CURRICULAR ${currentYear} PARCIAL: a página oficial vigente foi consultada, mas nenhum documento específico do componente/etapa foi citado. Por segurança, o sistema removeu códigos, habilidades e objetos que não puderam ser comprovados.\n\n`
         : `ALINHAMENTO CURRICULAR ${currentYear} NÃO CONFIRMADO: a busca não retornou um documento oficial específico da edição vigente. Não atribua códigos ou habilidades à proposta sem conferência.\n\n`;
@@ -105,11 +106,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 }
 
-function enforceCurriculumIntegrity(text: string, status: ReturnType<typeof curriculumEvidence>["status"], currentYear: number): string {
-  if (status === "CURRENT_YEAR_DOCUMENT_CITED") return text;
+function enforceCurriculumIntegrity(text: string, status: ReturnType<typeof curriculumEvidence>["status"], currentYear: number, requestText = ""): string {
+  let result = text;
+  if (/n[aã]o\s+(?:mencione|inclua|pe[cç]a)[^.!?\n]{0,80}\b(?:imagem|figura|pictograma)/i.test(requestText)) {
+    result = result.replace(/\bimagens?\b/gi, "recursos concretos").replace(/\bfiguras?\b/gi, "recursos táteis").replace(/\bpictogramas?\b/gi, "pistas textuais");
+  }
+  if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
   const safeBase = `**BASE CURRICULAR CONSULTADA:**\n\n- **Referência vigente:** Orientações Curriculares ${currentYear} do Espírito Santo.\n- **Situação da conferência:** o documento específico do componente e da etapa não foi localizado ou citado nesta resposta.\n- **Habilidade, código e objeto de conhecimento:** não declarados, porque não foram comprovados no documento oficial específico.\n- **Decisão pedagógica do ACESSA+:** a proposta temática abaixo pode ser usada como rascunho pedagógico, mas não deve ser registrada como alinhamento curricular confirmado.`;
   const basePattern = /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
-  let sanitized = basePattern.test(text) ? text.replace(basePattern, safeBase + "\n\n") : safeBase + "\n\n" + text;
+  let sanitized = basePattern.test(result) ? result.replace(basePattern, safeBase + "\n\n") : safeBase + "\n\n" + result;
   sanitized = sanitized.replace(/\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g, "código curricular não confirmado");
   return sanitized;
 }
