@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../server/session";
-import { curriculumCatalogInstructions, curriculumEvidence, curriculumInstructions, curriculumSearchTool, fetchCurrentCurriculumCatalog } from "./curriculum-evidence";
+import { curriculumCatalogInstructions, curriculumEvidence, curriculumInstructions, curriculumSearchTool, fetchCurrentCurriculumCatalog, selectCurriculumDocuments } from "./curriculum-evidence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +42,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       const currentYear = new Date().getFullYear();
       const curriculumCatalog = await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
+      const curriculumDocuments = selectCurriculumDocuments(curriculumCatalog, latestRequest).slice(0, 1);
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -53,7 +54,12 @@ export async function POST(request: Request): Promise<NextResponse> {
           tools: [curriculumSearchTool],
           tool_choice: "required",
           include: ["web_search_call.action.sources"],
-          input: messages.map((item: { role: string; content: string }) => ({ role: item.role, content: item.content })),
+          input: messages.map((item: { role: string; content: string }, index: number) => ({
+            role: item.role,
+            content: index === messages.length - 1 && curriculumDocuments.length
+              ? [{ type: "input_text", text: item.content }, ...curriculumDocuments.map(fileUrl => ({ type: "input_file", file_url: fileUrl }))]
+              : item.content
+          })),
           max_output_tokens: 6000
         })
       });
@@ -76,7 +82,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           : "O serviço de IA não respondeu corretamente. Sua mensagem foi preservada; tente novamente." }, { status: 503 });
       }
       const payload = await response.json();
-      const evidence = curriculumEvidence(payload, currentYear, curriculumCatalog);
+      const evidence = curriculumEvidence(payload, currentYear, curriculumCatalog, curriculumDocuments);
       if (!evidence.searched) return NextResponse.json({ code: "CURRICULUM_SEARCH_FAILED", message: "A consulta online ao currículo não foi concluída. Não apresentaremos uma resposta como fundamentada sem essa consulta. Seu pedido foi preservado; tente novamente." }, { status: 503 });
       if (payload.status === "incomplete") return NextResponse.json({ message: "A resposta excedeu o limite desta mensagem. Peça a entrega em partes para receber o conteúdo completo." }, { status: 502 });
       const text = (payload.output ?? []).flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content ?? [])
