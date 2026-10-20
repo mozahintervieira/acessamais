@@ -68,6 +68,12 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   const indexOnly = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ type: 'url', url: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', title: 'Orientações Curriculares 2026' }] } }, { content: [{ type: 'output_text', text: 'Proposta' }] }] } });
   assert.equal(indexOnly.response.body.curriculum.status, 'CURRENT_YEAR_INDEX_ONLY');
   assert.ok(indexOnly.response.body.reply.startsWith(`ALINHAMENTO CURRICULAR ${new Date().getFullYear()} PARCIAL`));
+  const unsafeCurriculum = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ type: 'url', url: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', title: 'Orientações Curriculares 2026' }] } }, { content: [{ type: 'output_text', text: '**BASE CURRICULAR CONSULTADA:**\n\nObjeto de conhecimento: Células\nHabilidade: EF06CI05 inventada\n\n**MATERIAL DO ESTUDANTE:**\n\nAtividade completa.' }] }] } });
+  assert.ok(unsafeCurriculum.response.body.reply.includes('não declarados, porque não foram comprovados'));
+  assert.ok(!unsafeCurriculum.response.body.reply.includes('EF06CI05'));
+  assert.ok(!unsafeCurriculum.response.body.reply.includes('Objeto de conhecimento: Células'));
+  const catalogPdf = evidenceModule.curriculumEvidence({ output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ url: 'https://curriculo.sedu.es.gov.br/curriculo/wp-content/uploads/2025/12/EFAF_CI_26_09_12_25.pdf', title: 'Ciências - Anos Finais' }] } }] }, new Date().getFullYear(), { year: new Date().getFullYear(), sourceUrl: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', documentUrls: ['https://curriculo.sedu.es.gov.br/curriculo/wp-content/uploads/2025/12/EFAF_CI_26_09_12_25.pdf'] });
+  assert.equal(catalogPdf.status, 'CURRENT_YEAR_DOCUMENT_CITED');
   const ungrounded = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Proposta', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br.evil.test/falso' }] }] }] } });
   assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
   assert.ok(ungrounded.response.body.reply.startsWith(`ALINHAMENTO CURRICULAR ${new Date().getFullYear()} NÃO CONFIRMADO`));
