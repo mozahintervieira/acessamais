@@ -25,7 +25,9 @@ export async function fetchCurrentCurriculumCatalog(currentYear: number): Promis
     const urls = new Set<string>();
     for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
       try {
-        const url = new URL(decodeHtml(match[1]), sourceUrl);
+        const rawHref = match[1];
+        if (!rawHref) continue;
+        const url = new URL(decodeHtml(rawHref), sourceUrl);
         if (url.protocol !== "https:" || url.hostname !== "curriculo.sedu.es.gov.br") continue;
         if (!/\.(?:pdf|docx?|xlsx?)(?:$|\?)/i.test(url.href)) continue;
         url.hash = "";
