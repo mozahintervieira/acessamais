@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../server/session";
-import { curriculumCatalogInstructions, curriculumEvidence, curriculumInstructions, curriculumSearchTool, fetchCurrentCurriculumCatalog, selectCurriculumDocuments } from "./curriculum-evidence";
+import {
+  curriculumCatalogInstructions,
+  curriculumEvidence,
+  curriculumInstructions,
+  curriculumSearchTool,
+  fetchCurrentCurriculumCatalog,
+} from "./curriculum-evidence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,116 +29,264 @@ export async function POST(request: Request): Promise<NextResponse> {
   let stage = "session";
   try {
     const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ message: "Entre na sua conta para conversar com o ACESSA+." }, { status: 401 });
+    if (!user)
+      return NextResponse.json(
+        { message: "Entre na sua conta para conversar com o ACESSA+." },
+        { status: 401 },
+      );
     stage = "request";
     const body = await request.json().catch(() => null);
     const messages = body?.messages;
-    if (!Array.isArray(messages) || !messages.length || messages.length > 40 ||
+    if (
+      !Array.isArray(messages) ||
+      !messages.length ||
+      messages.length > 40 ||
       messages.some((item: unknown) => !validMessage(item)) ||
       messages[messages.length - 1].role !== "user" ||
-      messages.reduce((sum: number, item: { content: string }) => sum + item.content.length, 0) > 60000) {
-      return NextResponse.json({ message: "Envie uma mensagem de até 12.000 caracteres. Para conversas muito longas, inicie uma nova conversa com um resumo." }, { status: 400 });
+      messages.reduce(
+        (sum: number, item: { content: string }) => sum + item.content.length,
+        0,
+      ) > 60000
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Envie uma mensagem de até 12.000 caracteres. Para conversas muito longas, inicie uma nova conversa com um resumo.",
+        },
+        { status: 400 },
+      );
     }
     const apiKey = process.env.OPENAI_API_KEY?.trim();
-    if (!apiKey) return NextResponse.json({ message: "O serviço de IA não está configurado. O suporte precisa configurar a chave da API; seu pedido não precisa ser alterado." }, { status: 503 });
+    if (!apiKey)
+      return NextResponse.json(
+        {
+          message:
+            "O serviço de IA não está configurado. O suporte precisa configurar a chave da API; seu pedido não precisa ser alterado.",
+        },
+        { status: 503 },
+      );
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 50000);
     try {
       stage = "provider";
       const currentYear = new Date().getFullYear();
-      const curriculumCatalog = await fetchCurrentCurriculumCatalog(currentYear);
+      const curriculumCatalog =
+        await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
-      const curriculumDocuments = selectCurriculumDocuments(curriculumCatalog, latestRequest).slice(0, 1);
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
         signal: controller.signal,
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
           store: false,
-          instructions: instructions + "\n\n" + curriculumInstructions(currentYear) + "\n\n" + curriculumCatalogInstructions(curriculumCatalog, latestRequest),
+          instructions:
+            instructions +
+            "\n\n" +
+            curriculumInstructions(currentYear) +
+            "\n\n" +
+            curriculumCatalogInstructions(curriculumCatalog, latestRequest),
           tools: [curriculumSearchTool],
           tool_choice: "required",
           include: ["web_search_call.action.sources"],
-          input: messages.map((item: { role: string; content: string }, index: number) => ({
+          input: messages.map((item: { role: string; content: string }) => ({
             role: item.role,
-            content: index === messages.length - 1 && curriculumDocuments.length
-              ? [{ type: "input_text", text: item.content }, ...curriculumDocuments.map(fileUrl => ({ type: "input_file", file_url: fileUrl }))]
-              : item.content
+            content: item.content,
           })),
-          max_output_tokens: 6000
-        })
+          max_output_tokens: 6000,
+        }),
       });
       if (!response.ok) {
         const providerPayload = await response.json().catch(() => null);
-        const providerError = providerPayload && typeof providerPayload === "object"
-          ? (providerPayload as { error?: unknown }).error
-          : null;
-        const safeProviderError = providerError && typeof providerError === "object"
-          ? providerError as Record<string, unknown>
-          : {};
+        const providerError =
+          providerPayload && typeof providerPayload === "object"
+            ? (providerPayload as { error?: unknown }).error
+            : null;
+        const safeProviderError =
+          providerError && typeof providerError === "object"
+            ? (providerError as Record<string, unknown>)
+            : {};
         console.error("chat_provider_failed", {
           status: response.status,
           type: safeProviderValue(safeProviderError.type),
           code: safeProviderValue(safeProviderError.code),
-          param: safeProviderValue(safeProviderError.param)
+          param: safeProviderValue(safeProviderError.param),
         });
-        return NextResponse.json({ message: response.status === 429
-          ? "O serviço de IA atingiu um limite de uso. Aguarde e tente novamente; se persistir, o suporte precisa verificar a cota da API."
-          : "O serviço de IA não respondeu corretamente. Sua mensagem foi preservada; tente novamente." }, { status: 503 });
+        return NextResponse.json(
+          {
+            message:
+              response.status === 429
+                ? "O serviço de IA atingiu um limite de uso. Aguarde e tente novamente; se persistir, o suporte precisa verificar a cota da API."
+                : "O serviço de IA não respondeu corretamente. Sua mensagem foi preservada; tente novamente.",
+          },
+          { status: 503 },
+        );
       }
       const payload = await response.json();
-      const evidence = curriculumEvidence(payload, currentYear, curriculumCatalog, curriculumDocuments);
-      if (!evidence.searched) return NextResponse.json({ code: "CURRICULUM_SEARCH_FAILED", message: "A consulta online ao currículo não foi concluída. Não apresentaremos uma resposta como fundamentada sem essa consulta. Seu pedido foi preservado; tente novamente." }, { status: 503 });
-      if (payload.status === "incomplete") return NextResponse.json({ message: "A resposta excedeu o limite desta mensagem. Peça a entrega em partes para receber o conteúdo completo." }, { status: 502 });
-      const text = (payload.output ?? []).flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content ?? [])
-        .filter((item: { type?: string; text?: string }) => item.type === "output_text" && typeof item.text === "string")
-        .map((item: { text: string }) => item.text).join("\n").trim();
-      if (!text) return NextResponse.json({ message: "A IA não retornou uma resposta de texto. Tente reformular ou enviar novamente." }, { status: 502 });
-      const safeText = enforceCurriculumIntegrity(text, evidence.status, currentYear, latestRequest);
-      const alignmentNotice = evidence.status === "CURRENT_YEAR_DOCUMENT_CITED" ? "" : evidence.status === "CURRENT_YEAR_INDEX_ONLY"
-        ? `ALINHAMENTO CURRICULAR ${currentYear} PARCIAL: a página oficial vigente foi consultada, mas nenhum documento específico do componente/etapa foi citado. Por segurança, o sistema removeu códigos, habilidades e objetos que não puderam ser comprovados.\n\n`
-        : `ALINHAMENTO CURRICULAR ${currentYear} NÃO CONFIRMADO: a busca não retornou um documento oficial específico da edição vigente. Não atribua códigos ou habilidades à proposta sem conferência.\n\n`;
-      const officialSources = evidence.citations.length ? "\n\nFONTES OFICIAIS CONSULTADAS PELO SISTEMA\n" + evidence.citations.map(source => `- ${source.title}: ${source.url}`).join("\n") : "";
-      return NextResponse.json({
-        reply: alignmentNotice + safeText + officialSources,
-        curriculum: { status: evidence.status, year: currentYear, checkedAt: new Date().toISOString(), sources: evidence.citations }
-      }, { headers: { "Cache-Control": "no-store" } });
+      const evidence = curriculumEvidence(
+        payload,
+        currentYear,
+        curriculumCatalog,
+        [],
+      );
+      if (!evidence.searched)
+        return NextResponse.json(
+          {
+            code: "CURRICULUM_SEARCH_FAILED",
+            message:
+              "A consulta online ao currículo não foi concluída. Não apresentaremos uma resposta como fundamentada sem essa consulta. Seu pedido foi preservado; tente novamente.",
+          },
+          { status: 503 },
+        );
+      if (payload.status === "incomplete")
+        return NextResponse.json(
+          {
+            message:
+              "A resposta excedeu o limite desta mensagem. Peça a entrega em partes para receber o conteúdo completo.",
+          },
+          { status: 502 },
+        );
+      const text = (payload.output ?? [])
+        .flatMap(
+          (item: { content?: Array<{ type?: string; text?: string }> }) =>
+            item.content ?? [],
+        )
+        .filter(
+          (item: { type?: string; text?: string }) =>
+            item.type === "output_text" && typeof item.text === "string",
+        )
+        .map((item: { text: string }) => item.text)
+        .join("\n")
+        .trim();
+      if (!text)
+        return NextResponse.json(
+          {
+            message:
+              "A IA não retornou uma resposta de texto. Tente reformular ou enviar novamente.",
+          },
+          { status: 502 },
+        );
+      const safeText = enforceCurriculumIntegrity(
+        text,
+        evidence.status,
+        currentYear,
+        latestRequest,
+      );
+      const alignmentNotice =
+        evidence.status === "CURRENT_YEAR_DOCUMENT_CITED"
+          ? ""
+          : evidence.status === "CURRENT_YEAR_INDEX_ONLY"
+            ? `ALINHAMENTO CURRICULAR ${currentYear} PARCIAL: a página oficial vigente foi consultada, mas nenhum documento específico do componente/etapa foi citado. Por segurança, o sistema removeu códigos, habilidades e objetos que não puderam ser comprovados.\n\n`
+            : `ALINHAMENTO CURRICULAR ${currentYear} NÃO CONFIRMADO: a busca não retornou um documento oficial específico da edição vigente. Não atribua códigos ou habilidades à proposta sem conferência.\n\n`;
+      const officialSources = evidence.citations.length
+        ? "\n\nFONTES OFICIAIS CONSULTADAS PELO SISTEMA\n" +
+          evidence.citations
+            .map((source) => `- ${source.title}: ${source.url}`)
+            .join("\n")
+        : "";
+      return NextResponse.json(
+        {
+          reply: alignmentNotice + safeText + officialSources,
+          curriculum: {
+            status: evidence.status,
+            year: currentYear,
+            checkedAt: new Date().toISOString(),
+            sources: evidence.citations,
+          },
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     } finally {
       clearTimeout(timer);
     }
   } catch (error) {
-    const details = error && typeof error === "object" ? error as Record<string, unknown> : {};
+    const details =
+      error && typeof error === "object"
+        ? (error as Record<string, unknown>)
+        : {};
     // Log only allowlisted metadata: Prisma messages/meta may contain credentials or personal data.
     const candidate = details.code ?? details.errorCode;
-    const databaseCode = typeof candidate === "string" && /^P\d{4}$/.test(candidate) ? candidate : undefined;
-    console.error("chat_failed", { stage, name: typeof details.name === "string" && /^\w{1,80}$/.test(details.name) ? details.name : "UnknownError", databaseCode });
-    if (stage === "session") return NextResponse.json({ code: "SESSION_SERVICE_UNAVAILABLE", message: "Não foi possível verificar sua sessão devido a uma falha no serviço de acesso. A IA ainda não recebeu seu pedido. Sua mensagem foi preservada; o suporte precisa verificar o serviço." }, { status: 503 });
-    return NextResponse.json({ message: "A conversa foi interrompida por uma falha técnica. Sua mensagem foi preservada; tente novamente." }, { status: 503 });
+    const databaseCode =
+      typeof candidate === "string" && /^P\d{4}$/.test(candidate)
+        ? candidate
+        : undefined;
+    console.error("chat_failed", {
+      stage,
+      name:
+        typeof details.name === "string" && /^\w{1,80}$/.test(details.name)
+          ? details.name
+          : "UnknownError",
+      databaseCode,
+    });
+    if (stage === "session")
+      return NextResponse.json(
+        {
+          code: "SESSION_SERVICE_UNAVAILABLE",
+          message:
+            "Não foi possível verificar sua sessão devido a uma falha no serviço de acesso. A IA ainda não recebeu seu pedido. Sua mensagem foi preservada; o suporte precisa verificar o serviço.",
+        },
+        { status: 503 },
+      );
+    return NextResponse.json(
+      {
+        message:
+          "A conversa foi interrompida por uma falha técnica. Sua mensagem foi preservada; tente novamente.",
+      },
+      { status: 503 },
+    );
   }
 }
 
-function enforceCurriculumIntegrity(text: string, status: ReturnType<typeof curriculumEvidence>["status"], currentYear: number, requestText = ""): string {
+function enforceCurriculumIntegrity(
+  text: string,
+  status: ReturnType<typeof curriculumEvidence>["status"],
+  currentYear: number,
+  requestText = "",
+): string {
   let result = text;
-  if (/n[aã]o\s+(?:mencione|inclua|pe[cç]a)[^.!?\n]{0,80}\b(?:imagem|figura|pictograma)/i.test(requestText)) {
-    result = result.replace(/\bimagens?\b/gi, "recursos concretos").replace(/\bfiguras?\b/gi, "recursos táteis").replace(/\bpictogramas?\b/gi, "pistas textuais");
+  if (
+    /n[aã]o\s+(?:mencione|inclua|pe[cç]a)[^.!?\n]{0,80}\b(?:imagem|figura|pictograma)/i.test(
+      requestText,
+    )
+  ) {
+    result = result
+      .replace(/\bimagens?\b/gi, "recursos concretos")
+      .replace(/\bfiguras?\b/gi, "recursos táteis")
+      .replace(/\bpictogramas?\b/gi, "pistas textuais");
   }
   if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
   const safeBase = `**BASE CURRICULAR CONSULTADA:**\n\n- **Referência vigente:** Orientações Curriculares ${currentYear} do Espírito Santo.\n- **Situação da conferência:** o documento específico do componente e da etapa não foi localizado ou citado nesta resposta.\n- **Habilidade, código e objeto de conhecimento:** não declarados, porque não foram comprovados no documento oficial específico.\n- **Decisão pedagógica do ACESSA+:** a proposta temática abaixo pode ser usada como rascunho pedagógico, mas não deve ser registrada como alinhamento curricular confirmado.`;
-  const basePattern = /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
-  let sanitized = basePattern.test(result) ? result.replace(basePattern, safeBase + "\n\n") : safeBase + "\n\n" + result;
-  sanitized = sanitized.replace(/\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g, "código curricular não confirmado");
+  const basePattern =
+    /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
+  let sanitized = basePattern.test(result)
+    ? result.replace(basePattern, safeBase + "\n\n")
+    : safeBase + "\n\n" + result;
+  sanitized = sanitized.replace(
+    /\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g,
+    "código curricular não confirmado",
+  );
   return sanitized;
 }
 
-function validMessage(value: unknown): value is { role: "user" | "assistant"; content: string } {
+function validMessage(
+  value: unknown,
+): value is { role: "user" | "assistant"; content: string } {
   if (!value || typeof value !== "object") return false;
   const message = value as Record<string, unknown>;
-  return (message.role === "user" || message.role === "assistant") &&
-    typeof message.content === "string" && !!message.content.trim() && message.content.length <= 12000;
+  return (
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.content === "string" &&
+    !!message.content.trim() &&
+    message.content.length <= 12000
+  );
 }
 
 function safeProviderValue(value: unknown): string | undefined {
-  return typeof value === "string" && /^[A-Za-z0-9_.\-[\]]{1,120}$/.test(value) ? value : undefined;
+  return typeof value === "string" && /^[A-Za-z0-9_.\-[\]]{1,120}$/.test(value)
+    ? value
+    : undefined;
 }
 
