@@ -85,11 +85,13 @@ export function PedagogicalChat(): React.ReactElement {
           activeId?: string;
         };
         if (Array.isArray(parsed.projects) && parsed.projects.length) {
+          const firstProject = parsed.projects[0];
+          if (!firstProject) return;
           setProjects(parsed.projects);
           setActiveId(
             parsed.projects.some((project) => project.id === parsed.activeId)
               ? parsed.activeId!
-              : parsed.projects[0].id,
+              : firstProject.id,
           );
         }
       }
