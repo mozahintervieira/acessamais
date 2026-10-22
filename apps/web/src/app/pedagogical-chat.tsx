@@ -115,6 +115,7 @@ export function PedagogicalChat(): React.ReactElement {
   }, [activeId, hydrated, projects]);
 
   useEffect(() => {
+    if (!activeProject.turns.length && !busy) return;
     dialogue.current?.scrollTo({
       top: dialogue.current.scrollHeight,
       behavior: "smooth",
