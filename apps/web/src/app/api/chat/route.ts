@@ -284,9 +284,18 @@ function enforceDeliverableIntegrity(text: string): string {
       "Use a descrição acessível apresentada na própria atividade",
     )
     .replace(
-      /\blinguagem de sinais\b/gi,
+      /\blinguagem de sinais\b(?:\s+quando possível)?/gi,
       "Libras, quando pertinente e com profissional habilitado",
-    );
+    )
+    .replace(
+      /\n*\*\*ALINHAMENTO CURRICULAR \d{4} (?:PARCIAL|NÃO CONFIRMADO):\*\*[\s\S]*?(?=\*\*MATERIAL DO ESTUDANTE:\*\*)/i,
+      "\n\n",
+    )
+    .replace(
+      /\n+(?:\*\*)?FONTES OFICIAIS CONSULTADAS PELO SISTEMA(?:\*\*)?[\s\S]*$/i,
+      "",
+    )
+    .trim();
 }
 
 function validMessage(
