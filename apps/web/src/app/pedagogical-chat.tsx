@@ -63,7 +63,8 @@ export function PedagogicalChat(): React.ReactElement {
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [documentOpen, setDocumentOpen] = useState(true);
+  const [homeOpen, setHomeOpen] = useState(true);
+  const [documentOpen, setDocumentOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const sending = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -147,6 +148,7 @@ export function PedagogicalChat(): React.ReactElement {
     };
     setProjects((current) => [project, ...current]);
     setActiveId(project.id);
+    setHomeOpen(false);
     setDraft("");
     setError("");
   }
@@ -164,6 +166,7 @@ export function PedagogicalChat(): React.ReactElement {
       turns: [],
       updatedAt: new Date().toISOString(),
     }));
+    setHomeOpen(false);
     setDraft("");
     setError("");
   }
@@ -175,6 +178,7 @@ export function PedagogicalChat(): React.ReactElement {
     const next: Turn[] = [...activeProject.turns, { role: "user", content }];
     const projectId = activeProject.id;
     sending.current = true;
+    setHomeOpen(false);
     setBusy(true);
     setError("");
     updateActive((project) => ({
@@ -320,6 +324,7 @@ export function PedagogicalChat(): React.ReactElement {
                   key={project.id}
                   onClick={() => {
                     setActiveId(project.id);
+                    setHomeOpen(false);
                     setDraft("");
                     setError("");
                   }}
@@ -357,16 +362,23 @@ export function PedagogicalChat(): React.ReactElement {
       >
         <header className="studioConversationHeader">
           <div>
-            <small>Projeto atual</small>
-            <h1>{activeProject.name}</h1>
+            <small>{homeOpen ? "Espaço de criação" : "Projeto atual"}</small>
+            <h1>
+              {homeOpen ? "ACESSA+ Intelligence Studio" : activeProject.name}
+            </h1>
           </div>
           <div className="studioHeaderActions">
             <span>
-              <i /> Roteamento pedagógico
+              <i />{" "}
+              {homeOpen
+                ? `Currículo ES ${new Date().getFullYear()}`
+                : "Roteamento pedagógico"}
             </span>
-            <button type="button" onClick={newConversation}>
-              ＋ Nova conversa
-            </button>
+            {homeOpen ? null : (
+              <button type="button" onClick={newConversation}>
+                ＋ Nova conversa
+              </button>
+            )}
             <button
               className="studioIconButton"
               type="button"
@@ -383,7 +395,7 @@ export function PedagogicalChat(): React.ReactElement {
           aria-live="polite"
           aria-busy={busy}
         >
-          {!activeProject.turns.length ? (
+          {homeOpen || !activeProject.turns.length ? (
             <section className="studioEmptyState">
               <p className="mindKicker">
                 <span aria-hidden="true" /> Mente pedagógica ACESSA+
