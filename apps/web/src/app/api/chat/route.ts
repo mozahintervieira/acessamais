@@ -169,11 +169,13 @@ export async function POST(request: Request): Promise<NextResponse> {
           },
           { status: 502 },
         );
-      const safeText = enforceCurriculumIntegrity(
-        text,
-        evidence.status,
-        currentYear,
-        latestRequest,
+      const safeText = enforceDeliverableIntegrity(
+        enforceCurriculumIntegrity(
+          text,
+          evidence.status,
+          currentYear,
+          latestRequest,
+        ),
       );
       const alignmentNotice =
         evidence.status === "CURRENT_YEAR_DOCUMENT_CITED"
@@ -269,6 +271,22 @@ function enforceCurriculumIntegrity(
     "código curricular não confirmado",
   );
   return sanitized;
+}
+
+function enforceDeliverableIntegrity(text: string): string {
+  return text
+    .replace(
+      /\b(?:observe|analise|veja)\s+(?:a|o|as|os)\s+(?:imagem|figura|ilustra[cç][aã]o|pictograma)(?:\s+(?:abaixo|a seguir))?(?:\s+de)?/gi,
+      "Considere a descrição acessível apresentada na própria atividade sobre",
+    )
+    .replace(
+      /\b(?:use|utilize)\s+(?:a|o|as|os)\s+(?:imagem|figura|ilustra[cç][aã]o|pictograma)(?:\s+(?:abaixo|a seguir))?/gi,
+      "Use a descrição acessível apresentada na própria atividade",
+    )
+    .replace(
+      /\blinguagem de sinais\b/gi,
+      "Libras, quando pertinente e com profissional habilitado",
+    );
 }
 
 function validMessage(
