@@ -35,8 +35,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ message: "Informe um e-mail valido." }, { status: 400 });
   }
 
-  if (!isValidPhone(phone)) {
-    return NextResponse.json({ message: "Informe um telefone valido com DDD." }, { status: 400 });
+  if (phone && !isValidPhone(phone)) {
+    return NextResponse.json({ message: "Revise o telefone ou deixe o campo em branco." }, { status: 400 });
   }
 
   for (const referral of referrals) {
@@ -100,3 +100,4 @@ export async function POST(request: Request): Promise<NextResponse> {
 function redactSensitiveError(message: string): string {
   return message.replace(/postgres(?:ql)?:\/\/\\S+/gi, "[REDACTED_DATABASE_URL]");
 }
+
