@@ -34,12 +34,12 @@ export function isValidPhone(phone: string): boolean {
 export async function createTeacherAccount(input: {
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   password: string;
   referrals?: ReferralInput[];
 }): Promise<AuthenticatedUser> {
   const email = input.email.trim().toLowerCase();
-  const phone = normalizePhone(input.phone);
+  const phone = input.phone ? normalizePhone(input.phone) : "";
   const referrals = (input.referrals ?? []).map((referral) => ({
     name: referral.name?.trim() || undefined,
     email: referral.email?.trim().toLowerCase() || undefined,
@@ -88,7 +88,7 @@ export async function createTeacherAccount(input: {
         organizationId: organization.id,
         name: input.name.trim(),
         email,
-        phone,
+        phone: phone || null,
         passwordHash,
         role: "TEACHER",
         referralLeads: referrals.length
@@ -160,3 +160,4 @@ function withoutPassword(user: StoredDevUser): AuthenticatedUser {
     role: user.role
   };
 }
+
