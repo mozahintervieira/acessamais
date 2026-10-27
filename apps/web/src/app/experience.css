@@ -2198,6 +2198,12 @@ body:has(.studioShell) .whatsappContact {
   font-size: 0.78rem;
   font-weight: 700;
 }
+.authExperience .field > span {
+  color: #c8d7e8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
 .authExperience .field input {
   min-height: 50px;
   border: 1px solid rgba(140, 179, 219, 0.17);
