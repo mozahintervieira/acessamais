@@ -6,14 +6,9 @@ type AuthMode = "login" | "register";
 
 const registerSteps = ["Seus dados", "Sua segurança"];
 
-function phoneDigits(value: string): string {
-  return value.replace(/\D/g, "");
-}
-
 export function AuthForm({ mode }: { mode: AuthMode }): React.ReactElement {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [step, setStep] = useState(0);
   const [message, setMessage] = useState("");
@@ -24,10 +19,6 @@ export function AuthForm({ mode }: { mode: AuthMode }): React.ReactElement {
     if (step === 0) {
       if (name.trim().length < 2) return "Informe seu nome.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return "Informe um e-mail válido.";
-      const digits = phoneDigits(phone);
-      if (phone.trim() && (digits.length < 10 || digits.length > 15)) {
-        return "Revise o WhatsApp ou deixe o campo em branco.";
-      }
     }
 
     if (step === 1) {
@@ -71,7 +62,7 @@ export function AuthForm({ mode }: { mode: AuthMode }): React.ReactElement {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           isRegister
-            ? { name, email, phone: phone.trim() || undefined, password }
+            ? { name, email, password }
             : { email, password }
         )
       });
@@ -120,8 +111,7 @@ export function AuthForm({ mode }: { mode: AuthMode }): React.ReactElement {
           <div className="authStep">
             <label className="field"><span>Como podemos chamar você?</span><input autoComplete="name" value={name} onChange={(event) => setName(event.currentTarget.value)} placeholder="Seu nome" /></label>
             <label className="field"><span>Seu melhor e-mail</span><input autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.currentTarget.value)} placeholder="voce@escola.com.br" /></label>
-            <label className="field"><span>WhatsApp com DDD (opcional)</span><input autoComplete="tel" inputMode="tel" type="tel" value={phone} onChange={(event) => setPhone(event.currentTarget.value)} placeholder="(27) 99999-9999" /></label>
-            <p className="authHint">Seu e-mail identifica a conta. O WhatsApp é opcional e pode ser informado depois.</p>
+            <p className="authHint">Seu e-mail identifica a conta e será o canal de suporte e recuperação de acesso.</p>
           </div>
         ) : null}
 
@@ -137,6 +127,7 @@ export function AuthForm({ mode }: { mode: AuthMode }): React.ReactElement {
           <div className="authStep">
             <label className="field"><span>E-mail</span><input autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.currentTarget.value)} /></label>
             <label className="field"><span>Senha</span><input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.currentTarget.value)} /></label>
+            <a className="textLink" href="/recuperar-senha">Esqueci minha senha</a>
           </div>
         ) : null}
 
@@ -148,7 +139,7 @@ export function AuthForm({ mode }: { mode: AuthMode }): React.ReactElement {
           </button>
         </div>
         <a className="textLink" href={isRegister ? "/login" : "/cadastro"}>{isRegister ? "Já tenho conta" : "Criar conta"}</a>
-        <p className="authLegal">Ao criar a conta, você concorda com os <a href="/termos">Termos de Uso</a> e a <a href="/privacidade">Política de Privacidade</a>.</p>
+        {isRegister ? <p className="authLegal">Ao criar a conta, você concorda com os <a href="/termos">Termos de Uso</a> e a <a href="/privacidade">Política de Privacidade</a>.</p> : <p className="authLegal"><a href="/termos">Termos de Uso</a> · <a href="/privacidade">Política de Privacidade</a></p>}
       </form>
     </main>
   );

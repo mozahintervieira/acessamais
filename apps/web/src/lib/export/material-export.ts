@@ -328,7 +328,7 @@ function buildDocxWorksheet(plan: ExportWorksheetPlan, order: number): Array<Par
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 300 },
-      children: [new TextRun({ text: "acessa+ | educacao inclusiva na pratica - @mozahintervieira", bold: true, size: 18 })]
+      children: [new TextRun({ text: "ACESSA+ | educação inclusiva na prática | acessamais5.0@gmail.com", bold: true, size: 18 })]
     })
   );
 
@@ -538,3 +538,4 @@ function normalizeText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
+

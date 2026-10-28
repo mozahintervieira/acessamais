@@ -187,7 +187,7 @@ export function StudentSheetRenderer({
         ))}
       </ol>
 
-      <footer>ACESSA+ · educação inclusiva na prática · @mozahintervieira</footer>
+      <footer>ACESSA+ · educação inclusiva na prática · acessamais5.0@gmail.com</footer>
     </article>
   );
 }
@@ -1010,3 +1010,4 @@ function normalize(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
+

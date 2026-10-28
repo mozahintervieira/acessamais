@@ -98,6 +98,7 @@ model User {
   classrooms      Classroom[]
   students        Student[]
   sessions        AuthSession[]
+  passwordResetTokens PasswordResetToken[]
   usageEvents     UsageEvent[]
   referralLeads   ReferralLead[]
   createdAt      DateTime     @default(now())
@@ -134,6 +135,19 @@ model AuthSession {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
   @@index([expiresAt])
 }
 
@@ -678,3 +692,4 @@ model CurriculumReviewDecision {
   @@index([issueId])
   @@index([reviewer])
 }
+
