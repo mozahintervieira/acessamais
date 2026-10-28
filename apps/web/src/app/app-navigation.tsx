@@ -34,7 +34,9 @@ export function AppNavigation(): React.ReactElement | null {
     document.body.dataset.fontScale = String(fontScale);
   }, [simpleMode, highContrast, fontScale]);
 
-  if (pathname === "/") {
+  const publicRoutes = ["/", "/termos", "/privacidade", "/demonstracoes", "/recuperar-senha", "/redefinir-senha"];
+
+  if (publicRoutes.includes(pathname)) {
     return null;
   }
 
@@ -63,3 +65,4 @@ export function AppNavigation(): React.ReactElement | null {
     </header>
   );
 }
+
