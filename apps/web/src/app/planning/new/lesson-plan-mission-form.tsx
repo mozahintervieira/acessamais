@@ -534,7 +534,7 @@ function A4Preview({
             </ul>
           </section>
         ) : null}
-        <footer>acessa+ | educacao inclusiva na pratica - @mozahintervieira</footer>
+        <footer>ACESSA+ | educação inclusiva na prática | acessamais5.0@gmail.com</footer>
       </article>
     </aside>
   );
@@ -559,7 +559,7 @@ function buildCopyText(form: FormState, result: MissionResult): string {
     worksheet.worksheetTitle ?? "Atividade A4",
     worksheet.baseText ? `Texto-base: ${worksheet.baseText}` : "",
     ...questions.map((question, index) => `${index + 1}. ${question.command}`),
-    "acessa+ | educacao inclusiva na pratica - @mozahintervieira"
+    "ACESSA+ | educação inclusiva na prática | acessamais5.0@gmail.com"
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -568,3 +568,4 @@ function buildCopyText(form: FormState, result: MissionResult): string {
 function isTaskKey(value: string | null): value is TaskKey {
   return taskOptions.some((option) => option.key === value);
 }
+
