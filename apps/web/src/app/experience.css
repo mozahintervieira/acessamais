@@ -950,62 +950,6 @@ body.highContrastMode .mindResult {
   background: #000;
 }
 
-.whatsappContact {
-  position: fixed;
-  z-index: 80;
-  right: 22px;
-  bottom: 22px;
-  min-height: 52px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(129, 255, 201, 0.28);
-  border-radius: 999px;
-  padding: 0 18px 0 11px;
-  background: linear-gradient(135deg, #18a768, #087d50);
-  box-shadow:
-    0 16px 45px rgba(0, 0, 0, 0.36),
-    0 0 35px rgba(29, 195, 119, 0.16);
-  color: #fff;
-  font-size: 0.82rem;
-  text-decoration: none;
-}
-.whatsappContact > span {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 50%;
-  font-size: 1.05rem;
-  transform: rotate(-35deg);
-}
-.whatsappContact.awaitingNumber {
-  border-color: rgba(120, 176, 255, 0.26);
-  background: linear-gradient(135deg, #3267d4, #654ad4);
-}
-.whatsappContact:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-}
-body:has(.mindShell) .whatsappContact {
-  top: 96px;
-  bottom: auto;
-}
-body:has(.mindAppHeader) .whatsappContact {
-  top: 96px;
-  right: 14px;
-  bottom: auto;
-  width: 50px;
-  height: 50px;
-  min-height: 50px;
-  overflow: hidden;
-  padding: 8px;
-}
-body:has(.mindAppHeader) .whatsappContact > span {
-  flex: 0 0 32px;
-}
-
 .mindComposerBottom.conversational > p {
   max-width: 470px;
   margin: 0;
@@ -1177,11 +1121,6 @@ body:has(.studioShell) {
 body:has(.studioShell) .mindAppHeader {
   width: min(1580px, calc(100% - 32px));
   top: 12px;
-}
-body:has(.studioShell) .whatsappContact {
-  top: auto;
-  right: 18px;
-  bottom: 18px;
 }
 .studioShell {
   --studio-border: rgba(133, 170, 213, 0.17);
@@ -1952,9 +1891,6 @@ body:has(.studioShell) .whatsappContact {
   body:has(.studioShell) .mindAppHeader {
     width: calc(100% - 20px);
   }
-  body:has(.studioShell) .whatsappContact {
-    display: none;
-  }
   .studioShell,
   .studioShell.sidebarIsOpen,
   .studioShell.documentIsOpen,
@@ -2023,7 +1959,6 @@ body:has(.studioShell) .whatsappContact {
     background: #fff;
   }
   body:has(.studioShell) .mindAppHeader,
-  body:has(.studioShell) .whatsappContact,
   .studioSidebar,
   .studioConversation,
   .studioDocument > header,
@@ -2485,23 +2420,6 @@ body:has(.studioShell) .whatsappContact {
   .landingExampleGrid,
   .landingFounder {
     grid-template-columns: 1fr;
-  }
-  .whatsappContact {
-    right: 12px;
-    bottom: 12px;
-    width: 50px;
-    height: 50px;
-    min-height: 50px;
-    overflow: hidden;
-    padding: 8px;
-  }
-  body:has(.mindShell) .whatsappContact,
-  body:has(.mindAppHeader) .whatsappContact {
-    top: 84px;
-    bottom: auto;
-  }
-  .whatsappContact > span {
-    flex: 0 0 32px;
   }
   .authExperience {
     padding: 84px 14px 80px;
