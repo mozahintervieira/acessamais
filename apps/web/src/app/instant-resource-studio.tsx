@@ -753,7 +753,7 @@ function buildCopyText(plan: WorksheetPlan): string {
     ...(sheet.didacticBoxes ?? []).map((box) => `Quadro de apoio: ${box}`),
     ...(sheet.tableRows ?? []).map((row) => `Tabela: ${row}`),
     ...(sheet.questions ?? []).map((question, index) => `${index + 1}. ${question.command}`),
-    "acessa+ | educacao inclusiva na pratica - @mozahintervieira"
+    "ACESSA+ | educação inclusiva na prática | acessamais5.0@gmail.com"
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -860,3 +860,4 @@ function resolveTargetAudience(option: string): string {
 
   return map[option] ?? option;
 }
+
