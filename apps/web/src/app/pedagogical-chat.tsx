@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  exportWorksheetPdf,
+  exportWorksheetPng,
+} from "../lib/export/material-export";
 
 type Curriculum = {
   checkedAt: string;
@@ -65,10 +69,13 @@ export function PedagogicalChat(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [homeOpen, setHomeOpen] = useState(true);
   const [documentOpen, setDocumentOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState(false);
+  const [exportingDocument, setExportingDocument] = useState(false);
   const [copied, setCopied] = useState(false);
   const sending = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
   const dialogue = useRef<HTMLDivElement>(null);
+  const documentPreview = useRef<HTMLElement>(null);
   const activeProject = useMemo(
     () =>
       projects.find((project) => project.id === activeId) ??
@@ -269,6 +276,29 @@ export function PedagogicalChat(): React.ReactElement {
     anchor.download = `${safeFileName(activeProject.name)}.txt`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function downloadDocumentImage(format: "png" | "pdf"): Promise<void> {
+    if (
+      !activeProject.document ||
+      !documentPreview.current ||
+      exportingDocument
+    )
+      return;
+    setExportingDocument(true);
+    setError("");
+    try {
+      const options = { title: activeProject.name };
+      if (format === "png")
+        await exportWorksheetPng(documentPreview.current, options);
+      else await exportWorksheetPdf(documentPreview.current, options);
+    } catch {
+      setError(
+        "Não foi possível gerar o arquivo visual agora. O material continua disponível no editor.",
+      );
+    } finally {
+      setExportingDocument(false);
+    }
   }
 
   function printDocument(): void {
@@ -557,6 +587,13 @@ export function PedagogicalChat(): React.ReactElement {
             <button
               type="button"
               disabled={!activeProject.document}
+              onClick={() => setEditingDocument((value) => !value)}
+            >
+              {editingDocument ? "Visualizar A4" : "Editar texto"}
+            </button>
+            <button
+              type="button"
+              disabled={!activeProject.document}
               onClick={() => void copyDocument()}
             >
               {copied ? "✓ Copiado" : "□ Copiar"}
@@ -566,7 +603,21 @@ export function PedagogicalChat(): React.ReactElement {
               disabled={!activeProject.document}
               onClick={downloadDocument}
             >
-              ↓ Baixar TXT
+              ↓ TXT
+            </button>
+            <button
+              type="button"
+              disabled={!activeProject.document || exportingDocument}
+              onClick={() => void downloadDocumentImage("png")}
+            >
+              {exportingDocument ? "Preparando..." : "↓ PNG A4"}
+            </button>
+            <button
+              type="button"
+              disabled={!activeProject.document || exportingDocument}
+              onClick={() => void downloadDocumentImage("pdf")}
+            >
+              ↓ PDF A4
             </button>
             <button
               type="button"
@@ -577,18 +628,25 @@ export function PedagogicalChat(): React.ReactElement {
             </button>
           </div>
           {activeProject.document ? (
-            <textarea
-              className="studioDocumentEditor"
-              aria-label="Conteúdo editável do material"
-              value={activeProject.document}
-              onChange={(event) =>
-                updateActive((project) => ({
-                  ...project,
-                  document: event.currentTarget.value,
-                  updatedAt: new Date().toISOString(),
-                }))
-              }
-            />
+            editingDocument ? (
+              <textarea
+                className="studioDocumentEditor"
+                aria-label="Conteúdo editável do material"
+                value={activeProject.document}
+                onChange={(event) =>
+                  updateActive((project) => ({
+                    ...project,
+                    document: event.currentTarget.value,
+                    updatedAt: new Date().toISOString(),
+                  }))
+                }
+              />
+            ) : (
+              <DocumentPreview
+                content={activeProject.document}
+                previewRef={documentPreview}
+              />
+            )
           ) : (
             <div className="studioDocumentEmpty">
               <span>✦</span>
@@ -616,6 +674,110 @@ export function PedagogicalChat(): React.ReactElement {
   );
 }
 
+function DocumentPreview({
+  content,
+  previewRef,
+}: {
+  content: string;
+  previewRef: React.RefObject<HTMLElement | null>;
+}): React.ReactElement {
+  const nodes: React.ReactNode[] = [];
+  const lines = content.replace(/\r/g, "").split("\n");
+  let code: string[] | null = null;
+
+  for (const [index, rawLine] of lines.entries()) {
+    const line = rawLine.trim();
+    if (line.startsWith("```")) {
+      if (code) {
+        nodes.push(<pre key={`code-${index}`}>{code.join("\n")}</pre>);
+        code = null;
+      } else code = [];
+      continue;
+    }
+    if (code) {
+      code.push(rawLine);
+      continue;
+    }
+    if (!line) continue;
+    const heading = documentHeading(line);
+    if (heading) {
+      const Tag = heading.level === 1 ? "h1" : "h2";
+      nodes.push(
+        <Tag className={heading.className} key={`heading-${index}`}>
+          {heading.label}
+        </Tag>,
+      );
+      continue;
+    }
+    const listItem = line.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/);
+    if (listItem) {
+      nodes.push(
+        <p className="a4ListItem" key={`item-${index}`}>
+          <span aria-hidden="true">✓</span>
+          {cleanMarkdown(listItem[1] ?? "")}
+        </p>,
+      );
+      continue;
+    }
+    nodes.push(<p key={`paragraph-${index}`}>{cleanMarkdown(line)}</p>);
+  }
+  if (code?.length) nodes.push(<pre key="code-final">{code.join("\n")}</pre>);
+
+  return (
+    <div className="studioDocumentCanvas">
+      <article className="studioA4Preview" ref={previewRef}>
+        <header className="a4Brand">
+          <span>A+</span>
+          <div>
+            <strong>ACESSA+</strong>
+            <small>Material pedagógico inclusivo</small>
+          </div>
+        </header>
+        {nodes}
+        <div className="a4Footer">
+          ACESSA+ · material editável para revisão docente
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function documentHeading(line: string): {
+  level: 1 | 2;
+  label: string;
+  className: string;
+} | null {
+  const markdown = line.match(/^(#{1,3})\s+(.+)$/);
+  const bold = line.match(/^\*\*(.+?)\*\*:?$/);
+  const label = cleanMarkdown(markdown?.[2] ?? bold?.[1] ?? "");
+  if (!label) return null;
+  const normalized = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const primary =
+    markdown?.[1]?.length === 1 ||
+    /material do estudante|folha do estudante/.test(normalized);
+  const className = /leitura guiada/.test(normalized)
+    ? "a4Section a4Reading"
+    : /exemplo|modelo resolvido/.test(normalized)
+      ? "a4Section a4Example"
+      : /gabarito/.test(normalized)
+        ? "a4Section a4Answer"
+        : /guia|orientacoes.*professor|mediacao.*professor/.test(normalized)
+          ? "a4Section a4Teacher"
+          : "a4Section";
+  return { level: primary ? 1 : 2, label, className };
+}
+
+function cleanMarkdown(value: string): string {
+  return value
+    .replace(/\*\*/g, "")
+    .replace(/__+/g, "")
+    .replace(/`/g, "")
+    .trim();
+}
+
 function safeFileName(value: string): string {
   return (
     value
@@ -640,4 +802,3 @@ function escapeHtml(value: string): string {
       })[character] ?? character,
   );
 }
-

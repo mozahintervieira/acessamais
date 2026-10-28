@@ -1746,6 +1746,7 @@ body:has(.studioShell) .mindAppHeader {
 }
 .studioDocumentTools {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   border-bottom: 1px solid #d4dde7;
   padding: 9px 14px;
@@ -1789,6 +1790,143 @@ body:has(.studioShell) .mindAppHeader {
   box-shadow:
     0 15px 45px rgba(40, 57, 75, 0.09),
     0 0 0 3px rgba(70, 135, 225, 0.1);
+}
+.studioDocumentCanvas {
+  overflow: auto;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(67, 125, 235, 0.1), transparent 25%),
+    #e9eef4;
+}
+.studioA4Preview {
+  position: relative;
+  width: 794px;
+  min-height: 1123px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #d5dde7;
+  border-radius: 3px;
+  padding: 58px 62px 70px;
+  background:
+    radial-gradient(circle at 96% 2%, rgba(93, 77, 224, 0.13), transparent 18%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 18px 50px rgba(35, 52, 72, 0.13);
+  color: #172a44;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.studioA4Preview::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 10px;
+  background: linear-gradient(180deg, #4c73ff, #7458df 45%, #22a889);
+  content: "";
+}
+.a4Brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 28px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid #e2e9f2;
+}
+.a4Brand > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #397cff, #7953df);
+  box-shadow: 0 12px 25px rgba(76, 100, 220, 0.24);
+  color: #fff;
+  font-size: 21px;
+  font-weight: 900;
+}
+.a4Brand div {
+  display: grid;
+  gap: 2px;
+}
+.a4Brand strong {
+  letter-spacing: 0.12em;
+  font-size: 16px;
+}
+.a4Brand small {
+  color: #62758d;
+  font-size: 12px;
+}
+.studioA4Preview h1 {
+  margin: 6px 0 24px;
+  color: #0f2a53;
+  font-size: 30px;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+.studioA4Preview h2 {
+  margin: 26px 0 10px;
+  border-left: 5px solid #4778f3;
+  padding: 10px 14px;
+  background: #edf4ff;
+  color: #173765;
+  font-size: 18px;
+  line-height: 1.25;
+}
+.studioA4Preview h2.a4Reading {
+  border-color: #20a784;
+  background: #eaf9f4;
+  color: #11634f;
+}
+.studioA4Preview h2.a4Example {
+  border-color: #f0a12e;
+  background: #fff7e7;
+  color: #7b4a07;
+}
+.studioA4Preview h2.a4Answer,
+.studioA4Preview h2.a4Teacher {
+  border-color: #7557df;
+  background: #f3efff;
+  color: #49328f;
+}
+.studioA4Preview p {
+  margin: 0 0 11px;
+}
+.studioA4Preview .a4ListItem {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 7px;
+  margin: 7px 0;
+  border: 1px solid #e1e8f0;
+  border-radius: 9px;
+  padding: 9px 12px;
+  background: #fff;
+}
+.studioA4Preview .a4ListItem > span {
+  color: #20886c;
+  font-weight: 900;
+}
+.studioA4Preview pre {
+  overflow: hidden;
+  margin: 13px 0;
+  border: 1px solid #cfd9e6;
+  border-radius: 10px;
+  padding: 15px;
+  background: #f7fafc;
+  color: #142946;
+  font:
+    700 14px/1.45 "Courier New",
+    monospace;
+  white-space: pre-wrap;
+}
+.a4Footer {
+  position: absolute;
+  right: 62px;
+  bottom: 30px;
+  left: 62px;
+  border-top: 1px solid #dbe3ed;
+  padding-top: 10px;
+  color: #71839a;
+  font-size: 11px;
+  text-align: center;
 }
 .studioDocumentEmpty {
   max-width: 460px;
@@ -2298,7 +2436,11 @@ body:has(.studioShell) .mindAppHeader {
   border-radius: 22px;
   padding: 24px;
   background:
-    radial-gradient(circle at 95% 5%, rgba(66, 123, 240, 0.13), transparent 34%),
+    radial-gradient(
+      circle at 95% 5%,
+      rgba(66, 123, 240, 0.13),
+      transparent 34%
+    ),
     rgba(10, 23, 39, 0.78);
 }
 .landingExampleGrid article > span {
@@ -2369,7 +2511,11 @@ body:has(.studioShell) .mindAppHeader {
   min-height: 100vh;
   padding: 48px 22px 90px;
   background:
-    radial-gradient(circle at 15% 5%, rgba(50, 112, 229, 0.18), transparent 29%),
+    radial-gradient(
+      circle at 15% 5%,
+      rgba(50, 112, 229, 0.18),
+      transparent 29%
+    ),
     #050d17;
   color: #dbe7f4;
 }
@@ -2448,4 +2594,3 @@ body:has(.studioShell) .mindAppHeader {
     grid-template-columns: 1fr;
   }
 }
-

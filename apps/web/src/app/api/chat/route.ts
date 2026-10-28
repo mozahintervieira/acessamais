@@ -34,6 +34,7 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 5. Inclua GABARITO COMENTADO separado da folha do estudante, com respostas e critérios de correção; não deixe respostas visíveis na seção do estudante.
 6. Inclua GUIA DO PROFESSOR com objetivo, mediação, evidências de aprendizagem, avaliação formativa, princípios de DUA, acessibilidade e adaptações coerentes com as barreiras e apoios informados. Diagnóstico nunca substitui a descrição funcional do estudante.
 7. Use CAA, tecnologia assistiva, recursos concretos, multissensoriais ou tecnológicos somente quando tiverem função pedagógica clara. Para DV, considere alto contraste, fonte ampliada, descrição acessível, áudio ou recurso tátil; para DA, linguagem visual e Libras quando pertinente; para estudantes não alfabetizados, pareamento, pistas visuais e comandos curtos; para TEA e TDAH, previsibilidade, segmentação e baixa ambiguidade; para altas habilidades, aprofundamento e autoria. Não infantilize adolescentes ou adultos.
+8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Organize a resposta para uma folha A4 diagramada, com título curto, blocos visuais, comandos concisos e elementos que possam ser impressos. Não substitua a atividade por uma descrição de imagem; a interface transformará a folha final em PNG e PDF.
 
 REGRAS PARA JOGOS E ATIVIDADES ESTRUTURADAS:
 - Um caça-palavras precisa ser um jogo real, não uma lista de palavras em linhas. Crie uma grade quadrada com pelo menos 10 linhas, letras de preenchimento e palavras ocultas em direções variadas.
@@ -177,32 +178,71 @@ export async function POST(request: Request): Promise<NextResponse> {
           },
           { status: 502 },
         );
-      const firstQuality = validatePedagogicalDeliverable(latestRequest, text);
-      if (!firstQuality.valid) {
+      let quality = validatePedagogicalDeliverable(latestRequest, text);
+      if (!quality.valid) {
         stage = "quality-retry";
-        const retryResponse = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
-            store: false,
-            instructions: instructions + "\n\n" + curriculumInstructions(currentYear) + "\n\n" + curriculumCatalogInstructions(curriculumCatalog, latestRequest) + `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão foi rejeitada pelo sistema pelos seguintes motivos: ${firstQuality.issues.join("; ")}. Refaça integralmente e confira cada requisito antes de responder.`,
-            tools: [curriculumSearchTool],
-            tool_choice: "required",
-            include: ["web_search_call.action.sources"],
-            input: messages.map((item: { role: string; content: string }) => ({ role: item.role, content: item.content })),
-            max_output_tokens: 7000,
-          }),
-        });
-        if (!retryResponse.ok) return NextResponse.json({ message: "A revisão automática não conseguiu concluir o material. Seu pedido foi preservado; tente novamente." }, { status: 503 });
-        payload = await retryResponse.json();
-        evidence = curriculumEvidence(payload, currentYear, curriculumCatalog, []);
-        text = extractResponseText(payload);
-        const finalQuality = validatePedagogicalDeliverable(latestRequest, text);
-        if (!finalQuality.valid) {
-          console.error("chat_quality_rejected", { issues: finalQuality.issues.map(issue => issue.slice(0, 120)) });
-          return NextResponse.json({ code: "DELIVERABLE_QUALITY_FAILED", message: "O ACESSA+ não conseguiu validar esta atividade com segurança. Nenhum material incompleto foi entregue. Tente novamente ou peça outro formato de atividade." }, { status: 422 });
+        const firstText = text;
+        const firstEvidence = evidence;
+        const retryResponse = await fetch(
+          "https://api.openai.com/v1/responses",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+              store: false,
+              instructions:
+                instructions +
+                "\n\n" +
+                curriculumInstructions(currentYear) +
+                "\n\n" +
+                curriculumCatalogInstructions(
+                  curriculumCatalog,
+                  latestRequest,
+                ) +
+                `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
+              tools: [curriculumSearchTool],
+              tool_choice: "required",
+              include: ["web_search_call.action.sources"],
+              input: messages.map(
+                (item: { role: string; content: string }) => ({
+                  role: item.role,
+                  content: item.content,
+                }),
+              ),
+              max_output_tokens: 7000,
+            }),
+          },
+        );
+        if (retryResponse.ok) {
+          const retryPayload = await retryResponse.json();
+          const retryText = extractResponseText(retryPayload);
+          const retryEvidence = curriculumEvidence(
+            retryPayload,
+            currentYear,
+            curriculumCatalog,
+            [],
+          );
+          if (retryText.trim()) {
+            payload = retryPayload;
+            text = retryText;
+            evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
+            quality = validatePedagogicalDeliverable(latestRequest, text);
+          }
+        }
+        if (!text.trim()) {
+          text = firstText;
+          evidence = firstEvidence;
+          quality = validatePedagogicalDeliverable(latestRequest, text);
+        }
+        if (!quality.valid) {
+          console.error("chat_quality_needs_review", {
+            issues: quality.issues.map((issue) => issue.slice(0, 120)),
+          });
         }
       }
       const safeText = enforceDeliverableIntegrity(
@@ -219,15 +259,13 @@ export async function POST(request: Request): Promise<NextResponse> {
           : evidence.status === "CURRENT_YEAR_INDEX_ONLY"
             ? `\n\nNOTA CURRICULAR: a página oficial das Orientações Curriculares ${currentYear} foi consultada, mas o documento específico do componente e da etapa não foi comprovado nesta resposta. Por isso, o ACESSA+ não atribuiu código ou habilidade oficial.`
             : `\n\nNOTA CURRICULAR: não foi possível comprovar, no documento oficial específico de ${currentYear}, o código e a habilidade correspondentes. O material foi mantido como proposta pedagógica para revisão docente, sem alinhamento curricular declarado.`;
-      const officialSources = evidence.citations.length
-        ? "\n\nFONTES OFICIAIS CONSULTADAS PELO SISTEMA\n" +
-          evidence.citations
-            .map((source) => `- ${source.title}: ${source.url}`)
-            .join("\n")
-        : "";
       return NextResponse.json(
         {
-          reply: safeText + alignmentNotice + officialSources,
+          reply: safeText + alignmentNotice,
+          quality: {
+            status: quality.valid ? "VERIFIED" : "NEEDS_TEACHER_REVIEW",
+            issues: quality.issues,
+          },
           curriculum: {
             status: evidence.status,
             year: currentYear,
@@ -298,7 +336,9 @@ function enforceCurriculumIntegrity(
   if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
   const basePattern =
     /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
-  let sanitized = basePattern.test(result) ? result.replace(basePattern, "") : result;
+  let sanitized = basePattern.test(result)
+    ? result.replace(basePattern, "")
+    : result;
   sanitized = sanitized.replace(
     /\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g,
     "código curricular não confirmado",
@@ -308,6 +348,11 @@ function enforceCurriculumIntegrity(
 
 function enforceDeliverableIntegrity(text: string): string {
   return text
+    .replace(
+      /\n*(?:\*\*)?FONTES OFICIAIS CONSULTADAS(?: PELO SISTEMA)?:?\*{0,2}[\s\S]*$/i,
+      "",
+    )
+    .replace(/([?&])utm_source=openai(?:&[^\s)\]]*)?/gi, "")
     .replace(
       /\b(?:observe|analise|veja)\s+(?:a|o|as|os)\s+(?:imagem|figura|ilustra[cç][aã]o|pictograma)(?:\s+(?:abaixo|a seguir))?(?:\s+de)?/gi,
       "Considere a descrição acessível apresentada na própria atividade sobre",
@@ -343,10 +388,15 @@ function safeProviderValue(value: unknown): string | undefined {
 
 function extractResponseText(payload: any): string {
   return (payload.output ?? [])
-    .flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content ?? [])
-    .filter((item: { type?: string; text?: string }) => item.type === "output_text" && typeof item.text === "string")
+    .flatMap(
+      (item: { content?: Array<{ type?: string; text?: string }> }) =>
+        item.content ?? [],
+    )
+    .filter(
+      (item: { type?: string; text?: string }) =>
+        item.type === "output_text" && typeof item.text === "string",
+    )
     .map((item: { text: string }) => item.text)
     .join("\n")
     .trim();
 }
-
