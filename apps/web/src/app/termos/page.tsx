@@ -14,8 +14,8 @@ export default function TermsPage(): React.ReactElement {
         <p>Não inclua nomes completos, laudos, documentos, endereços ou outros dados identificáveis de estudantes. Use descrições funcionais das barreiras, formas de comunicação e apoios necessários.</p>
         <h2>Conteúdo e disponibilidade</h2>
         <p>O professor deve conferir enunciados, respostas, referências, imagens e acessibilidade antes do uso. Falhas técnicas podem ocorrer; quando isso acontecer, o sistema deve preservar o pedido sempre que tecnicamente possível e informar a limitação.</p>
-        <h2>Responsável e atendimento</h2>
-        <p>Responsável pelo projeto: Mozahinter Alves Vieira. Atendimento pelo WhatsApp <a href="https://wa.me/5527992977703">+55 27 99297-7703</a>.</p>
+        <h2>Atendimento</h2>
+        <p>O canal institucional do ACESSA+ é <a href="mailto:acessamais5.0@gmail.com">acessamais5.0@gmail.com</a>.</p>
         <p><a href="/">Voltar ao início</a></p>
       </article>
     </main>
