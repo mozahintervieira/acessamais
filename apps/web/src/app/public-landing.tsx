@@ -17,10 +17,11 @@ export function PublicLanding(): React.ReactElement {
           <a href="#exemplos">Exemplos</a>
           <a href="#inteligencia">A mente pedagógica</a>
           <a href="#seguranca">Segurança</a>
+          <a href="#duvidas">Dúvidas</a>
         </nav>
         <div className="landingActions">
           <a href="/login">Entrar</a>
-          <a className="landingButton small" href="/cadastro">Começar gratuitamente</a>
+          <a className="landingButton small" href="/cadastro">Conhecer o piloto</a>
         </div>
       </header>
 
@@ -32,11 +33,11 @@ export function PublicLanding(): React.ReactElement {
             Transforme uma intenção pedagógica em atividades acessíveis, planejamentos e materiais prontos para revisar — com currículo, DUA e inclusão no centro.
           </p>
           <div className="landingCtas">
-            <a className="landingButton" href="/cadastro">Criar gratuitamente <span aria-hidden="true">→</span></a>
+            <a className="landingButton" href="/cadastro">Criar conta para o piloto <span aria-hidden="true">→</span></a>
             <a className="landingTextButton" href="#como-funciona"><span aria-hidden="true">▷</span> Ver como funciona</a>
           </div>
           <div className="landingSignals" aria-label="Características do ACESSA+">
-            <span>Sem formulário longo</span><span>Revisão docente</span><span>PDF e DOCX</span>
+            <span>Sem formulário longo</span><span>Revisão docente</span><span>Editor e impressão</span>
           </div>
         </div>
         <div className="landingHeroArt" role="img" aria-label="Composição visual de conhecimento, acessibilidade e inteligência pedagógica" />
@@ -50,26 +51,26 @@ export function PublicLanding(): React.ReactElement {
         <div className="landingSectionIntro">
           <p className="landingKicker"><span aria-hidden="true" /> Resultado antes do cadastro</p>
           <h2 id="examples-title">Veja o que você pode construir.</h2>
-          <p>Três amostras mostram a lógica da entrega. O material final permanece editável e a decisão de uso é sempre do professor.</p>
+          <p>Três propostas demonstrativas mostram a estrutura de entrega. Elas foram elaboradas e revisadas manualmente e não comprovam, por si só, a geração automática.</p>
         </div>
         <div className="landingExampleGrid">
           <article>
             <span>ATIVIDADE ADAPTADA</span>
             <h3>Frações com apoio concreto</h3>
             <p>Leitura guiada, exemplo resolvido, progressão de tarefas e gabarito comentado para revisão docente.</p>
-            <details><summary>Ver amostra</summary><div><b>Pedido</b><p>Atividade de Matemática para o 6º ano, com comandos curtos e apoio visual funcional.</p><b>Entrega</b><p>Representação parte–todo, exemplo passo a passo, respostas por marcação e escrita e critérios de acompanhamento.</p></div></details>
+            <a className="landingTextButton" href="/demonstracoes#fracoes">Ver proposta completa <span aria-hidden="true">→</span></a>
           </article>
           <article>
             <span>PLANEJAMENTO DE AEE</span>
             <h3>Acesso, participação e autonomia</h3>
             <p>Objetivo pedagógico, barreiras observadas, apoios pertinentes e evidências possíveis de aprendizagem.</p>
-            <details><summary>Ver amostra</summary><div><b>Pedido</b><p>Planejar mediação para estudante que compreende o conteúdo, mas precisa organizar as etapas da tarefa.</p><b>Entrega</b><p>Sequência visual, modelo inicial, escolha de forma de resposta e registro formativo sem exigir diagnóstico.</p></div></details>
+            <a className="landingTextButton" href="/demonstracoes#aee">Ver proposta completa <span aria-hidden="true">→</span></a>
           </article>
           <article>
             <span>MATERIAL ACESSÍVEL</span>
             <h3>Ciências com leitura guiada</h3>
             <p>Conteúdo necessário para resolver, vocabulário acessível e diferentes formas de participação.</p>
-            <details><summary>Ver amostra</summary><div><b>Pedido</b><p>Material sobre ecossistemas para o 7º ano, com apoio para leitura e baixa ambiguidade.</p><b>Entrega</b><p>Texto-base curto, relações entre seres vivos, organizador visual e perguntas graduadas com respostas comentadas.</p></div></details>
+            <a className="landingTextButton" href="/demonstracoes#ecossistemas">Ver proposta completa <span aria-hidden="true">→</span></a>
           </article>
         </div>
       </section>
@@ -89,13 +90,25 @@ export function PublicLanding(): React.ReactElement {
         <div className="landingProofGrid"><article><strong>Contexto antes de resposta</strong><p>Currículo, objetivo e perfil pedagógico orientam o material.</p></article><article><strong>Dados mínimos</strong><p>Use informações necessárias para a personalização e evite dados clínicos sensíveis.</p></article><article><strong>Professor no controle</strong><p>A IA propõe. O professor revisa, edita e decide o que chega ao estudante.</p></article></div>
       </section>
 
-      <section className="landingFounder" aria-labelledby="founder-title">
-        <div><p className="landingKicker"><span aria-hidden="true" /> Criado dentro da educação inclusiva</p><h2 id="founder-title">Experiência pedagógica antes da tecnologia.</h2></div>
-        <p>O ACESSA+ foi idealizado por Mozahinter Alves Vieira, professor do Atendimento Educacional Especializado, autista e pai atípico. A plataforma nasce da prática com professores e estudantes e transforma essa experiência em apoio editável — sem substituir a autoria nem a decisão docente.</p>
+      <section className="landingFounder" aria-labelledby="institutional-title">
+        <div><p className="landingKicker"><span aria-hidden="true" /> Identidade institucional</p><h2 id="institutional-title">Experiência pedagógica antes da tecnologia.</h2></div>
+        <p>O ACESSA+ nasce da prática da educação inclusiva e transforma contexto pedagógico em apoio editável — sem substituir a autoria, a avaliação nem a decisão docente.</p>
       </section>
 
-      <section className="landingFinalCta"><p className="landingKicker"><span aria-hidden="true" /> O próximo material começa com uma frase</p><h2>Pronto para conversar com sua mente pedagógica?</h2><a className="landingButton" href="/cadastro">Começar gratuitamente <span aria-hidden="true">→</span></a></section>
-      <footer className="landingFooter"><span>ACESSA+ · Inteligência inclusiva para educação</span><div><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a><a href="/login">Entrar</a><a href="/cadastro">Criar conta</a></div></footer>
+      <section className="landingSection" id="duvidas" aria-labelledby="faq-title">
+        <div className="landingSectionIntro"><p className="landingKicker"><span aria-hidden="true" /> Transparência antes do cadastro</p><h2 id="faq-title">Dúvidas frequentes</h2></div>
+        <div className="landingExampleGrid">
+          <article><h3>O acesso é gratuito?</h3><p>O ACESSA+ está em piloto. Não há plano comercial ou cobrança publicados nesta página; condições futuras serão informadas antes de qualquer contratação.</p></article>
+          <article><h3>O material sai pronto?</h3><p>A plataforma propõe uma base editável. O professor precisa revisar conteúdo, currículo, acessibilidade e adequação ao estudante antes de aplicar.</p></article>
+          <article><h3>O currículo é conferido?</h3><p>Quando uma fonte oficial é consultada, a resposta deve apresentar a referência. Se a conferência não for possível, o ACESSA+ deve declarar a limitação e não inventar códigos.</p></article>
+          <article><h3>Posso editar e exportar?</h3><p>O estúdio permite revisar o texto, copiar, baixar em TXT e imprimir. Outros formatos só devem ser considerados disponíveis quando aparecerem na própria interface.</p></article>
+          <article><h3>Quais são os limites?</h3><p>IA pode errar ou interpretar mal um contexto. Não informe dados identificáveis de estudantes e mantenha a revisão humana em todas as entregas.</p></article>
+          <article><h3>Como falar com o ACESSA+?</h3><p>Use o e-mail institucional <a href="mailto:acessamais5.0@gmail.com">acessamais5.0@gmail.com</a>.</p></article>
+        </div>
+      </section>
+
+      <section className="landingFinalCta"><p className="landingKicker"><span aria-hidden="true" /> O próximo material começa com uma frase</p><h2>Pronto para conversar com sua mente pedagógica?</h2><a className="landingButton" href="/cadastro">Conhecer o piloto <span aria-hidden="true">→</span></a></section>
+      <footer className="landingFooter"><span>ACESSA+ · Inteligência inclusiva para educação</span><div><a href="mailto:acessamais5.0@gmail.com">Contato</a><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a><a href="/login">Entrar</a><a href="/cadastro">Criar conta</a></div></footer>
     </main>
   );
 }
