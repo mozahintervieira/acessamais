@@ -12,6 +12,8 @@ function compile(file) {
 const code = compile('apps/web/src/app/api/chat/route.ts');
 const evidenceModule = {};
 vm.runInNewContext(compile('apps/web/src/app/api/chat/curriculum-evidence.ts'), { exports: evidenceModule, URL });
+const qualityModule = {};
+vm.runInNewContext(compile('apps/web/src/app/api/chat/deliverable-quality.ts'), { exports: qualityModule });
 compile('apps/web/src/app/pedagogical-chat.tsx');
 compile('apps/web/src/app/app/page.tsx');
 async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{ role: 'user', content: 'Como pode me ajudar no AEE?' }], status = 200, payload = { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Resposta contextual', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br/curriculo/documentoscurriculares/', title: 'Currículo ES' }] }] }] } } = {}) {
@@ -21,7 +23,7 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   vm.runInNewContext(code, {
     exports, AbortController, setTimeout, clearTimeout,
     console: { error(...args) { logs.push(args); } }, process: { env: { OPENAI_API_KEY: key } },
-    require: name => name === './curriculum-evidence' ? evidenceModule : name === 'next/server' ? { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } } : { getCurrentUser: async () => { if (user?.failure) throw user.failure; return user; } },
+    require: name => name === './curriculum-evidence' ? evidenceModule : name === './deliverable-quality' ? qualityModule : name === 'next/server' ? { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } } : { getCurrentUser: async () => { if (user?.failure) throw user.failure; return user; } },
     fetch: async (url, options) => { sent = JSON.parse(options.body); return { ok: status === 200, status, json: async () => payload }; }
   });
   const response = await exports.POST({ json: async () => ({ messages }) });
@@ -54,7 +56,7 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   assert.ok(success.sent.instructions.includes('EXEMPLO COMPLETO RESOLVIDO'));
   assert.ok(success.sent.instructions.includes('GABARITO COMENTADO'));
   assert.ok(success.sent.instructions.includes('Não escreva “observe a imagem abaixo”'));
-  assert.ok(success.response.body.reply.startsWith(`ALINHAMENTO CURRICULAR ${new Date().getFullYear()} NÃO CONFIRMADO`));
+  assert.ok(success.response.body.reply.includes(`NOTA CURRICULAR`));
   assert.equal((await call({ status: 429 })).response.status, 503);
   assert.equal((await call({ payload: { status: 'incomplete', output: [] } })).response.status, 503);
   assert.equal((await call({ payload: { output: [] } })).response.status, 503);
@@ -67,9 +69,9 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   assert.equal(sourceOnly.response.body.curriculum.sources[0].specificDocument, true);
   const indexOnly = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ type: 'url', url: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', title: 'Orientações Curriculares 2026' }] } }, { content: [{ type: 'output_text', text: 'Proposta' }] }] } });
   assert.equal(indexOnly.response.body.curriculum.status, 'CURRENT_YEAR_INDEX_ONLY');
-  assert.ok(indexOnly.response.body.reply.startsWith(`ALINHAMENTO CURRICULAR ${new Date().getFullYear()} PARCIAL`));
+  assert.ok(indexOnly.response.body.reply.includes('NOTA CURRICULAR'));
   const unsafeCurriculum = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ type: 'url', url: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', title: 'Orientações Curriculares 2026' }] } }, { content: [{ type: 'output_text', text: '**BASE CURRICULAR CONSULTADA:**\n\nObjeto de conhecimento: Células\nHabilidade: EF06CI05 inventada\n\n**MATERIAL DO ESTUDANTE:**\n\nAtividade completa.' }] }] } });
-  assert.ok(unsafeCurriculum.response.body.reply.includes('não declarados, porque não foram comprovados'));
+  assert.ok(unsafeCurriculum.response.body.reply.includes('NOTA CURRICULAR'));
   assert.ok(!unsafeCurriculum.response.body.reply.includes('EF06CI05'));
   assert.ok(!unsafeCurriculum.response.body.reply.includes('Objeto de conhecimento: Células'));
   const missingVisual = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed', action: { sources: [{ type: 'url', url: 'https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/', title: 'Orientações Curriculares 2026' }] } }, { content: [{ type: 'output_text', text: 'Observe a imagem de uma célula e use o pictograma abaixo. Ofereça linguagem de sinais.' }] }] } });
@@ -88,7 +90,9 @@ async function call({ user = { id: 'teacher' }, key = 'test-only', messages = [{
   assert.equal(attachedEvidence.status, 'CURRENT_YEAR_DOCUMENT_CITED');
   const ungrounded = await call({ payload: { output: [{ type: 'web_search_call', status: 'completed' }, { content: [{ type: 'output_text', text: 'Proposta', annotations: [{ type: 'url_citation', url: 'https://curriculo.sedu.es.gov.br.evil.test/falso' }] }] }] } });
   assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
-  assert.ok(ungrounded.response.body.reply.startsWith(`ALINHAMENTO CURRICULAR ${new Date().getFullYear()} NÃO CONFIRMADO`));
+  assert.ok(ungrounded.response.body.reply.includes('NOTA CURRICULAR'));
+  const fakeWordSearch = '**PALAVRAS A ENCONTRAR:**\n- ROCHA\n- MAGMA\n- LAVA\n- GRANITO\n- BASALTO\n\n```wordsearch\nR O C H A M A G M A\nL A V A G R A N I T O\n```';
+  assert.equal(qualityModule.validateWordSearch(fakeWordSearch).valid, false);
   console.log('PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 
