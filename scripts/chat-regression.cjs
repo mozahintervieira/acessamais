@@ -438,6 +438,50 @@ async function call({
   assert.ok(
     bestEffort.response.body.reply.includes("Versão pedagógica inicial"),
   );
+  assert.ok(
+    bestEffort.response.body.reply.startsWith("**MATERIAL DO ESTUDANTE**"),
+  );
+  const normalizedComplete = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade pronta para impressão em folha A4.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(normalizedComplete.response.status, 200);
+  assert.equal(normalizedComplete.response.body.quality.status, "VERIFIED");
+  assert.ok(
+    normalizedComplete.response.body.reply.startsWith(
+      "**MATERIAL DO ESTUDANTE**",
+    ),
+  );
+  assert.ok(!normalizedComplete.response.body.reply.includes("http"));
+  const conversational = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Como adaptar uma atividade para favorecer a participação?",
+      },
+    ],
+  });
+  assert.equal(conversational.response.body.quality.status, "VERIFIED");
+  assert.ok(
+    !conversational.response.body.reply.includes("MATERIAL DO ESTUDANTE"),
+  );
   console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );

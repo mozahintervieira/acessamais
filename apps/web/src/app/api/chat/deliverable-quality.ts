@@ -6,10 +6,7 @@ export function validatePedagogicalDeliverable(
 ): QualityResult {
   const normalizedRequest = normalize(request);
   const issues: string[] = [];
-  const asksForMaterial =
-    /atividade|material|sequencia didatica|plano de aula|avaliacao|exercicio|caca-palavras/.test(
-      normalizedRequest,
-    );
+  const asksForMaterial = asksForPedagogicalDeliverable(normalizedRequest);
 
   if (asksForMaterial) {
     if (!/(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(response))
@@ -35,6 +32,21 @@ export function validatePedagogicalDeliverable(
   if (/\[(?:insira|adicione|imagem|figura|resposta)[^\]]*\]/i.test(response))
     issues.push("há marcador vazio ou recurso prometido que não foi entregue");
   return { valid: issues.length === 0, issues };
+}
+
+export function asksForPedagogicalDeliverable(request: string): boolean {
+  const normalizedRequest = normalize(request).trim();
+  if (/^(?:como|por que|porque|qual|quais|o que|quando|onde)\b/.test(normalizedRequest))
+    return false;
+  const deliverable =
+    "(?:atividade|material|sequencia didatica|plano de aula|avaliacao|exercicio|caca-palavras|folha a4)";
+  const productionVerb =
+    "(?:crie|criar|elabore|elaborar|produza|produzir|prepare|preparar|monte|montar|gere|gerar|faca|quero|preciso|necessito|adapte|adaptar)";
+  return (
+    new RegExp(`${productionVerb}[\\s\\S]{0,120}\\b${deliverable}\\b`).test(
+      normalizedRequest,
+    ) || new RegExp(`^(?:uma\\s+)?${deliverable}\\b`).test(normalizedRequest)
+  );
 }
 
 export function validateWordSearch(text: string): QualityResult {
