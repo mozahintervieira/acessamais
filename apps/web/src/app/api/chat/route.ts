@@ -7,7 +7,10 @@ import {
   curriculumSearchTool,
   fetchCurrentCurriculumCatalog,
 } from "./curriculum-evidence";
-import { validatePedagogicalDeliverable } from "./deliverable-quality";
+import {
+  asksForPedagogicalDeliverable,
+  validatePedagogicalDeliverable,
+} from "./deliverable-quality";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -380,16 +383,8 @@ function enforceRequiredDeliverableStructure(
   requestText: string,
   text: string,
 ): string {
-  const request = requestText
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-  const asksForStudentMaterial =
-    /atividade|material|sequencia didatica|avaliacao|exercicio|caca-palavras|folha a4/.test(
-      request,
-    );
   if (
-    !asksForStudentMaterial ||
+    !asksForPedagogicalDeliverable(requestText) ||
     /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(text)
   ) {
     return text.trim();

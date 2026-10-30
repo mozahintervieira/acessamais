@@ -470,6 +470,18 @@ async function call({
     ),
   );
   assert.ok(!normalizedComplete.response.body.reply.includes("http"));
+  const conversational = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Como adaptar uma atividade para favorecer a participação?",
+      },
+    ],
+  });
+  assert.equal(conversational.response.body.quality.status, "VERIFIED");
+  assert.ok(
+    !conversational.response.body.reply.includes("MATERIAL DO ESTUDANTE"),
+  );
   console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );
