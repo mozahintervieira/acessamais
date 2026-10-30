@@ -245,13 +245,20 @@ export async function POST(request: Request): Promise<NextResponse> {
           });
         }
       }
-      const safeText = enforceDeliverableIntegrity(
-        enforceCurriculumIntegrity(
-          text,
-          evidence.status,
-          currentYear,
-          latestRequest,
+      const safeText = enforceRequiredDeliverableStructure(
+        latestRequest,
+        enforceDeliverableIntegrity(
+          enforceCurriculumIntegrity(
+            text,
+            evidence.status,
+            currentYear,
+            latestRequest,
+          ),
         ),
+      );
+      const finalQuality = validatePedagogicalDeliverable(
+        latestRequest,
+        safeText,
       );
       const alignmentNotice =
         evidence.status === "CURRENT_YEAR_DOCUMENT_CITED"
@@ -263,8 +270,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         {
           reply: safeText + alignmentNotice,
           quality: {
-            status: quality.valid ? "VERIFIED" : "NEEDS_TEACHER_REVIEW",
-            issues: quality.issues,
+            status: finalQuality.valid ? "VERIFIED" : "NEEDS_TEACHER_REVIEW",
+            issues: finalQuality.issues,
           },
           curriculum: {
             status: evidence.status,
@@ -353,6 +360,8 @@ function enforceDeliverableIntegrity(text: string): string {
       "",
     )
     .replace(/([?&])utm_source=openai(?:&[^\s)\]]*)?/gi, "")
+    .replace(/\[([^\]]+)\]\(https?:\/\/[^\s)\]]+\)/gi, "$1")
+    .replace(/https?:\/\/[^\s)\]]+/gi, "")
     .replace(
       /\b(?:observe|analise|veja)\s+(?:a|o|as|os)\s+(?:imagem|figura|ilustra[cç][aã]o|pictograma)(?:\s+(?:abaixo|a seguir))?(?:\s+de)?/gi,
       "Considere a descrição acessível apresentada na própria atividade sobre",
@@ -365,6 +374,27 @@ function enforceDeliverableIntegrity(text: string): string {
       /\blinguagem de sinais\b/gi,
       "Libras, quando pertinente e com profissional habilitado",
     );
+}
+
+function enforceRequiredDeliverableStructure(
+  requestText: string,
+  text: string,
+): string {
+  const request = requestText
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const asksForStudentMaterial =
+    /atividade|material|sequencia didatica|avaliacao|exercicio|caca-palavras|folha a4/.test(
+      request,
+    );
+  if (
+    !asksForStudentMaterial ||
+    /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(text)
+  ) {
+    return text.trim();
+  }
+  return `**MATERIAL DO ESTUDANTE**\n\n${text.trim()}`;
 }
 
 function validMessage(
