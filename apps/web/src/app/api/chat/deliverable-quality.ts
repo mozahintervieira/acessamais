@@ -105,11 +105,27 @@ function extractSection(
   start: RegExp,
   end: RegExp,
 ): string {
-  const startMatch = start.exec(text);
-  if (!startMatch?.index && startMatch?.index !== 0) return "";
-  const tail = text.slice(startMatch.index + startMatch[0].length);
-  const endMatch = end.exec(tail);
-  return endMatch?.index === undefined ? tail : tail.slice(0, endMatch.index);
+  const lines = text.split(/\r?\n/);
+  const startIndex = lines.findIndex((line) => matchesHeading(line, start));
+  if (startIndex < 0) return "";
+  const endIndex = lines.findIndex(
+    (line, index) => index > startIndex && matchesHeading(line, end),
+  );
+  return lines
+    .slice(startIndex + 1, endIndex < 0 ? undefined : endIndex)
+    .join("\n");
+}
+
+function matchesHeading(line: string, pattern: RegExp): boolean {
+  const heading = line
+    .trim()
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\*\*/, "")
+    .replace(/[:*]+\s*$/, "")
+    .trim();
+  return new RegExp(`^(?:${pattern.source})$`, pattern.flags.replace("g", "")).test(
+    heading,
+  );
 }
 
 function extractRequestedQuestionCount(request: string): number | null {

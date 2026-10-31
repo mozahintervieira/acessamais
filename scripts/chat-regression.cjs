@@ -511,6 +511,30 @@ async function call({
     },
   });
   assert.ok(curriculumPhrase.response.body.reply.includes("alinhamento curricular"));
+  const colonHeadings = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade pronta para impressão em folha A4.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "**BASE CURRICULAR CONSULTADA:**\nReferência não confirmada.\n\n**MATERIAL DO ESTUDANTE:**\n\n**LEITURA GUIADA:**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO:**\nVamos resolver as questões usando adição.\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES:**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO:**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR:**\nMediação.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.ok(colonHeadings.response.body.reply.includes("Passo 1: observe"));
+  assert.ok(!colonHeadings.response.body.reply.includes("Referência não confirmada"));
+  assert.equal(colonHeadings.response.body.quality.status, "VERIFIED");
   const notReady = qualityModule.validatePedagogicalDeliverable(
     "Crie uma atividade visual pronta para impressão em folha A4.",
     "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO RESOLVIDO**\nFormação e características.\n\n**QUESTÕES**\nCrie cartões. Esconda amostras. Imprima imagens.\n\n**GABARITO COMENTADO**\nObjetivo: reconhecer o tema.\n\n**GUIA DO PROFESSOR**\nMediação.",

@@ -353,25 +353,40 @@ function enforceCurriculumIntegrity(
 }
 
 function removeUnverifiedCurriculumSections(text: string): string {
-  const curriculumHeading =
-    /^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)(?:[^\n*]*)?(?:\*\*)?\s*:?[ \t]*$/i;
-  const nextSectionHeading =
-    /^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|LEITURA GUIADA|EXEMPLO(?: COMPLETO)? RESOLVIDO|QUEST[ÕO]ES|ATIVIDADES|GABARITO(?: COMENTADO)?|GUIA DO PROFESSOR)(?:\*\*)?\s*:?[ \t]*$/i;
   let dropping = false;
   return text
     .split(/\r?\n/)
     .filter((line) => {
-      if (curriculumHeading.test(line)) {
+      const heading = normalizeHeading(line);
+      if (
+        /^(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)(?:\s+\d{4}.*)?$/i.test(
+          heading,
+        )
+      ) {
         dropping = true;
         return false;
       }
-      if (dropping && nextSectionHeading.test(line)) {
+      if (
+        dropping &&
+        /^(?:(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|LEITURA GUIADA|EXEMPLO(?: COMPLETO)? RESOLVIDO|QUEST[ÕO]ES|ATIVIDADES|GABARITO(?: COMENTADO)?|GUIA DO PROFESSOR)$/i.test(
+          heading,
+        )
+      ) {
         dropping = false;
         return true;
       }
       return !dropping;
     })
     .join("\n");
+}
+
+function normalizeHeading(line: string): string {
+  return line
+    .trim()
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\*\*/, "")
+    .replace(/[:*]+\s*$/, "")
+    .trim();
 }
 
 function enforceDeliverableIntegrity(text: string): string {
