@@ -25,13 +25,154 @@ export function validatePedagogicalDeliverable(
       )
     )
       issues.push("faltou guia do professor");
+    if (!/LEITURA GUIADA/i.test(response))
+      issues.push("faltou leitura guiada que ensine o conteúdo");
+
+    const example = extractSection(
+      response,
+      /(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO/i,
+      /(?:QUEST[ÕO]ES|ATIVIDADES|GABARITO|GUIA DO PROFESSOR)/i,
+    );
+    if (example && !/(?:PASSO\s*1|1[.)].*2[.)]|RESPOSTA FINAL)/is.test(example))
+      issues.push("o exemplo resolvido não apresenta passo a passo e resposta final");
+
+    const answerKey = extractSection(
+      response,
+      /GABARITO(?: COMENTADO)?/i,
+      /(?:GUIA|ORIENTA[CÇ][ÕO]ES|MEDIA[CÇ][ÃA]O) (?:DO|AO|PARA O) PROFESSOR/i,
+    );
+    const normalizedAnswerKey = stripMarkdownMarkers(answerKey);
+    const answerEntries = [
+      ...normalizedAnswerKey.matchAll(
+        /^\s*(?:(?:QUEST[ÃA]O|RESPOSTA)\s*)?\d+[.)-]\s+|^\s*(?:RESPOSTA|RESULTADO|ESPERA-SE)\b/gim,
+      ),
+    ].length;
+    if (answerKey && answerEntries === 0)
+      issues.push("o gabarito não apresenta as respostas ou resultados esperados");
   }
+
+  const asksForPrintableSheet =
+    /pront[ao] para (?:ser )?impress|folha a4|pront[ao] para (?:o )?estudante/.test(
+      normalizedRequest,
+    );
+  if (asksForPrintableSheet) {
+    const studentMaterial = extractSection(
+      response,
+      /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i,
+      /GABARITO(?: COMENTADO)?/i,
+    );
+    if (
+      /\b(?:crie cart[õo]es|esconda amostras|imprima imagens|prepare perguntas|pe[cç]a aos alunos|o professor deve preparar)\b/i.test(
+        studentMaterial,
+      )
+    )
+      issues.push(
+        "a folha delega ao professor a preparação de recursos em vez de entregar exercícios prontos",
+      );
+
+    const requestedQuestionCount = extractRequestedQuestionCount(normalizedRequest);
+    if (requestedQuestionCount) {
+      const questionSection = extractSection(
+        studentMaterial,
+        /QUEST[ÕO]ES|ATIVIDADES|EXERC[IÍ]CIOS/i,
+        /GABARITO|GUIA DO PROFESSOR/i,
+      );
+      const normalizedQuestions = stripMarkdownMarkers(
+        questionSection.trim()
+          ? questionSection
+          : contentAfterWorkedExample(studentMaterial),
+      );
+      const deliveredQuestionCount = [
+        ...normalizedQuestions.matchAll(
+          /^\s*(?:QUEST[ÃA]O\s*)?\d+[.)-]\s+/gim,
+        ),
+      ].length;
+      if (deliveredQuestionCount < requestedQuestionCount)
+        issues.push(
+          `foram solicitadas ${requestedQuestionCount} questões, mas a folha não entrega essa quantidade`,
+        );
+    }
+  }
+
+  if (
+    asksForMaterial &&
+    /visual|imagem|pista visual|apoio visual/.test(normalizedRequest) &&
+    !/(?:APOIO|PISTA|QUADRO) VISUAL|DESCRI[CÇ][AÃ]O ACESS[IÍ]VEL/i.test(response)
+  )
+    issues.push("faltou apoio visual entregue com descrição acessível");
 
   if (/caca-palavras/.test(normalizedRequest))
     issues.push(...validateWordSearch(response).issues);
   if (/\[(?:insira|adicione|imagem|figura|resposta)[^\]]*\]/i.test(response))
     issues.push("há marcador vazio ou recurso prometido que não foi entregue");
   return { valid: issues.length === 0, issues };
+}
+
+function stripMarkdownMarkers(text: string): string {
+  return text.replace(/[*_~`]/g, "");
+}
+
+function contentAfterWorkedExample(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const exampleHeading = lines.findIndex((line) =>
+    matchesHeading(line, /(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO/i),
+  );
+  if (exampleHeading < 0) return text;
+  const finalAnswer = lines.findIndex(
+    (line, index) =>
+      index > exampleHeading && /\bRESPOSTA FINAL\b/i.test(line),
+  );
+  return finalAnswer < 0 ? text : lines.slice(finalAnswer + 1).join("\n");
+}
+
+function extractSection(
+  text: string,
+  start: RegExp,
+  end: RegExp,
+): string {
+  const lines = text.split(/\r?\n/);
+  const startIndex = lines.findIndex((line) => matchesHeading(line, start));
+  if (startIndex < 0) return "";
+  const endIndex = lines.findIndex(
+    (line, index) => index > startIndex && matchesHeading(line, end),
+  );
+  return lines
+    .slice(startIndex + 1, endIndex < 0 ? undefined : endIndex)
+    .join("\n");
+}
+
+function matchesHeading(line: string, pattern: RegExp): boolean {
+  const heading = line
+    .trim()
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\*\*/, "")
+    .replace(/[:*]+\s*$/, "")
+    .trim();
+  return new RegExp(`^(?:${pattern.source})$`, pattern.flags.replace("g", "")).test(
+    heading,
+  );
+}
+
+function extractRequestedQuestionCount(request: string): number | null {
+  const match = request.match(
+    /\b(\d{1,2}|uma|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:questoes|atividades|exercicios)\b/,
+  );
+  if (!match?.[1]) return null;
+  const words: Record<string, number> = {
+    uma: 1,
+    duas: 2,
+    dois: 2,
+    tres: 3,
+    quatro: 4,
+    cinco: 5,
+    seis: 6,
+    sete: 7,
+    oito: 8,
+    nove: 9,
+    dez: 10,
+  };
+  const value = Number(match[1]);
+  return Number.isInteger(value) ? value : (words[match[1]] ?? null);
 }
 
 export function asksForPedagogicalDeliverable(request: string): boolean {
