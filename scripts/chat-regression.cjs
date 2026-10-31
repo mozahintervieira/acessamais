@@ -455,7 +455,7 @@ async function call({
           content: [
             {
               type: "output_text",
-              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
+              text: "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto que ensina o conteúdo.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe os dados.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Responda à questão.\n\n**GABARITO COMENTADO**\nResposta 1: resultado esperado e critério de correção.\n\n**GUIA DO PROFESSOR**\nMediação e avaliação formativa.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
             },
           ],
         },
@@ -482,6 +482,36 @@ async function call({
   assert.ok(
     !conversational.response.body.reply.includes("MATERIAL DO ESTUDANTE"),
   );
+  const notReady = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma atividade visual pronta para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO RESOLVIDO**\nFormação e características.\n\n**QUESTÕES**\nCrie cartões. Esconda amostras. Imprima imagens.\n\n**GABARITO COMENTADO**\nObjetivo: reconhecer o tema.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(notReady.valid, false);
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("recursos em vez de entregar")),
+  );
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("gabarito não apresenta")),
+  );
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("exemplo resolvido")),
+  );
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("apoio visual")),
+  );
+  const wrongQuantity = qualityModule.validatePedagogicalDeliverable(
+    "Crie cinco questões prontas para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Primeira.\n2. Segunda.\n\n**GABARITO COMENTADO**\nResposta 1: A.\nResposta 2: B.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.ok(
+    wrongQuantity.issues.some((issue) => issue.includes("foram solicitadas 5")),
+  );
+  const clientSource = fs.readFileSync(
+    path.join(root, "apps/web/src/app/pedagogical-chat.tsx"),
+    "utf8",
+  );
+  assert.match(clientSource, /messages: requestMessages/);
+  assert.match(clientSource, /content: activeProject\.document/);
   console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );

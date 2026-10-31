@@ -33,11 +33,11 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 1. Inclua BASE CURRICULAR CONSULTADA somente quando o documento oficial específico tiver sido realmente lido: etapa/ano, componente, objeto de conhecimento e habilidade oficial, com código e redação comprovados. Se a fonte específica não for confirmada, não crie uma seção curricular longa; concentre-se no material e deixe o sistema acrescentar uma nota curta ao final.
 2. Entregue MATERIAL DO ESTUDANTE pronto para uso, com título adequado à faixa etária, objetivo em linguagem clara e LEITURA GUIADA que explique o conteúdo necessário para realizar a atividade. A leitura deve ensinar, não apenas apresentar o tema.
 3. Inclua EXEMPLO COMPLETO RESOLVIDO, com raciocínio explicado passo a passo e resposta final. Nunca chame uma instrução vaga de exemplo.
-4. Crie questões e tarefas reais, completas e progressivas, em quantidade solicitada, com comandos objetivos e espaço/resposta esperada claramente definidos. Organize progressão cognitiva pela Taxonomia de Bloom sem exibir jargão desnecessário ao estudante.
-5. Inclua GABARITO COMENTADO separado da folha do estudante, com respostas e critérios de correção; não deixe respostas visíveis na seção do estudante.
+4. Crie questões e tarefas reais, completas e progressivas, em quantidade solicitada, com comandos objetivos e espaço/resposta esperada claramente definidos. Quando o pedido for uma folha pronta para impressão, cada questão deve poder ser realizada diretamente na folha: não delegue ao professor a criação de cartões, imagens, perguntas, caça ao tesouro ou outros materiais que não foram entregues. Organize progressão cognitiva pela Taxonomia de Bloom sem exibir jargão desnecessário ao estudante.
+5. Inclua GABARITO COMENTADO separado da folha do estudante, com a resposta correta ou resposta esperada de cada questão e critérios de correção; não substitua respostas por uma descrição do objetivo da tarefa e não deixe respostas visíveis na seção do estudante.
 6. Inclua GUIA DO PROFESSOR com objetivo, mediação, evidências de aprendizagem, avaliação formativa, princípios de DUA, acessibilidade e adaptações coerentes com as barreiras e apoios informados. Diagnóstico nunca substitui a descrição funcional do estudante.
 7. Use CAA, tecnologia assistiva, recursos concretos, multissensoriais ou tecnológicos somente quando tiverem função pedagógica clara. Para DV, considere alto contraste, fonte ampliada, descrição acessível, áudio ou recurso tátil; para DA, linguagem visual e Libras quando pertinente; para estudantes não alfabetizados, pareamento, pistas visuais e comandos curtos; para TEA e TDAH, previsibilidade, segmentação e baixa ambiguidade; para altas habilidades, aprofundamento e autoria. Não infantilize adolescentes ou adultos.
-8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Organize a resposta para uma folha A4 diagramada, com título curto, blocos visuais, comandos concisos e elementos que possam ser impressos. Não substitua a atividade por uma descrição de imagem; a interface transformará a folha final em PNG e PDF.
+8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Organize a resposta para uma folha A4 diagramada, com título curto, blocos visuais, comandos concisos e elementos que possam ser impressos. Se houver pedido de apoio visual, entregue na própria folha ao menos um QUADRO DE APOIO VISUAL concreto, com diagrama textual, símbolos ou descrição acessível realmente utilizável pelo estudante; não apenas recomende procurar ou inserir uma imagem. Não substitua a atividade por uma descrição de imagem; a interface transformará a folha final em PNG e PDF.
 
 REGRAS PARA JOGOS E ATIVIDADES ESTRUTURADAS:
 - Um caça-palavras precisa ser um jogo real, não uma lista de palavras em linhas. Crie uma grade quadrada com pelo menos 10 linhas, letras de preenchimento e palavras ocultas em direções variadas.
@@ -344,11 +344,9 @@ function enforceCurriculumIntegrity(
       .replace(/\bpictogramas?\b/gi, "pistas textuais");
   }
   if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
-  const basePattern =
-    /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
-  let sanitized = basePattern.test(result)
-    ? result.replace(basePattern, "")
-    : result;
+  const unverifiedCurriculumSection =
+    /(?:\*\*)?(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)[^\n]*\*{0,2}[\s\S]*?(?=(?:\*\*)?(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|(?:\*\*)?(?:LEITURA GUIADA|EXEMPLO|QUEST[ÕO]ES|GABARITO|GUIA DO PROFESSOR)|$)/gi;
+  let sanitized = result.replace(unverifiedCurriculumSection, "");
   sanitized = sanitized.replace(
     /\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g,
     "código curricular não confirmado",
