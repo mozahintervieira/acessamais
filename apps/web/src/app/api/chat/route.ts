@@ -33,11 +33,11 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 1. Inclua BASE CURRICULAR CONSULTADA somente quando o documento oficial específico tiver sido realmente lido: etapa/ano, componente, objeto de conhecimento e habilidade oficial, com código e redação comprovados. Se a fonte específica não for confirmada, não crie uma seção curricular longa; concentre-se no material e deixe o sistema acrescentar uma nota curta ao final.
 2. Entregue MATERIAL DO ESTUDANTE pronto para uso, com título adequado à faixa etária, objetivo em linguagem clara e LEITURA GUIADA que explique o conteúdo necessário para realizar a atividade. A leitura deve ensinar, não apenas apresentar o tema.
 3. Inclua EXEMPLO COMPLETO RESOLVIDO, com raciocínio explicado passo a passo e resposta final. Nunca chame uma instrução vaga de exemplo.
-4. Crie questões e tarefas reais, completas e progressivas, em quantidade solicitada, com comandos objetivos e espaço/resposta esperada claramente definidos. Organize progressão cognitiva pela Taxonomia de Bloom sem exibir jargão desnecessário ao estudante.
-5. Inclua GABARITO COMENTADO separado da folha do estudante, com respostas e critérios de correção; não deixe respostas visíveis na seção do estudante.
+4. Crie questões e tarefas reais, completas e progressivas, em quantidade solicitada, com comandos objetivos e espaço/resposta esperada claramente definidos. Quando o pedido for uma folha pronta para impressão, cada questão deve poder ser realizada diretamente na folha: não delegue ao professor a criação de cartões, imagens, perguntas, caça ao tesouro ou outros materiais que não foram entregues. Organize progressão cognitiva pela Taxonomia de Bloom sem exibir jargão desnecessário ao estudante.
+5. Inclua GABARITO COMENTADO separado da folha do estudante, com a resposta correta ou resposta esperada de cada questão e critérios de correção; não substitua respostas por uma descrição do objetivo da tarefa e não deixe respostas visíveis na seção do estudante.
 6. Inclua GUIA DO PROFESSOR com objetivo, mediação, evidências de aprendizagem, avaliação formativa, princípios de DUA, acessibilidade e adaptações coerentes com as barreiras e apoios informados. Diagnóstico nunca substitui a descrição funcional do estudante.
 7. Use CAA, tecnologia assistiva, recursos concretos, multissensoriais ou tecnológicos somente quando tiverem função pedagógica clara. Para DV, considere alto contraste, fonte ampliada, descrição acessível, áudio ou recurso tátil; para DA, linguagem visual e Libras quando pertinente; para estudantes não alfabetizados, pareamento, pistas visuais e comandos curtos; para TEA e TDAH, previsibilidade, segmentação e baixa ambiguidade; para altas habilidades, aprofundamento e autoria. Não infantilize adolescentes ou adultos.
-8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Organize a resposta para uma folha A4 diagramada, com título curto, blocos visuais, comandos concisos e elementos que possam ser impressos. Não substitua a atividade por uma descrição de imagem; a interface transformará a folha final em PNG e PDF.
+8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Organize a resposta para uma folha A4 diagramada, com título curto, blocos visuais, comandos concisos e elementos que possam ser impressos. Se houver pedido de apoio visual, entregue na própria folha ao menos um QUADRO DE APOIO VISUAL concreto, com diagrama textual, símbolos ou descrição acessível realmente utilizável pelo estudante; não apenas recomende procurar ou inserir uma imagem. Não substitua a atividade por uma descrição de imagem; a interface transformará a folha final em PNG e PDF.
 
 REGRAS PARA JOGOS E ATIVIDADES ESTRUTURADAS:
 - Um caça-palavras precisa ser um jogo real, não uma lista de palavras em linhas. Crie uma grade quadrada com pelo menos 10 linhas, letras de preenchimento e palavras ocultas em direções variadas.
@@ -96,6 +96,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       const curriculumCatalog =
         await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
+      const qualityRequest = pedagogicalQualityRequest(
+        messages,
+        latestRequest,
+      );
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -181,7 +185,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           },
           { status: 502 },
         );
-      let quality = validatePedagogicalDeliverable(latestRequest, text);
+      let quality = validatePedagogicalDeliverable(qualityRequest, text);
       if (!quality.valid) {
         stage = "quality-retry";
         const firstText = text;
@@ -234,13 +238,13 @@ export async function POST(request: Request): Promise<NextResponse> {
             payload = retryPayload;
             text = retryText;
             evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
-            quality = validatePedagogicalDeliverable(latestRequest, text);
+            quality = validatePedagogicalDeliverable(qualityRequest, text);
           }
         }
         if (!text.trim()) {
           text = firstText;
           evidence = firstEvidence;
-          quality = validatePedagogicalDeliverable(latestRequest, text);
+          quality = validatePedagogicalDeliverable(qualityRequest, text);
         }
         if (!quality.valid) {
           console.error("chat_quality_needs_review", {
@@ -249,7 +253,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
       }
       const safeText = enforceRequiredDeliverableStructure(
-        latestRequest,
+        qualityRequest,
         enforceDeliverableIntegrity(
           enforceCurriculumIntegrity(
             text,
@@ -260,7 +264,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         ),
       );
       const finalQuality = validatePedagogicalDeliverable(
-        latestRequest,
+        qualityRequest,
         safeText,
       );
       const alignmentNotice =
@@ -344,16 +348,49 @@ function enforceCurriculumIntegrity(
       .replace(/\bpictogramas?\b/gi, "pistas textuais");
   }
   if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
-  const basePattern =
-    /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
-  let sanitized = basePattern.test(result)
-    ? result.replace(basePattern, "")
-    : result;
+  let sanitized = removeUnverifiedCurriculumSections(result);
   sanitized = sanitized.replace(
     /\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g,
     "código curricular não confirmado",
   );
   return sanitized;
+}
+
+function removeUnverifiedCurriculumSections(text: string): string {
+  let dropping = false;
+  return text
+    .split(/\r?\n/)
+    .filter((line) => {
+      const heading = normalizeHeading(line);
+      if (
+        /^(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)(?:\s+\d{4}.*)?$/i.test(
+          heading,
+        )
+      ) {
+        dropping = true;
+        return false;
+      }
+      if (
+        dropping &&
+        /^(?:(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|LEITURA GUIADA|EXEMPLO(?: COMPLETO)? RESOLVIDO|QUEST[ÕO]ES|ATIVIDADES|GABARITO(?: COMENTADO)?|GUIA DO PROFESSOR)$/i.test(
+          heading,
+        )
+      ) {
+        dropping = false;
+        return true;
+      }
+      return !dropping;
+    })
+    .join("\n");
+}
+
+function normalizeHeading(line: string): string {
+  return line
+    .trim()
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\*\*/, "")
+    .replace(/[:*]+\s*$/, "")
+    .trim();
 }
 
 function enforceDeliverableIntegrity(text: string): string {
@@ -377,6 +414,29 @@ function enforceDeliverableIntegrity(text: string): string {
       /\blinguagem de sinais\b/gi,
       "Libras, quando pertinente e com profissional habilitado",
     );
+}
+
+function pedagogicalQualityRequest(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  latestRequest: string,
+): string {
+  const previousMaterialExists = messages
+    .slice(0, -1)
+    .some(
+      (message) =>
+        message.role === "assistant" &&
+        /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(
+          message.content,
+        ),
+    );
+  const isRevision =
+    /^(?:agora\s+)?(?:adapte|adicione|altere|inclua|mantenha|melhore|organize|permita|reduza|remova|retire|simplifique|substitua|troque)\b/i.test(
+      latestRequest.trim(),
+    );
+
+  return previousMaterialExists && isRevision
+    ? `Adapte a atividade existente. ${latestRequest}`
+    : latestRequest;
 }
 
 function enforceRequiredDeliverableStructure(

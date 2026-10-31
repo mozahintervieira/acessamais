@@ -183,6 +183,24 @@ export function PedagogicalChat(): React.ReactElement {
     if (sending.current || !draft.trim()) return;
     const content = draft.trim();
     const next: Turn[] = [...activeProject.turns, { role: "user", content }];
+    const requestMessages = next.map((turn) => ({ ...turn }));
+    let lastAssistantIndex = -1;
+    for (let index = requestMessages.length - 1; index >= 0; index -= 1) {
+      if (requestMessages[index]?.role === "assistant") {
+        lastAssistantIndex = index;
+        break;
+      }
+    }
+    if (
+      activeProject.document.trim() &&
+      lastAssistantIndex >= 0 &&
+      requestMessages[lastAssistantIndex]?.content !== activeProject.document
+    ) {
+      requestMessages[lastAssistantIndex] = {
+        ...requestMessages[lastAssistantIndex]!,
+        content: activeProject.document,
+      };
+    }
     const projectId = activeProject.id;
     sending.current = true;
     setHomeOpen(false);
@@ -197,7 +215,7 @@ export function PedagogicalChat(): React.ReactElement {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: requestMessages }),
       });
       const payload = await response.json();
       if (

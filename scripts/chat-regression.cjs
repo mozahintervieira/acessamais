@@ -455,7 +455,7 @@ async function call({
           content: [
             {
               type: "output_text",
-              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
+              text: "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto que ensina o conteúdo.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe os dados.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Responda à questão.\n\n**GABARITO COMENTADO**\nResposta 1: resultado esperado e critério de correção.\n\n**GUIA DO PROFESSOR**\nMediação e avaliação formativa.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
             },
           ],
         },
@@ -470,6 +470,46 @@ async function call({
     ),
   );
   assert.ok(!normalizedComplete.response.body.reply.includes("http"));
+  const revisionIsStillValidated = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade de Ciências com cinco questões.",
+      },
+      {
+        role: "assistant",
+        content:
+          "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Questão.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+      },
+      {
+        role: "user",
+        content:
+          "Agora reduza para três questões e permita respostas por apontamento.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Versão reduzida para três questões.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(
+    revisionIsStillValidated.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
+  assert.ok(
+    revisionIsStillValidated.response.body.reply.startsWith(
+      "**MATERIAL DO ESTUDANTE**",
+    ),
+  );
   const conversational = await call({
     messages: [
       {
@@ -482,6 +522,99 @@ async function call({
   assert.ok(
     !conversational.response.body.reply.includes("MATERIAL DO ESTUDANTE"),
   );
+  assert.equal(
+    qualityModule.validatePedagogicalDeliverable(
+      "Como apoiar um estudante com deficiência visual?",
+      "Considere fonte ampliada, contraste e audiodescrição conforme a barreira observada.",
+    ).valid,
+    true,
+  );
+  const curriculumPhrase = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Como você pode me ajudar no planejamento?",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Posso ajudar com planejamento e alinhamento curricular, adaptações e avaliação.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.ok(curriculumPhrase.response.body.reply.includes("alinhamento curricular"));
+  const colonHeadings = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade pronta para impressão em folha A4.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "**BASE CURRICULAR CONSULTADA:**\nReferência não confirmada.\n\n**MATERIAL DO ESTUDANTE:**\n\n**LEITURA GUIADA:**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO:**\nVamos resolver as questões usando adição.\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES:**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO:**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR:**\nMediação.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.ok(colonHeadings.response.body.reply.includes("Passo 1: observe"));
+  assert.ok(!colonHeadings.response.body.reply.includes("Referência não confirmada"));
+  assert.equal(colonHeadings.response.body.quality.status, "VERIFIED");
+  const notReady = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma atividade visual pronta para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO RESOLVIDO**\nFormação e características.\n\n**QUESTÕES**\nCrie cartões. Esconda amostras. Imprima imagens.\n\n**GABARITO COMENTADO**\nObjetivo: reconhecer o tema.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(notReady.valid, false);
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("recursos em vez de entregar")),
+  );
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("gabarito não apresenta")),
+  );
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("exemplo resolvido")),
+  );
+  assert.ok(
+    notReady.issues.some((issue) => issue.includes("apoio visual")),
+  );
+  const wrongQuantity = qualityModule.validatePedagogicalDeliverable(
+    "Crie cinco questões prontas para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Primeira.\n2. Segunda.\n\n**GABARITO COMENTADO**\nResposta 1: A.\nResposta 2: B.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.ok(
+    wrongQuantity.issues.some((issue) => issue.includes("foram solicitadas 5")),
+  );
+  const markdownQuestionNumbers = qualityModule.validatePedagogicalDeliverable(
+    "Crie duas questões prontas para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n**1.** Quanto é 2 + 2?\n**2.** Quanto é 1 + 2?\n\n**GABARITO COMENTADO**\n1. 4.\n2. 3.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(markdownQuestionNumbers.valid, true);
+  const numberedAnswerKey = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma atividade pronta para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(numberedAnswerKey.valid, true);
+  const clientSource = fs.readFileSync(
+    path.join(root, "apps/web/src/app/pedagogical-chat.tsx"),
+    "utf8",
+  );
+  assert.match(clientSource, /messages: requestMessages/);
+  assert.match(clientSource, /content: activeProject\.document/);
   console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );
