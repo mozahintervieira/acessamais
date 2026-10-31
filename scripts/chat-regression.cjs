@@ -599,6 +599,11 @@ async function call({
   assert.ok(
     wrongQuantity.issues.some((issue) => issue.includes("foram solicitadas 5")),
   );
+  const markdownQuestionNumbers = qualityModule.validatePedagogicalDeliverable(
+    "Crie duas questões prontas para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n**1.** Quanto é 2 + 2?\n**2.** Quanto é 1 + 2?\n\n**GABARITO COMENTADO**\n1. 4.\n2. 3.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(markdownQuestionNumbers.valid, true);
   const numberedAnswerKey = qualityModule.validatePedagogicalDeliverable(
     "Crie uma atividade pronta para impressão em folha A4.",
     "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR**\nMediação.",

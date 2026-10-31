@@ -76,8 +76,11 @@ export function validatePedagogicalDeliverable(
         /QUEST[ÕO]ES|ATIVIDADES|EXERC[IÍ]CIOS/i,
         /GABARITO|GUIA DO PROFESSOR/i,
       );
+      const normalizedQuestions = questions.replace(/[*_~`]/g, "");
       const deliveredQuestionCount = [
-        ...questions.matchAll(/^\s*(?:QUEST[ÃA]O\s*)?\d+[.)-]\s+/gim),
+        ...normalizedQuestions.matchAll(
+          /^\s*(?:QUEST[ÃA]O\s*)?\d+[.)-]\s+/gim,
+        ),
       ].length;
       if (deliveredQuestionCount < requestedQuestionCount)
         issues.push(
