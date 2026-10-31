@@ -33,7 +33,11 @@ export function validatePedagogicalDeliverable(
       /(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO/i,
       /(?:QUEST[ÕO]ES|ATIVIDADES|GABARITO|GUIA DO PROFESSOR)/i,
     );
-    if (example && !/(?:PASSO\s*1|1[.)].*2[.)]|RESPOSTA FINAL)/is.test(example))
+    const exampleHasSteps =
+      /PASSO\s*1[\s\S]*PASSO\s*2/i.test(example) ||
+      /^\s*1[.)-]\s+.+[\s\S]*^\s*2[.)-]\s+/im.test(example);
+    const exampleHasFinalAnswer = /\bRESPOSTA FINAL\b/i.test(example);
+    if (example && (!exampleHasSteps || !exampleHasFinalAnswer))
       issues.push("o exemplo resolvido não apresenta passo a passo e resposta final");
 
     const answerKey = extractSection(

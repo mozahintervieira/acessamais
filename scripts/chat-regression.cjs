@@ -441,6 +441,17 @@ async function call({
   assert.ok(
     bestEffort.response.body.reply.startsWith("**MATERIAL DO ESTUDANTE**"),
   );
+  assert.ok(
+    bestEffort.sent.input.some(
+      (message) =>
+        message.role === "assistant" &&
+        message.content === "Versão pedagógica inicial para revisão.",
+    ),
+  );
+  assert.match(
+    bestEffort.sent.input.at(-1).content,
+    /Revise a versão acima e entregue o material completo/,
+  );
   const normalizedComplete = await call({
     messages: [
       {
