@@ -621,6 +621,11 @@ async function call({
       "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n1. Quanto é 2 + 2?\n2. Quanto é 1 + 2?\n\n**GABARITO COMENTADO**\n**1.** 4.\n**2.** 3.\n\n**GUIA DO PROFESSOR**\nMediação.",
     );
   assert.equal(questionsWithoutOptionalHeading.valid, true);
+  const markdownExampleSteps = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma atividade pronta para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\n**1.** Separe duas tampinhas.\n**2.** Junte outras duas tampinhas.\n**Resposta final:** 4 tampinhas.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(markdownExampleSteps.valid, true);
   const exampleStepsAreNotQuestions =
     qualityModule.validatePedagogicalDeliverable(
       "Crie três questões prontas para impressão em folha A4.",
