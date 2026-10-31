@@ -96,6 +96,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       const curriculumCatalog =
         await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
+      const qualityRequest = pedagogicalQualityRequest(
+        messages,
+        latestRequest,
+      );
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -181,7 +185,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           },
           { status: 502 },
         );
-      let quality = validatePedagogicalDeliverable(latestRequest, text);
+      let quality = validatePedagogicalDeliverable(qualityRequest, text);
       if (!quality.valid) {
         stage = "quality-retry";
         const firstText = text;
@@ -234,13 +238,13 @@ export async function POST(request: Request): Promise<NextResponse> {
             payload = retryPayload;
             text = retryText;
             evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
-            quality = validatePedagogicalDeliverable(latestRequest, text);
+            quality = validatePedagogicalDeliverable(qualityRequest, text);
           }
         }
         if (!text.trim()) {
           text = firstText;
           evidence = firstEvidence;
-          quality = validatePedagogicalDeliverable(latestRequest, text);
+          quality = validatePedagogicalDeliverable(qualityRequest, text);
         }
         if (!quality.valid) {
           console.error("chat_quality_needs_review", {
@@ -249,7 +253,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
       }
       const safeText = enforceRequiredDeliverableStructure(
-        latestRequest,
+        qualityRequest,
         enforceDeliverableIntegrity(
           enforceCurriculumIntegrity(
             text,
@@ -260,7 +264,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         ),
       );
       const finalQuality = validatePedagogicalDeliverable(
-        latestRequest,
+        qualityRequest,
         safeText,
       );
       const alignmentNotice =
@@ -410,6 +414,29 @@ function enforceDeliverableIntegrity(text: string): string {
       /\blinguagem de sinais\b/gi,
       "Libras, quando pertinente e com profissional habilitado",
     );
+}
+
+function pedagogicalQualityRequest(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  latestRequest: string,
+): string {
+  const previousMaterialExists = messages
+    .slice(0, -1)
+    .some(
+      (message) =>
+        message.role === "assistant" &&
+        /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(
+          message.content,
+        ),
+    );
+  const isRevision =
+    /^(?:agora\s+)?(?:adapte|adicione|altere|inclua|mantenha|melhore|organize|permita|reduza|remova|retire|simplifique|substitua|troque)\b/i.test(
+      latestRequest.trim(),
+    );
+
+  return previousMaterialExists && isRevision
+    ? `Adapte a atividade existente. ${latestRequest}`
+    : latestRequest;
 }
 
 function enforceRequiredDeliverableStructure(

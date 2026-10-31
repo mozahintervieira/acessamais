@@ -470,6 +470,46 @@ async function call({
     ),
   );
   assert.ok(!normalizedComplete.response.body.reply.includes("http"));
+  const revisionIsStillValidated = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade de Ciências com cinco questões.",
+      },
+      {
+        role: "assistant",
+        content:
+          "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Questão.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+      },
+      {
+        role: "user",
+        content:
+          "Agora reduza para três questões e permita respostas por apontamento.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Versão reduzida para três questões.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(
+    revisionIsStillValidated.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
+  assert.ok(
+    revisionIsStillValidated.response.body.reply.startsWith(
+      "**MATERIAL DO ESTUDANTE**",
+    ),
+  );
   const conversational = await call({
     messages: [
       {
