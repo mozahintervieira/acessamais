@@ -41,7 +41,12 @@ export function validatePedagogicalDeliverable(
       /GABARITO(?: COMENTADO)?/i,
       /(?:GUIA|ORIENTA[CÇ][ÕO]ES|MEDIA[CÇ][ÃA]O) (?:DO|AO|PARA O) PROFESSOR/i,
     );
-    if (answerKey && !/\b(?:RESPOSTA|RESULTADO|ESPERA-SE)\b/i.test(answerKey))
+    const answerEntries = [
+      ...answerKey.matchAll(
+        /^\s*(?:(?:QUEST[ÃA]O|RESPOSTA)\s*)?\d+[.)-]\s+|^\s*(?:RESPOSTA|RESULTADO|ESPERA-SE)\b/gim,
+      ),
+    ].length;
+    if (answerKey && answerEntries === 0)
       issues.push("o gabarito não apresenta as respostas ou resultados esperados");
   }
 
@@ -82,6 +87,7 @@ export function validatePedagogicalDeliverable(
   }
 
   if (
+    asksForMaterial &&
     /visual|imagem|pista visual|apoio visual/.test(normalizedRequest) &&
     !/(?:APOIO|PISTA|QUADRO) VISUAL|DESCRI[CÇ][AÃ]O ACESS[IÍ]VEL/i.test(response)
   )

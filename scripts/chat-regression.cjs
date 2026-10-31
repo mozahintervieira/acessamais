@@ -482,6 +482,35 @@ async function call({
   assert.ok(
     !conversational.response.body.reply.includes("MATERIAL DO ESTUDANTE"),
   );
+  assert.equal(
+    qualityModule.validatePedagogicalDeliverable(
+      "Como apoiar um estudante com deficiência visual?",
+      "Considere fonte ampliada, contraste e audiodescrição conforme a barreira observada.",
+    ).valid,
+    true,
+  );
+  const curriculumPhrase = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Como você pode me ajudar no planejamento?",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Posso ajudar com planejamento e alinhamento curricular, adaptações e avaliação.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.ok(curriculumPhrase.response.body.reply.includes("alinhamento curricular"));
   const notReady = qualityModule.validatePedagogicalDeliverable(
     "Crie uma atividade visual pronta para impressão em folha A4.",
     "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO RESOLVIDO**\nFormação e características.\n\n**QUESTÕES**\nCrie cartões. Esconda amostras. Imprima imagens.\n\n**GABARITO COMENTADO**\nObjetivo: reconhecer o tema.\n\n**GUIA DO PROFESSOR**\nMediação.",
@@ -506,6 +535,11 @@ async function call({
   assert.ok(
     wrongQuantity.issues.some((issue) => issue.includes("foram solicitadas 5")),
   );
+  const numberedAnswerKey = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma atividade pronta para impressão em folha A4.",
+    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(numberedAnswerKey.valid, true);
   const clientSource = fs.readFileSync(
     path.join(root, "apps/web/src/app/pedagogical-chat.tsx"),
     "utf8",

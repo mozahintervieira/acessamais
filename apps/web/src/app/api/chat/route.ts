@@ -344,14 +344,34 @@ function enforceCurriculumIntegrity(
       .replace(/\bpictogramas?\b/gi, "pistas textuais");
   }
   if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
-  const unverifiedCurriculumSection =
-    /(?:\*\*)?(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)[^\n]*\*{0,2}[\s\S]*?(?=(?:\*\*)?(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|(?:\*\*)?(?:LEITURA GUIADA|EXEMPLO|QUEST[ÕO]ES|GABARITO|GUIA DO PROFESSOR)|$)/gi;
-  let sanitized = result.replace(unverifiedCurriculumSection, "");
+  let sanitized = removeUnverifiedCurriculumSections(result);
   sanitized = sanitized.replace(
     /\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g,
     "código curricular não confirmado",
   );
   return sanitized;
+}
+
+function removeUnverifiedCurriculumSections(text: string): string {
+  const curriculumHeading =
+    /^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)(?:[^\n*]*)?(?:\*\*)?\s*:?[ \t]*$/i;
+  const nextSectionHeading =
+    /^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|LEITURA GUIADA|EXEMPLO(?: COMPLETO)? RESOLVIDO|QUEST[ÕO]ES|ATIVIDADES|GABARITO(?: COMENTADO)?|GUIA DO PROFESSOR)(?:\*\*)?\s*:?[ \t]*$/i;
+  let dropping = false;
+  return text
+    .split(/\r?\n/)
+    .filter((line) => {
+      if (curriculumHeading.test(line)) {
+        dropping = true;
+        return false;
+      }
+      if (dropping && nextSectionHeading.test(line)) {
+        dropping = false;
+        return true;
+      }
+      return !dropping;
+    })
+    .join("\n");
 }
 
 function enforceDeliverableIntegrity(text: string): string {
