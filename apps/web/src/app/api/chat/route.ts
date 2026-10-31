@@ -215,7 +215,22 @@ export async function POST(request: Request): Promise<NextResponse> {
               tools: [curriculumSearchTool],
               tool_choice: "required",
               include: ["web_search_call.action.sources"],
-              input: messages.map(
+              input: [
+                ...messages.map(
+                  (item: { role: string; content: string }) => ({
+                    role: item.role,
+                    content: item.content,
+                  }),
+                ),
+                {
+                  role: "assistant",
+                  content: firstText,
+                },
+                {
+                  role: "user",
+                  content: `Revise a versão acima e entregue o material completo. Corrija especificamente: ${quality.issues.join("; ")}. Não explique a revisão; devolva o material final integral, mantendo todos os requisitos válidos do pedido original.`,
+                },
+              ].map(
                 (item: { role: string; content: string }) => ({
                   role: item.role,
                   content: item.content,
