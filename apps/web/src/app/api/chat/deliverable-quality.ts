@@ -78,7 +78,9 @@ export function validatePedagogicalDeliverable(
         /GABARITO|GUIA DO PROFESSOR/i,
       );
       const normalizedQuestions = stripMarkdownMarkers(
-        questionSection.trim() ? questionSection : studentMaterial,
+        questionSection.trim()
+          ? questionSection
+          : contentAfterWorkedExample(studentMaterial),
       );
       const deliveredQuestionCount = [
         ...normalizedQuestions.matchAll(
@@ -108,6 +110,19 @@ export function validatePedagogicalDeliverable(
 
 function stripMarkdownMarkers(text: string): string {
   return text.replace(/[*_~`]/g, "");
+}
+
+function contentAfterWorkedExample(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const exampleHeading = lines.findIndex((line) =>
+    matchesHeading(line, /(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO/i),
+  );
+  if (exampleHeading < 0) return text;
+  const finalAnswer = lines.findIndex(
+    (line, index) =>
+      index > exampleHeading && /\bRESPOSTA FINAL\b/i.test(line),
+  );
+  return finalAnswer < 0 ? text : lines.slice(finalAnswer + 1).join("\n");
 }
 
 function extractSection(
