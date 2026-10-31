@@ -41,8 +41,9 @@ export function validatePedagogicalDeliverable(
       /GABARITO(?: COMENTADO)?/i,
       /(?:GUIA|ORIENTA[CÇ][ÕO]ES|MEDIA[CÇ][ÃA]O) (?:DO|AO|PARA O) PROFESSOR/i,
     );
+    const normalizedAnswerKey = stripMarkdownMarkers(answerKey);
     const answerEntries = [
-      ...answerKey.matchAll(
+      ...normalizedAnswerKey.matchAll(
         /^\s*(?:(?:QUEST[ÃA]O|RESPOSTA)\s*)?\d+[.)-]\s+|^\s*(?:RESPOSTA|RESULTADO|ESPERA-SE)\b/gim,
       ),
     ].length;
@@ -71,12 +72,14 @@ export function validatePedagogicalDeliverable(
 
     const requestedQuestionCount = extractRequestedQuestionCount(normalizedRequest);
     if (requestedQuestionCount) {
-      const questions = extractSection(
+      const questionSection = extractSection(
         studentMaterial,
         /QUEST[ÕO]ES|ATIVIDADES|EXERC[IÍ]CIOS/i,
         /GABARITO|GUIA DO PROFESSOR/i,
       );
-      const normalizedQuestions = questions.replace(/[*_~`]/g, "");
+      const normalizedQuestions = stripMarkdownMarkers(
+        questionSection.trim() ? questionSection : studentMaterial,
+      );
       const deliveredQuestionCount = [
         ...normalizedQuestions.matchAll(
           /^\s*(?:QUEST[ÃA]O\s*)?\d+[.)-]\s+/gim,
@@ -101,6 +104,10 @@ export function validatePedagogicalDeliverable(
   if (/\[(?:insira|adicione|imagem|figura|resposta)[^\]]*\]/i.test(response))
     issues.push("há marcador vazio ou recurso prometido que não foi entregue");
   return { valid: issues.length === 0, issues };
+}
+
+function stripMarkdownMarkers(text: string): string {
+  return text.replace(/[*_~`]/g, "");
 }
 
 function extractSection(
