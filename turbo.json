@@ -5,7 +5,8 @@
     "AUTH_SECRET",
     "DATABASE_URL",
     "OPENAI_API_KEY",
-    "OPENAI_MODEL"
+    "OPENAI_MODEL",
+    "OPENAI_QUALITY_MODEL"
   ],
   "tasks": {
     "build": {

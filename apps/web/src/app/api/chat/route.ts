@@ -100,6 +100,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         messages,
         latestRequest,
       );
+      const primaryModel =
+        process.env.OPENAI_MODEL?.trim() || "gpt-6-luna";
+      const qualityModel =
+        process.env.OPENAI_QUALITY_MODEL?.trim() || "gpt-6.1-sol";
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -108,7 +112,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
         signal: controller.signal,
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+          model: primaryModel,
           store: false,
           instructions:
             instructions +
@@ -200,7 +204,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             },
             signal: controller.signal,
             body: JSON.stringify({
-              model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+              model: qualityModel,
               store: false,
               instructions:
                 instructions +

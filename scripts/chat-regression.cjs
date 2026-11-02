@@ -452,6 +452,7 @@ async function call({
     bestEffort.sent.input.at(-1).content,
     /Revise a versão acima e entregue o material completo/,
   );
+  assert.equal(bestEffort.sent.model, "gpt-6.1-sol");
   const normalizedComplete = await call({
     messages: [
       {
