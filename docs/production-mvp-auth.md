@@ -23,6 +23,7 @@ Obrigatorias para producao:
 Recomendadas:
 
 - `OPENAI_MODEL`: modelo usado pelo gateway de IA.
+- `OPENAI_QUALITY_MODEL`: modelo usado somente para reparar materiais que falharam na validação pedagógica.
 - `AUTH_COOKIE_SECURE=true`: forca cookie seguro quando o ambiente usa HTTPS.
 
 Na Vercel, `AUTH_COOKIE_SECURE` tambem fica seguro automaticamente quando `VERCEL=1`.
