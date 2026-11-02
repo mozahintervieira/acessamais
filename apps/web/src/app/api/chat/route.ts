@@ -455,7 +455,7 @@ function pedagogicalQualityRequest(
     );
 
   return previousMaterialExists && isRevision
-    ? `Adapte a atividade existente. ${latestRequest}`
+    ? `Adapte a atividade existente pronta para impressão. ${latestRequest}`
     : latestRequest;
 }
 

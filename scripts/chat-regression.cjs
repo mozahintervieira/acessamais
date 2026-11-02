@@ -558,6 +558,45 @@ async function call({
       "**MATERIAL DO ESTUDANTE**",
     ),
   );
+  const revisionQuantityIsValidated = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade de Ciências com cinco questões.",
+      },
+      {
+        role: "assistant",
+        content:
+          "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Questão.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+      },
+      {
+        role: "user",
+        content: "Agora reduza para três questões.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Primeira.\n2. Segunda.\n\n**GABARITO COMENTADO**\n1. Resposta.\n2. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(
+    revisionQuantityIsValidated.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
+  assert.ok(
+    revisionQuantityIsValidated.response.body.quality.issues.some((issue) =>
+      issue.includes("foram solicitadas 3"),
+    ),
+  );
   const conversational = await call({
     messages: [
       {
