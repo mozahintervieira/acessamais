@@ -96,14 +96,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       const curriculumCatalog =
         await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
-      const qualityRequest = pedagogicalQualityRequest(
-        messages,
-        latestRequest,
-      );
-      const primaryModel =
-        process.env.OPENAI_MODEL?.trim() || "gpt-6-luna";
+      const qualityRequest = pedagogicalQualityRequest(messages, latestRequest);
+      const primaryModel = process.env.OPENAI_MODEL?.trim() || "gpt-6-luna";
       const qualityModel =
-        process.env.OPENAI_QUALITY_MODEL?.trim() || "gpt-6.1-sol";
+        process.env.OPENAI_QUALITY_MODEL?.trim() || "gpt-6-luna";
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -194,71 +190,76 @@ export async function POST(request: Request): Promise<NextResponse> {
         stage = "quality-retry";
         const firstText = text;
         const firstEvidence = evidence;
-        const retryResponse = await fetch(
-          "https://api.openai.com/v1/responses",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            signal: controller.signal,
-            body: JSON.stringify({
-              model: qualityModel,
-              store: false,
-              instructions:
-                instructions +
-                "\n\n" +
-                curriculumInstructions(currentYear) +
-                "\n\n" +
-                curriculumCatalogInstructions(
-                  curriculumCatalog,
-                  latestRequest,
-                ) +
-                `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
-              tools: [curriculumSearchTool],
-              tool_choice: "required",
-              include: ["web_search_call.action.sources"],
-              input: [
-                ...messages.map(
-                  (item: { role: string; content: string }) => ({
-                    role: item.role,
-                    content: item.content,
-                  }),
-                ),
-                {
-                  role: "assistant",
-                  content: firstText,
-                },
-                {
-                  role: "user",
-                  content: `Revise a versão acima e entregue o material completo. Corrija especificamente: ${quality.issues.join("; ")}. Não explique a revisão; devolva o material final integral, mantendo todos os requisitos válidos do pedido original.`,
-                },
-              ].map(
-                (item: { role: string; content: string }) => ({
+        try {
+          const retryResponse = await fetch(
+            "https://api.openai.com/v1/responses",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              signal: controller.signal,
+              body: JSON.stringify({
+                model: qualityModel,
+                store: false,
+                instructions:
+                  instructions +
+                  "\n\n" +
+                  curriculumInstructions(currentYear) +
+                  "\n\n" +
+                  curriculumCatalogInstructions(
+                    curriculumCatalog,
+                    latestRequest,
+                  ) +
+                  `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
+                tools: [curriculumSearchTool],
+                tool_choice: "required",
+                include: ["web_search_call.action.sources"],
+                input: [
+                  ...messages.map(
+                    (item: { role: string; content: string }) => ({
+                      role: item.role,
+                      content: item.content,
+                    }),
+                  ),
+                  {
+                    role: "assistant",
+                    content: firstText,
+                  },
+                  {
+                    role: "user",
+                    content: `Revise a versão acima e entregue o material completo. Corrija especificamente: ${quality.issues.join("; ")}. Não explique a revisão; devolva o material final integral, mantendo todos os requisitos válidos do pedido original.`,
+                  },
+                ].map((item: { role: string; content: string }) => ({
                   role: item.role,
                   content: item.content,
-                }),
-              ),
-              max_output_tokens: 7000,
-            }),
-          },
-        );
-        if (retryResponse.ok) {
-          const retryPayload = await retryResponse.json();
-          const retryText = extractResponseText(retryPayload);
-          const retryEvidence = curriculumEvidence(
-            retryPayload,
-            currentYear,
-            curriculumCatalog,
-            [],
+                })),
+                max_output_tokens: 7000,
+              }),
+            },
           );
-          if (retryText.trim()) {
-            payload = retryPayload;
-            text = retryText;
-            evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
-            quality = validatePedagogicalDeliverable(qualityRequest, text);
+          if (retryResponse.ok) {
+            const retryPayload = await retryResponse.json();
+            const retryText = extractResponseText(retryPayload);
+            const retryEvidence = curriculumEvidence(
+              retryPayload,
+              currentYear,
+              curriculumCatalog,
+              [],
+            );
+            if (retryText.trim()) {
+              payload = retryPayload;
+              text = retryText;
+              evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
+              quality = validatePedagogicalDeliverable(qualityRequest, text);
+            }
           }
+        } catch (retryError) {
+          console.error("chat_quality_retry_failed", {
+            error:
+              retryError instanceof Error ? retryError.name : "UnknownError",
+          });
         }
         if (!text.trim()) {
           text = firstText;

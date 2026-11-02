@@ -37,6 +37,7 @@ async function call({
   key = "test-only",
   messages = [{ role: "user", content: "Como pode me ajudar no AEE?" }],
   status = 200,
+  retryFailure,
   payload = {
     output: [
       { type: "web_search_call", status: "completed" },
@@ -60,6 +61,7 @@ async function call({
 } = {}) {
   const exports = {};
   let sent;
+  let fetchCount = 0;
   const logs = [];
   vm.runInNewContext(code, {
     exports,
@@ -93,7 +95,9 @@ async function call({
                 },
               },
     fetch: async (url, options) => {
+      fetchCount += 1;
       sent = JSON.parse(options.body);
+      if (retryFailure && fetchCount === 2) throw retryFailure;
       return { ok: status === 200, status, json: async () => payload };
     },
   });
@@ -452,7 +456,39 @@ async function call({
     bestEffort.sent.input.at(-1).content,
     /Revise a versão acima e entregue o material completo/,
   );
-  assert.equal(bestEffort.sent.model, "gpt-6.1-sol");
+  assert.equal(bestEffort.sent.model, "gpt-6-luna");
+  const retryFailureFallsBack = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade pronta para impressão em folha A4.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Versão inicial ainda incompleta.",
+            },
+          ],
+        },
+      ],
+    },
+    retryFailure: new DOMException("timeout", "AbortError"),
+  });
+  assert.equal(retryFailureFallsBack.response.status, 200);
+  assert.equal(
+    retryFailureFallsBack.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
+  assert.ok(
+    retryFailureFallsBack.logs.some(
+      (entry) => entry[0] === "chat_quality_retry_failed",
+    ),
+  );
   const normalizedComplete = await call({
     messages: [
       {
@@ -562,7 +598,9 @@ async function call({
       ],
     },
   });
-  assert.ok(curriculumPhrase.response.body.reply.includes("alinhamento curricular"));
+  assert.ok(
+    curriculumPhrase.response.body.reply.includes("alinhamento curricular"),
+  );
   const colonHeadings = await call({
     messages: [
       {
@@ -585,7 +623,9 @@ async function call({
     },
   });
   assert.ok(colonHeadings.response.body.reply.includes("Passo 1: observe"));
-  assert.ok(!colonHeadings.response.body.reply.includes("Referência não confirmada"));
+  assert.ok(
+    !colonHeadings.response.body.reply.includes("Referência não confirmada"),
+  );
   assert.equal(colonHeadings.response.body.quality.status, "VERIFIED");
   const notReady = qualityModule.validatePedagogicalDeliverable(
     "Crie uma atividade visual pronta para impressão em folha A4.",
@@ -593,7 +633,9 @@ async function call({
   );
   assert.equal(notReady.valid, false);
   assert.ok(
-    notReady.issues.some((issue) => issue.includes("recursos em vez de entregar")),
+    notReady.issues.some((issue) =>
+      issue.includes("recursos em vez de entregar"),
+    ),
   );
   assert.ok(
     notReady.issues.some((issue) => issue.includes("gabarito não apresenta")),
@@ -601,9 +643,7 @@ async function call({
   assert.ok(
     notReady.issues.some((issue) => issue.includes("exemplo resolvido")),
   );
-  assert.ok(
-    notReady.issues.some((issue) => issue.includes("apoio visual")),
-  );
+  assert.ok(notReady.issues.some((issue) => issue.includes("apoio visual")));
   const wrongQuantity = qualityModule.validatePedagogicalDeliverable(
     "Crie cinco questões prontas para impressão em folha A4.",
     "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Primeira.\n2. Segunda.\n\n**GABARITO COMENTADO**\nResposta 1: A.\nResposta 2: B.\n\n**GUIA DO PROFESSOR**\nMediação.",
