@@ -445,6 +445,22 @@ async function call({
   assert.ok(
     bestEffort.response.body.reply.startsWith("**MATERIAL DO ESTUDANTE**"),
   );
+  const poorWorksheet = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma atividade visual pronta para impressão em folha A4.",
+    `**ALINHAMENTO CURRICULAR**\nCódigo não confirmado.\n\n**MATERIAL DO ESTUDANTE**\n**Formato:** uma folha A4 frente e verso.\n\n**QUADRO DE APOIO VISUAL**\n| + | positivo |\n| ! | alerta |\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.`,
+  );
+  assert.equal(poorWorksheet.valid, false);
+  assert.ok(
+    poorWorksheet.issues.some((issue) => issue.includes("frente e verso")),
+  );
+  assert.ok(
+    poorWorksheet.issues.some((issue) =>
+      issue.includes("antes da folha do estudante"),
+    ),
+  );
+  assert.ok(
+    poorWorksheet.issues.some((issue) => issue.includes("apenas nomeado")),
+  );
   assert.ok(
     bestEffort.sent.input.some(
       (message) =>
