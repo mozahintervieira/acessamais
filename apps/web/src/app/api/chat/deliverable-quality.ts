@@ -7,9 +7,14 @@ export function validatePedagogicalDeliverable(
   const normalizedRequest = normalize(request);
   const issues: string[] = [];
   const asksForMaterial = asksForPedagogicalDeliverable(normalizedRequest);
+  const asksForSequence = asksForDidacticSequence(normalizedRequest);
 
   if (asksForMaterial) {
-    if (!/(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(response))
+    if (
+      !/(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|CADERNO DE ATIVIDADES DO ESTUDANTE/i.test(
+        response,
+      )
+    )
       issues.push("faltou a seção do estudante");
     if (
       !/(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO|COMO FAZER[^\n]*(?:PASSO A PASSO|EXEMPLO)/i.test(
@@ -54,6 +59,69 @@ export function validatePedagogicalDeliverable(
     ].length;
     if (answerKey && answerEntries === 0)
       issues.push("o gabarito não apresenta as respostas ou resultados esperados");
+  }
+
+
+  if (asksForSequence) {
+    const requiredSequenceSections: Array<[RegExp, string]> = [
+      [/PLANEJAMENTO DA SEQU[EÊ]NCIA DID[AÁ]TICA/i, "faltou o planejamento da sequência didática"],
+      [/IDENTIFICA[CÇ][AÃ]O/i, "faltou a identificação da sequência"],
+      [
+        /HABILIDADES? E OBJETOS? DE CONHECIMENTO/i,
+        "faltaram habilidades e objetos de conhecimento organizados",
+      ],
+      [/METODOLOGIA/i, "faltou a metodologia da sequência"],
+      [
+        /DESENVOLVIMENTO DA VIDA AUT[ÔO]NOMA/i,
+        "faltou o desenvolvimento da vida autônoma",
+      ],
+      [/RECURSOS(?: PEDAG[ÓO]GICOS)?/i, "faltaram os recursos pedagógicos"],
+      [
+        /COMPONENTE SOCIOEMOCIONAL/i,
+        "faltou o componente socioemocional",
+      ],
+      [
+        /AVALIA[CÇ][AÃ]O DA APRENDIZAGEM/i,
+        "faltou a avaliação da aprendizagem",
+      ],
+      [/REFER[ÊE]NCIAS/i, "faltaram as referências da sequência"],
+      [/TEMA INTEGRADOR/i, "faltou o tema integrador"],
+      [/(?:^|\n)#{0,6}\s*\*{0,2}ERER\b/im, "faltou a abordagem de ERER"],
+      [/PR[AÁ]TICAS EXITOSAS/i, "faltou o planejamento das práticas exitosas"],
+      [/CRONOGRAMA DE AULAS/i, "faltou o cronograma de aulas"],
+      [
+        /CADERNO DE ATIVIDADES DO ESTUDANTE/i,
+        "faltou o caderno de atividades do estudante",
+      ],
+    ];
+    for (const [pattern, issue] of requiredSequenceSections)
+      if (!pattern.test(response)) issues.push(issue);
+
+    const requestedLessons = extractRequestedLessonCount(normalizedRequest);
+    if (requestedLessons) {
+      const deliveredLessons = new Set(
+        [...response.matchAll(/^\s*#{0,6}\s*\*{0,2}AULA\s+(\d{1,2})\b/gim)].map(
+          (match) => Number(match[1]),
+        ),
+      ).size;
+      if (deliveredLessons < requestedLessons)
+        issues.push(
+          `foram solicitadas ${requestedLessons} aulas, mas a sequência entrega somente ${deliveredLessons}`,
+        );
+      issues.push(...validateSequenceLessonPages(response, requestedLessons));
+    }
+
+    const normalizedResponse = normalize(response);
+    for (const component of requestedCurricularComponents(normalizedRequest))
+      if (!normalizedResponse.includes(component))
+        issues.push(`faltou o componente curricular solicitado: ${component}`);
+
+    if (
+      !/(?:FOLHA|ATIVIDADE) A4|P[AÁ]GINA DO ESTUDANTE|MATERIAL DO ESTUDANTE/i.test(
+        response,
+      )
+    )
+      issues.push("o caderno não contém folhas A4 completas para os estudantes");
   }
 
   const asksForPrintableSheet =
@@ -185,7 +253,7 @@ export function asksForPedagogicalDeliverable(request: string): boolean {
   if (/^(?:como|por que|porque|qual|quais|o que|quando|onde)\b/.test(normalizedRequest))
     return false;
   const deliverable =
-    "(?:atividade|material|sequencia didatica|plano de aula|avaliacao|exercicio|caca-palavras|folha a4)";
+    "(?:atividade|material|sequencia didatica|sd|plano de aula|avaliacao|exercicio|caca-palavras|folha a4)";
   const productionVerb =
     "(?:crie|criar|elabore|elaborar|produza|produzir|prepare|preparar|monte|montar|gere|gerar|faca|quero|preciso|necessito|adapte|adaptar)";
   return (
@@ -193,6 +261,92 @@ export function asksForPedagogicalDeliverable(request: string): boolean {
       normalizedRequest,
     ) || new RegExp(`^(?:uma\\s+)?${deliverable}\\b`).test(normalizedRequest)
   );
+}
+
+
+export function asksForDidacticSequence(request: string): boolean {
+  return /\b(?:sequencia didatica|sd)\b/.test(normalize(request));
+}
+
+function requestedCurricularComponents(request: string): string[] {
+  const components = [
+    "lingua portuguesa",
+    "matematica",
+    "quimica",
+    "fisica",
+    "biologia",
+    "ciencias",
+    "geografia",
+    "historia",
+    "filosofia",
+    "sociologia",
+    "arte",
+    "educacao fisica",
+    "lingua inglesa",
+    "ensino religioso",
+  ];
+  return components.filter((component) => request.includes(component));
+}
+
+function validateSequenceLessonPages(
+  response: string,
+  requestedLessons: number,
+): string[] {
+  const issues: string[] = [];
+  const cadernoIndex = response.search(/CADERNO DE ATIVIDADES DO ESTUDANTE/i);
+  if (cadernoIndex < 0) return issues;
+  const caderno = response.slice(cadernoIndex);
+  const headings = [
+    ...caderno.matchAll(
+      /^\s*#{0,6}\s*\*{0,2}AULA\s+(\d{1,2})\b[^\n]*$/gim,
+    ),
+  ];
+  for (let lesson = 1; lesson <= requestedLessons; lesson += 1) {
+    const headingIndex = headings.findIndex(
+      (match) => Number(match[1]) === lesson,
+    );
+    if (headingIndex < 0) continue;
+    const start =
+      (headings[headingIndex]!.index ?? 0) + headings[headingIndex]![0].length;
+    const answerKeyIndex = caderno.search(/GABARITO(?: COMENTADO)?/i);
+    const end =
+      headingIndex + 1 < headings.length
+        ? (headings[headingIndex + 1]!.index ?? caderno.length)
+        : answerKeyIndex > start
+          ? answerKeyIndex
+          : caderno.length;
+    const page = stripMarkdownMarkers(caderno.slice(start, end)).trim();
+    if (
+      page.length < 140 ||
+      !/(?:ATIVIDADES|QUEST[ÕO]ES|EXERC[IÍ]CIOS)/i.test(page)
+    )
+      issues.push(
+        `a Aula ${lesson} não contém uma folha completa com atividades`,
+      );
+  }
+  return issues;
+}
+
+function extractRequestedLessonCount(request: string): number | null {
+  const match = request.match(
+    /\b(\d{1,2}|uma|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+aulas?\b/,
+  );
+  if (!match?.[1]) return null;
+  const words: Record<string, number> = {
+    uma: 1,
+    duas: 2,
+    dois: 2,
+    tres: 3,
+    quatro: 4,
+    cinco: 5,
+    seis: 6,
+    sete: 7,
+    oito: 8,
+    nove: 9,
+    dez: 10,
+  };
+  const value = Number(match[1]);
+  return Number.isInteger(value) ? value : (words[match[1]] ?? null);
 }
 
 export function validateWordSearch(text: string): QualityResult {

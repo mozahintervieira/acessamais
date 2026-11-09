@@ -8,6 +8,7 @@ import {
   fetchCurrentCurriculumCatalog,
 } from "./curriculum-evidence";
 import {
+  asksForDidacticSequence,
   asksForPedagogicalDeliverable,
   validatePedagogicalDeliverable,
 } from "./deliverable-quality";
@@ -38,6 +39,17 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 6. Inclua GUIA DO PROFESSOR com objetivo, mediação, evidências de aprendizagem, avaliação formativa, princípios de DUA, acessibilidade e adaptações coerentes com as barreiras e apoios informados. Diagnóstico nunca substitui a descrição funcional do estudante.
 7. Use CAA, tecnologia assistiva, recursos concretos, multissensoriais ou tecnológicos somente quando tiverem função pedagógica clara. Para DV, considere alto contraste, fonte ampliada, descrição acessível, áudio ou recurso tátil; para DA, linguagem visual e Libras quando pertinente; para estudantes não alfabetizados, pareamento, pistas visuais e comandos curtos; para TEA e TDAH, previsibilidade, segmentação e baixa ambiguidade; para altas habilidades, aprofundamento e autoria. Não infantilize adolescentes ou adultos.
 8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Organize a resposta para uma folha A4 diagramada, com título curto, blocos visuais, comandos concisos e elementos que possam ser impressos. Se houver pedido de apoio visual, entregue na própria folha ao menos um QUADRO DE APOIO VISUAL concreto, com diagrama textual, símbolos ou descrição acessível realmente utilizável pelo estudante; não apenas recomende procurar ou inserir uma imagem. Não substitua a atividade por uma descrição de imagem; a interface transformará a folha final em PNG e PDF.
+
+
+PADRÃO ESPECÍFICO PARA SEQUÊNCIA DIDÁTICA:
+- Trate "sequência didática" ou "SD" como um produto completo, diferente de uma atividade isolada. Nunca reduza uma SD solicitada a duas páginas de um único componente.
+- Entregue dois blocos integrais: PLANEJAMENTO DA SEQUÊNCIA DIDÁTICA e CADERNO DE ATIVIDADES DO ESTUDANTE.
+- No planejamento, inclua IDENTIFICAÇÃO (etapa/série, período, quantidade de aulas e componentes, sem dados pessoais do estudante), HABILIDADES E OBJETOS DE CONHECIMENTO por componente, expectativas de aprendizagem, METODOLOGIA, DESENVOLVIMENTO DA VIDA AUTÔNOMA, RECURSOS PEDAGÓGICOS, COMPONENTE SOCIOEMOCIONAL, AVALIAÇÃO DA APRENDIZAGEM, REFERÊNCIAS, TEMA INTEGRADOR, ERER, PRÁTICAS EXITOSAS previstas e CRONOGRAMA DE AULAS.
+- O cronograma deve ter uma entrada para cada aula pedida e corresponder ao caderno. Se o professor solicitar sete aulas, entregue AULA 1 a AULA 7; não resuma aulas ou componentes em um parágrafo.
+- Para cada aula, entregue uma FOLHA A4 ou PÁGINA DO ESTUDANTE completa: componente e habilidade confirmada, título, explicação acessível do conteúdo, apoio visual funcional, exemplo resolvido quando pertinente, três a cinco atividades progressivas e espaço ou forma de resposta. Não prometa imagens, gráficos, mapas, jogos ou modelos moleculares que não estejam efetivamente representados na própria folha.
+- Preserve a idade cronológica, mas adeque extensão, vocabulário, apoio visual, quantidade de etapas e forma de resposta às barreiras funcionais informadas. Ofereça escrita, oralidade, digitação, seleção, apontamento ou CAA quando pertinente.
+- Depois das folhas, entregue GABARITO COMENTADO por aula e GUIA DO PROFESSOR com mediação, DUA, Bloom, avaliação formativa e evidências observáveis. A SD só está completa quando planejamento, cronograma, folhas, gabaritos e guia concordam entre si.
+- Se faltarem componentes ou quantidade de aulas, faça uma pergunta curta somente quando a escolha mudar substancialmente a SD. Caso contrário, avance com premissas explícitas e editáveis.
 
 REGRAS PARA JOGOS E ATIVIDADES ESTRUTURADAS:
 - Um caça-palavras precisa ser um jogo real, não uma lista de palavras em linhas. Crie uma grade quadrada com pelo menos 10 linhas, letras de preenchimento e palavras ocultas em direções variadas.
@@ -96,6 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       const curriculumCatalog =
         await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
+      const sequenceRequest = asksForDidacticSequence(latestRequest);
       const qualityRequest = pedagogicalQualityRequest(messages, latestRequest);
       const primaryModel = process.env.OPENAI_MODEL?.trim() || "gpt-6-luna";
       const qualityModel =
@@ -123,7 +136,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             role: item.role,
             content: item.content,
           })),
-          max_output_tokens: 6000,
+          max_output_tokens: sequenceRequest ? 12000 : 6000,
         }),
       });
       if (!response.ok) {
@@ -235,7 +248,7 @@ export async function POST(request: Request): Promise<NextResponse> {
                   role: item.role,
                   content: item.content,
                 })),
-                max_output_tokens: 7000,
+                max_output_tokens: sequenceRequest ? 14000 : 7000,
               }),
             },
           );

@@ -721,6 +721,126 @@ async function call({
     "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR**\nMediação.",
   );
   assert.equal(numberedAnswerKey.valid, true);
+
+  const incompleteSequence = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma sequência didática adaptada com sete aulas.",
+    "**MATERIAL DO ESTUDANTE**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+  );
+  assert.equal(incompleteSequence.valid, false);
+  assert.ok(
+    incompleteSequence.issues.some((issue) =>
+      issue.includes("planejamento da sequência didática"),
+    ),
+  );
+  assert.ok(
+    incompleteSequence.issues.some((issue) =>
+      issue.includes("foram solicitadas 7 aulas"),
+    ),
+  );
+  assert.equal(
+    qualityModule.asksForDidacticSequence("Crie uma SD para o Ensino Médio."),
+    true,
+  );
+  const missingRequestedComponent =
+    qualityModule.validatePedagogicalDeliverable(
+      "Crie uma sequência didática de Matemática e Química com sete aulas.",
+      "**MATERIAL DO ESTUDANTE**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+    );
+  assert.ok(
+    missingRequestedComponent.issues.some((issue) =>
+      issue.includes("componente curricular solicitado: matematica"),
+    ),
+  );
+
+  const lessonPage = (lesson, support) => `**AULA ${lesson} — FOLHA A4**
+Leitura guiada extensa e ${support} para compreender o conteúdo da aula. ATIVIDADES: 1. Identifique a informação principal. 2. Compare os dados ou ideias. 3. Registre uma conclusão por escrita, digitação ou apontamento, com espaço de resposta.`;
+  const completeSequenceText = `**PLANEJAMENTO DA SEQUÊNCIA DIDÁTICA**
+
+**IDENTIFICAÇÃO**
+1ª série do Ensino Médio, sete aulas e quatro componentes curriculares.
+
+**HABILIDADES E OBJETOS DE CONHECIMENTO**
+Habilidades confirmadas e objetos organizados por componente.
+
+**METODOLOGIA**
+Leitura mediada, resolução guiada e atividades progressivas.
+
+**DESENVOLVIMENTO DA VIDA AUTÔNOMA**
+Interpretação de informações do cotidiano e tomada de decisão.
+
+**RECURSOS PEDAGÓGICOS**
+Folhas impressas, apoio visual e recurso digital acessível.
+
+**COMPONENTE SOCIOEMOCIONAL**
+Autoconfiança, convivência e tomada de decisão.
+
+**AVALIAÇÃO DA APRENDIZAGEM**
+Avaliação processual com evidências observáveis.
+
+**REFERÊNCIAS**
+Currículo oficial vigente e fontes pedagógicas verificadas.
+
+**TEMA INTEGRADOR**
+Ciência, tecnologia, cidadania e sustentabilidade.
+
+**ERER**
+Diversidade e relações étnico-raciais trabalhadas transversalmente.
+
+**PRÁTICAS EXITOSAS PREVISTAS**
+Registros posteriores serão baseados nas produções observadas.
+
+**CRONOGRAMA DE AULAS**
+Aula 1 a Aula 7 organizadas por componente e data.
+
+**CADERNO DE ATIVIDADES DO ESTUDANTE**
+
+${lessonPage(1, "apoio visual funcional")}
+${lessonPage(2, "imagem acessível")}
+${lessonPage(3, "gráfico acessível")}
+${lessonPage(4, "tabela visual")}
+${lessonPage(5, "modelo de partículas")}
+${lessonPage(6, "diagrama de conservação")}
+${lessonPage(7, "mapa acessível")}
+
+**LEITURA GUIADA**
+Textos e explicações necessários para realizar cada folha.
+
+**EXEMPLO COMPLETO RESOLVIDO**
+Passo 1: observe os dados.
+Passo 2: aplique o procedimento.
+Resposta final: resultado conferido.
+
+**GABARITO COMENTADO**
+1. Respostas esperadas e critérios de correção de todas as aulas.
+
+**GUIA DO PROFESSOR**
+Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
+  const completeSequenceQuality = qualityModule.validatePedagogicalDeliverable(
+    "Crie uma sequência didática adaptada com sete aulas.",
+    completeSequenceText,
+  );
+  assert.equal(completeSequenceQuality.issues.length, 0);
+  const completeSequence = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma sequência didática adaptada com sete aulas.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        { content: [{ type: "output_text", text: completeSequenceText }] },
+      ],
+    },
+  });
+  assert.equal(completeSequence.response.body.quality.status, "VERIFIED");
+  assert.equal(completeSequence.sent.max_output_tokens, 12000);
+  assert.match(
+    completeSequence.sent.instructions,
+    /PADRÃO ESPECÍFICO PARA SEQUÊNCIA DIDÁTICA/,
+  );
+
   const clientSource = fs.readFileSync(
     path.join(root, "apps/web/src/app/pedagogical-chat.tsx"),
     "utf8",
