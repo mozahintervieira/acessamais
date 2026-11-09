@@ -1798,6 +1798,11 @@ body:has(.studioShell) .mindAppHeader {
     radial-gradient(circle at 12% 8%, rgba(67, 125, 235, 0.1), transparent 25%),
     #e9eef4;
 }
+.studioDocumentPages {
+  display: grid;
+  gap: 22px;
+  justify-content: center;
+}
 .studioA4Preview {
   position: relative;
   width: 794px;
@@ -1815,6 +1820,13 @@ body:has(.studioShell) .mindAppHeader {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 16px;
   line-height: 1.55;
+}
+.studioA4Preview.a4Page-answer::before {
+  background: linear-gradient(180deg, #f0a12e, #7557df);
+}
+.studioA4Preview.a4Page-teacher::before,
+.studioA4Preview.a4Page-planning::before {
+  background: linear-gradient(180deg, #20a784, #397cff);
 }
 .studioA4Preview::before {
   position: absolute;
@@ -1854,6 +1866,13 @@ body:has(.studioShell) .mindAppHeader {
 .a4Brand small {
   color: #62758d;
   font-size: 12px;
+}
+.a4Brand em {
+  margin-left: auto;
+  color: #71839a;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
 }
 .studioA4Preview h1 {
   margin: 6px 0 24px;
@@ -1903,6 +1922,54 @@ body:has(.studioShell) .mindAppHeader {
 .studioA4Preview .a4ListItem > span {
   color: #20886c;
   font-weight: 900;
+}
+.studioA4Preview .a4Question {
+  margin: 14px 0;
+  border: 1px solid #dbe5f2;
+  border-radius: 12px;
+  padding: 13px 15px 32px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(34, 58, 90, 0.05);
+  font-weight: 650;
+}
+.studioA4Preview .a4Callout {
+  margin: 14px 0;
+  border-left: 5px solid #f0a12e;
+  border-radius: 0 11px 11px 0;
+  padding: 12px 15px;
+  background: #fff8e8;
+  color: #6f470d;
+  font-weight: 700;
+}
+.studioA4Preview .a4Table {
+  width: 100%;
+  margin: 15px 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid #cfdbea;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 13px;
+}
+.studioA4Preview .a4Table th,
+.studioA4Preview .a4Table td {
+  border-right: 1px solid #dbe4ef;
+  border-bottom: 1px solid #dbe4ef;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.studioA4Preview .a4Table th {
+  background: #173765;
+  color: #fff;
+}
+.studioA4Preview .a4Table tr:last-child td {
+  border-bottom: 0;
+}
+.studioA4Preview .a4Table th:last-child,
+.studioA4Preview .a4Table td:last-child {
+  border-right: 0;
 }
 .studioA4Preview pre {
   overflow: hidden;
@@ -2594,3 +2661,4 @@ body:has(.studioShell) .mindAppHeader {
     grid-template-columns: 1fr;
   }
 }
+
