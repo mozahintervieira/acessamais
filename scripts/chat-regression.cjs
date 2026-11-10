@@ -143,6 +143,7 @@ async function call({
   const success = await call({ messages: history });
   assert.deepEqual(success.sent.input, history);
   assert.equal(success.sent.store, false);
+  assert.equal(success.sent.model, "gpt-6.1-sol");
   assert.equal(success.sent.tool_choice, "required");
   assert.equal(success.sent.tools[0].external_web_access, undefined);
   assert.equal(success.sent.tools[0].type, "web_search");
@@ -158,7 +159,7 @@ async function call({
   assert.ok(
     success.sent.instructions.includes("Não escreva “observe a imagem abaixo”"),
   );
-  assert.ok(success.response.body.reply.includes(`NOTA CURRICULAR`));
+  assert.ok(!success.response.body.reply.includes(`NOTA CURRICULAR`));
   assert.equal((await call({ status: 429 })).response.status, 503);
   assert.equal(
     (await call({ payload: { status: "incomplete", output: [] } })).response
@@ -245,7 +246,7 @@ async function call({
     indexOnly.response.body.curriculum.status,
     "CURRENT_YEAR_INDEX_ONLY",
   );
-  assert.ok(indexOnly.response.body.reply.includes("NOTA CURRICULAR"));
+  assert.ok(!indexOnly.response.body.reply.includes("NOTA CURRICULAR"));
   const unsafeCurriculum = await call({
     payload: {
       output: [
@@ -273,7 +274,7 @@ async function call({
       ],
     },
   });
-  assert.ok(unsafeCurriculum.response.body.reply.includes("NOTA CURRICULAR"));
+  assert.ok(!unsafeCurriculum.response.body.reply.includes("NOTA CURRICULAR"));
   assert.ok(!unsafeCurriculum.response.body.reply.includes("EF06CI05"));
   assert.ok(
     !unsafeCurriculum.response.body.reply.includes(
@@ -412,7 +413,7 @@ async function call({
     },
   });
   assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
-  assert.ok(ungrounded.response.body.reply.includes("NOTA CURRICULAR"));
+  assert.ok(!ungrounded.response.body.reply.includes("NOTA CURRICULAR"));
   const fakeWordSearch =
     "**PALAVRAS A ENCONTRAR:**\n- ROCHA\n- MAGMA\n- LAVA\n- GRANITO\n- BASALTO\n\n```wordsearch\nR O C H A M A G M A\nL A V A G R A N I T O\n```";
   assert.equal(qualityModule.validateWordSearch(fakeWordSearch).valid, false);
@@ -460,6 +461,46 @@ async function call({
   );
   assert.ok(
     poorWorksheet.issues.some((issue) => issue.includes("apenas nomeado")),
+  );
+  const genericRevision = qualityModule.validatePedagogicalDeliverable(
+    "Revise a atividade anterior e melhore a ideia central e os detalhes.",
+    `**FOLHA DO ESTUDANTE**
+
+**LEITURA GUIADA**
+Ideia central é a mensagem mais importante.
+
+**APOIO VISUAL PARA CONSULTAR**
+| Parte | Pergunta | Exemplo |
+|---|---|---|
+| Ideia central | Qual é a mensagem? | A escola promove participação. |
+| Detalhe | O que explica? | Vídeos com legendas. |
+
+**EXEMPLO COMPLETO RESOLVIDO**
+Passo 1. Leia. Passo 2. Responda.
+
+**ATIVIDADES**
+1. Marque a ideia central. ☐ A ☐ B
+2. Copie um detalhe. ______
+3. Explique o conector. ______
+4. Produza uma frase. ______
+
+**GABARITO COMENTADO**
+Respostas.
+
+**GUIA DO PROFESSOR**
+Mediação.`,
+  );
+  assert.equal(genericRevision.valid, false);
+  assert.ok(
+    genericRevision.issues.some((issue) =>
+      issue.includes("consulte o recurso visual curricular"),
+    ),
+  );
+  assert.equal(
+    qualityModule.asksForPedagogicalDeliverable(
+      "Revise a atividade anterior e melhore a ideia central e os detalhes.",
+    ),
+    true,
   );
   assert.ok(
     bestEffort.sent.input.some(
@@ -527,7 +568,10 @@ async function call({
     },
   });
   assert.equal(normalizedComplete.response.status, 200);
-  assert.equal(normalizedComplete.response.body.quality.status, "VERIFIED");
+  assert.equal(
+    normalizedComplete.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
   assert.ok(
     normalizedComplete.response.body.reply.startsWith(
       "**MATERIAL DO ESTUDANTE**",

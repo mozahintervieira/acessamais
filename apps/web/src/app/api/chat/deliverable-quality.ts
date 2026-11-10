@@ -10,6 +10,7 @@ export function validatePedagogicalDeliverable(
   const asksForSequence = asksForDidacticSequence(normalizedRequest);
 
   if (asksForMaterial) {
+    const studentSection = extractStudentSection(response);
     if (/\bFRENTE\s+E\s+VERSO\b/i.test(response))
       issues.push(
         "a folha do estudante foi dividida em frente e verso; entregue cada atividade em uma face A4 completa",
@@ -34,6 +35,14 @@ export function validatePedagogicalDeliverable(
       )
     )
       issues.push("faltou um exemplo completo resolvido");
+    if (!/LEITURA GUIADA/i.test(studentSection))
+      issues.push(
+        "faltou leitura guiada que ensine o conteúdo necessário para realizar a atividade",
+      );
+    if (
+      !/(?:FA[CÇ]A AS )?ATIVIDADES|MISS[ÕO]ES|QUEST[ÕO]ES/i.test(studentSection)
+    )
+      issues.push("faltou uma seção explícita de atividades do estudante");
     if (!/GABARITO(?: COMENTADO)?/i.test(response))
       issues.push("faltou gabarito comentado separado");
     if (
@@ -42,6 +51,26 @@ export function validatePedagogicalDeliverable(
       )
     )
       issues.push("faltou guia do professor");
+    if (!asksForSequence) {
+      const minimumTasks = extractRequestedTaskCount(normalizedRequest) ?? 4;
+      const deliveredTasks = countStudentTasks(studentSection);
+      if (deliveredTasks < minimumTasks)
+        issues.push(
+          `a folha entrega ${deliveredTasks} atividade(s), mas precisa de pelo menos ${minimumTasks}`,
+        );
+      if (!hasFunctionalVisualResource(studentSection))
+        issues.push(
+          "faltou um recurso visual curricular com conteúdo concreto dentro da folha do estudante",
+        );
+      if (!taskUsesVisualResource(studentSection))
+        issues.push(
+          "nenhuma atividade exige que o estudante consulte o recurso visual curricular",
+        );
+      if (!hasResponseSpace(studentSection))
+        issues.push(
+          "faltou espaço ou forma de resposta claramente disponível na folha do estudante",
+        );
+    }
     if (
       /(?:QUADRO|APOIO) VISUAL/i.test(response) &&
       !/(?:GR[AÁ]FICO|MAPA|LINHA DO TEMPO|DIAGRAMA|ESQUEMA|TABELA DE DADOS|CART[ÕO]ES|SEQU[ÊE]NCIA VISUAL|MODELO VISUAL)/i.test(
@@ -276,7 +305,7 @@ export function asksForPedagogicalDeliverable(request: string): boolean {
   const deliverable =
     "(?:atividade|material|sequencia didatica|sd|plano de aula|avaliacao|exercicio|caca-palavras|folha a4)";
   const productionVerb =
-    "(?:crie|criar|elabore|elaborar|produza|produzir|prepare|preparar|monte|montar|gere|gerar|faca|quero|preciso|necessito|adapte|adaptar)";
+    "(?:crie|criar|elabore|elaborar|produza|produzir|prepare|preparar|monte|montar|gere|gerar|faca|quero|preciso|necessito|adapte|adaptar|revise|revisar|refaca|melhore|melhorar|corrija|corrigir|ajuste|ajustar|simplifique|simplificar)";
   return (
     new RegExp(`${productionVerb}[\\s\\S]{0,120}\\b${deliverable}\\b`).test(
       normalizedRequest,
@@ -284,6 +313,78 @@ export function asksForPedagogicalDeliverable(request: string): boolean {
   );
 }
 
+
+
+function extractStudentSection(response: string): string {
+  const start = response.search(
+    /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|CADERNO DE ATIVIDADES DO ESTUDANTE/i,
+  );
+  const source = start >= 0 ? response.slice(start) : response;
+  const end = source.search(/(?:^|\n)\s*#{0,6}\s*\*{0,2}GABARITO\b/im);
+  return end >= 0 ? source.slice(0, end) : source;
+}
+
+function countStudentTasks(studentSection: string): number {
+  const activities =
+    studentSection.match(/(?:FA[CÇ]A AS )?ATIVIDADES|MISS[ÕO]ES|QUEST[ÕO]ES/i)
+      ?.index ?? 0;
+  const source = studentSection.slice(activities);
+  return new Set(
+    [...source.matchAll(/^\s*\*{0,2}(\d{1,2})[.)]\s+/gm)].map((match) =>
+      Number(match[1]),
+    ),
+  ).size;
+}
+
+function extractRequestedTaskCount(request: string): number | null {
+  const match = request.match(
+    /\b(\d{1,2}|uma|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:questoes|atividades|exercicios|itens|missoes)\b/,
+  );
+  if (!match?.[1]) return null;
+  const words: Record<string, number> = {
+    uma: 1, duas: 2, dois: 2, tres: 3, quatro: 4, cinco: 5,
+    seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  };
+  const value = Number(match[1]);
+  return Number.isInteger(value) ? value : (words[match[1]] ?? null);
+}
+
+function hasFunctionalVisualResource(studentSection: string): boolean {
+  const visualHeading = studentSection.search(
+    /(?:RECURSO|APOIO|MAPA|QUADRO|INFOGR[AÁ]FICO|GR[AÁ]FICO|DIAGRAMA|LINHA DO TEMPO|SEQU[ÊE]NCIA) VISUAL|(?:MAPA|INFOGR[AÁ]FICO|GR[AÁ]FICO|DIAGRAMA|LINHA DO TEMPO) (?:DE|DO|DA|PARA)/i,
+  );
+  if (visualHeading < 0) return false;
+  const visual = studentSection.slice(visualHeading, visualHeading + 1800);
+  const tableRows = (visual.match(/^\s*\|.+\|\s*$/gm) ?? []).filter(
+    (row) => !/^\s*\|?\s*:?-{3,}/.test(row),
+  ).length;
+  const diagramLines =
+    visual.match(/```[a-z]*\s*\n([\s\S]*?)```/i)?.[1]?.split(/\r?\n/).length ??
+    0;
+  const structuredSignals = (
+    visual.match(
+      /[→↓↔]|\b(?:etapa|dados?|valor|causa|efeito|antes|depois)\b/gi,
+    ) ?? []
+  ).length;
+  return tableRows >= 3 || diagramLines >= 3 || structuredSignals >= 4;
+}
+
+function taskUsesVisualResource(studentSection: string): boolean {
+  const activitiesIndex = studentSection.search(
+    /(?:FA[CÇ]A AS )?ATIVIDADES|MISS[ÕO]ES|QUEST[ÕO]ES/i,
+  );
+  if (activitiesIndex < 0) return false;
+  const tasks = studentSection.slice(activitiesIndex);
+  return /(?:consulte|observe|analise|use|compare)[^\n.]{0,100}(?:recurso|quadro|mapa|gr[aá]fico|infogr[aá]fico|diagrama|linha do tempo|tabela|sequ[êe]ncia)/i.test(
+    tasks,
+  );
+}
+
+function hasResponseSpace(studentSection: string): boolean {
+  return /_{5,}|\bResposta\s*:\s*(?:\n|_{3,})|\bC[aá]lculo\s*:\s*(?:\n|_{3,})|☐|\(\s*\)/i.test(
+    studentSection,
+  );
+}
 
 export function asksForDidacticSequence(request: string): boolean {
   return /\b(?:sequencia didatica|sd)\b/.test(normalize(request));

@@ -43,6 +43,12 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 10. Não chame uma tabela de sinais (+, !, setas), uma lista de palavras ou um parágrafo de "apoio visual". Quando o apoio visual for pertinente, construa um recurso funcional ligado à tarefa: tabela de dados, gráfico textual renderizável, mapa esquemático, linha do tempo, diagrama, sequência visual, cartões de escolha ou modelo visual com rótulos e dados concretos. O estudante deve precisar consultar esse recurso para responder pelo menos uma questão.
 
 
+11. Use como referência editorial as sequências didáticas do professor: cabeçalho claro com componente e etapa, título curto e expressivo, texto-base contextualizado, recurso visual curricular de destaque, quatro atividades progressivas por padrão e áreas reais para resposta. A folha deve parecer material didático diagramado, não relatório, formulário ou resposta de chat.
+12. Em Língua Portuguesa, quando você criar o texto-base, identifique-o honestamente como TEXTO AUTORAL PARA ESTA ATIVIDADE. Não apresente texto inventado como notícia, reportagem, campanha ou publicação real. Se o pedido exigir um gênero, produza um exemplar autoral completo e informe o contexto comunicativo fictício sem atribuí-lo a uma instituição real.
+13. O recurso visual deve ensinar conteúdo e participar da resolução. Quadros sobre "o que é ideia central", bancos de palavras e lembretes metacognitivos podem complementar, mas não substituem infográfico, comparação visual, gráfico, mapa, diagrama, linha do tempo, sequência ilustrada ou tabela de dados do próprio conteúdo. Pelo menos uma questão deve mandar explicitamente consultar esse recurso.
+14. Na seção ATIVIDADES, entregue quatro tarefas progressivas, salvo quantidade diferente pedida pelo professor: localizar ou reconhecer; comparar ou explicar; aplicar com apoio; produzir, decidir ou justificar. Inclua alternativas, dados, textos e todos os elementos necessários. Evite perguntas genéricas que poderiam servir para qualquer tema.
+15. Preserve a riqueza pedagógica em revisões. Comandos como "revise", "melhore", "refaça", "corrija", "simplifique" ou "adapte" não autorizam apagar texto-base, recurso visual, modelagem, progressão, espaço de resposta, gabarito ou guia do professor, salvo pedido explícito.
+
 PADRÃO ESPECÍFICO PARA SEQUÊNCIA DIDÁTICA:
 - Trate "sequência didática" ou "SD" como um produto completo, diferente de uma atividade isolada. Nunca reduza uma SD solicitada a duas páginas de um único componente.
 - Entregue dois blocos integrais: PLANEJAMENTO DA SEQUÊNCIA DIDÁTICA e CADERNO DE ATIVIDADES DO ESTUDANTE.
@@ -112,9 +118,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       const latestRequest = messages[messages.length - 1].content;
       const sequenceRequest = asksForDidacticSequence(latestRequest);
       const qualityRequest = pedagogicalQualityRequest(messages, latestRequest);
-      const primaryModel = process.env.OPENAI_MODEL?.trim() || "gpt-6-luna";
+      const primaryModel =
+        process.env.OPENAI_PEDAGOGICAL_MODEL?.trim() ||
+        process.env.OPENAI_MODEL?.trim() ||
+        "gpt-6.1-sol";
       const qualityModel =
-        process.env.OPENAI_QUALITY_MODEL?.trim() || "gpt-6-luna";
+        process.env.OPENAI_QUALITY_MODEL?.trim() || "gpt-6.1-sol";
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -302,15 +311,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         qualityRequest,
         safeText,
       );
-      const alignmentNotice =
-        evidence.status === "CURRENT_YEAR_DOCUMENT_CITED"
-          ? ""
-          : evidence.status === "CURRENT_YEAR_INDEX_ONLY"
-            ? `\n\nNOTA CURRICULAR: a página oficial das Orientações Curriculares ${currentYear} foi consultada, mas o documento específico do componente e da etapa não foi comprovado nesta resposta. Por isso, o ACESSA+ não atribuiu código ou habilidade oficial.`
-            : `\n\nNOTA CURRICULAR: não foi possível comprovar, no documento oficial específico de ${currentYear}, o código e a habilidade correspondentes. O material foi mantido como proposta pedagógica para revisão docente, sem alinhamento curricular declarado.`;
       return NextResponse.json(
         {
-          reply: safeText + alignmentNotice,
+          reply: safeText,
           quality: {
             status: finalQuality.valid ? "VERIFIED" : "NEEDS_TEACHER_REVIEW",
             issues: finalQuality.issues,
@@ -430,6 +433,11 @@ function normalizeHeading(line: string): string {
 
 function enforceDeliverableIntegrity(text: string): string {
   return text
+    .replace(
+      /\n*#{1,6}\s*(?:ALINHAMENTO INFORMADO E CONFER[ÊE]NCIA|ALINHAMENTO CURRICULAR|NOTA CURRICULAR)[\s\S]*$/i,
+      "",
+    )
+    .replace(/\n*NOTA CURRICULAR:[^\n]*(?:\n|$)/gi, "\n")
     .replace(
       /\n*(?:\*\*)?FONTES OFICIAIS CONSULTADAS(?: PELO SISTEMA)?:?\*{0,2}[\s\S]*$/i,
       "",
