@@ -1804,6 +1804,9 @@ body:has(.studioShell) .mindAppHeader {
   justify-content: center;
 }
 .studioA4Preview {
+  --a4-accent: #4c73ff;
+  --a4-accent-dark: #173765;
+  --a4-accent-soft: #edf4ff;
   position: relative;
   width: 794px;
   min-height: 1123px;
@@ -1832,8 +1835,33 @@ body:has(.studioShell) .mindAppHeader {
   position: absolute;
   inset: 0 auto 0 0;
   width: 10px;
-  background: linear-gradient(180deg, #4c73ff, #7458df 45%, #22a889);
+  background: linear-gradient(180deg, var(--a4-accent), var(--a4-accent-dark));
   content: "";
+}
+.studioA4Preview.a4Subject-portuguese {
+  --a4-accent: #6d28d9;
+  --a4-accent-dark: #40129a;
+  --a4-accent-soft: #f2eaff;
+}
+.studioA4Preview.a4Subject-math {
+  --a4-accent: #129447;
+  --a4-accent-dark: #08642e;
+  --a4-accent-soft: #e9f9ef;
+}
+.studioA4Preview.a4Subject-science {
+  --a4-accent: #087bd3;
+  --a4-accent-dark: #07539a;
+  --a4-accent-soft: #e8f5ff;
+}
+.studioA4Preview.a4Subject-humanities {
+  --a4-accent: #e33b32;
+  --a4-accent-dark: #9d1e20;
+  --a4-accent-soft: #fff0ed;
+}
+.studioA4Preview.a4Subject-languages {
+  --a4-accent: #e28b0a;
+  --a4-accent-dark: #985306;
+  --a4-accent-soft: #fff5df;
 }
 .a4Brand {
   display: flex;
@@ -1849,7 +1877,7 @@ body:has(.studioShell) .mindAppHeader {
   display: grid;
   place-items: center;
   border-radius: 15px;
-  background: linear-gradient(135deg, #397cff, #7953df);
+  background: linear-gradient(135deg, var(--a4-accent), var(--a4-accent-dark));
   box-shadow: 0 12px 25px rgba(76, 100, 220, 0.24);
   color: #fff;
   font-size: 21px;
@@ -1876,17 +1904,20 @@ body:has(.studioShell) .mindAppHeader {
 }
 .studioA4Preview h1 {
   margin: 6px 0 24px;
-  color: #0f2a53;
+  border-radius: 14px;
+  padding: 13px 17px;
+  background: linear-gradient(115deg, var(--a4-accent-dark), var(--a4-accent));
+  color: #fff;
   font-size: 30px;
   line-height: 1.12;
   letter-spacing: -0.035em;
 }
 .studioA4Preview h2 {
   margin: 26px 0 10px;
-  border-left: 5px solid #4778f3;
+  border-left: 5px solid var(--a4-accent);
   padding: 10px 14px;
-  background: #edf4ff;
-  color: #173765;
+  background: var(--a4-accent-soft);
+  color: var(--a4-accent-dark);
   font-size: 18px;
   line-height: 1.25;
 }
@@ -1899,6 +1930,11 @@ body:has(.studioShell) .mindAppHeader {
   border-color: #f0a12e;
   background: #fff7e7;
   color: #7b4a07;
+}
+.studioA4Preview h2.a4Visual {
+  border-color: #f2b705;
+  background: #fff7c7;
+  color: #664900;
 }
 .studioA4Preview h2.a4Answer,
 .studioA4Preview h2.a4Teacher {
@@ -1926,6 +1962,7 @@ body:has(.studioShell) .mindAppHeader {
 .studioA4Preview .a4Question {
   margin: 14px 0;
   border: 1px solid #dbe5f2;
+  border-left: 7px solid var(--a4-accent);
   border-radius: 12px;
   padding: 13px 15px 32px;
   background: #fff;
@@ -1961,7 +1998,7 @@ body:has(.studioShell) .mindAppHeader {
   vertical-align: top;
 }
 .studioA4Preview .a4Table th {
-  background: #173765;
+  background: var(--a4-accent-dark);
   color: #fff;
 }
 .studioA4Preview .a4Table tr:last-child td {
