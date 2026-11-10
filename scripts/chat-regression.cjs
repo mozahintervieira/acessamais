@@ -863,6 +863,10 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   );
   assert.match(clientSource, /messages: requestMessages/);
   assert.match(clientSource, /content: activeProject\.document/);
+  assert.ok(
+    clientSource.includes('replace(/^#{1,6}\\\\s*/, "")'),
+    "o editor deve remover marcadores de título antes de separar gabarito e guia",
+  );
   console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );
