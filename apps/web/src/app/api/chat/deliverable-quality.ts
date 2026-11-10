@@ -10,6 +10,18 @@ export function validatePedagogicalDeliverable(
   const asksForSequence = asksForDidacticSequence(normalizedRequest);
 
   if (asksForMaterial) {
+    if (/\bFRENTE\s+E\s+VERSO\b/i.test(response))
+      issues.push(
+        "a folha do estudante foi dividida em frente e verso; entregue cada atividade em uma face A4 completa",
+      );
+    if (
+      /(?:ALINHAMENTO|NOTA) CURRICULAR[\s\S]{0,500}(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(
+        response,
+      )
+    )
+      issues.push(
+        "a justificativa curricular foi colocada antes da folha do estudante",
+      );
     if (
       !/(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|CADERNO DE ATIVIDADES DO ESTUDANTE/i.test(
         response,
@@ -30,6 +42,15 @@ export function validatePedagogicalDeliverable(
       )
     )
       issues.push("faltou guia do professor");
+    if (
+      /(?:QUADRO|APOIO) VISUAL/i.test(response) &&
+      !/(?:GR[AÁ]FICO|MAPA|LINHA DO TEMPO|DIAGRAMA|ESQUEMA|TABELA DE DADOS|CART[ÕO]ES|SEQU[ÊE]NCIA VISUAL|MODELO VISUAL)/i.test(
+        response,
+      )
+    )
+      issues.push(
+        "o apoio visual foi apenas nomeado; faltou um recurso visual funcional ligado à resolução",
+      );
     if (!/LEITURA GUIADA/i.test(response))
       issues.push("faltou leitura guiada que ensine o conteúdo");
 

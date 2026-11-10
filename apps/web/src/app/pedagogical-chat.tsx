@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   exportWorksheetPdf,
   exportWorksheetPng,
+  exportWorksheetsPdf,
+  exportWorksheetsPngZip,
 } from "../lib/export/material-export";
 
 type Curriculum = {
@@ -75,7 +77,7 @@ export function PedagogicalChat(): React.ReactElement {
   const sending = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
   const dialogue = useRef<HTMLDivElement>(null);
-  const documentPreview = useRef<HTMLElement>(null);
+  const documentPreviews = useRef<Array<HTMLElement | null>>([]);
   const activeProject = useMemo(
     () =>
       projects.find((project) => project.id === activeId) ??
@@ -297,19 +299,21 @@ export function PedagogicalChat(): React.ReactElement {
   }
 
   async function downloadDocumentImage(format: "png" | "pdf"): Promise<void> {
-    if (
-      !activeProject.document ||
-      !documentPreview.current ||
-      exportingDocument
-    )
-      return;
+    if (!activeProject.document || exportingDocument) return;
+    const pages = documentPreviews.current.filter(
+      (element): element is HTMLElement => Boolean(element),
+    );
+    if (!pages.length) return;
     setExportingDocument(true);
     setError("");
     try {
       const options = { title: activeProject.name };
-      if (format === "png")
-        await exportWorksheetPng(documentPreview.current, options);
-      else await exportWorksheetPdf(documentPreview.current, options);
+      if (format === "png") {
+        if (pages.length === 1) await exportWorksheetPng(pages[0]!, options);
+        else await exportWorksheetsPngZip(pages, options);
+      } else if (pages.length === 1)
+        await exportWorksheetPdf(pages[0]!, options);
+      else await exportWorksheetsPdf(pages, options);
     } catch {
       setError(
         "Não foi possível gerar o arquivo visual agora. O material continua disponível no editor.",
@@ -662,7 +666,7 @@ export function PedagogicalChat(): React.ReactElement {
             ) : (
               <DocumentPreview
                 content={activeProject.document}
-                previewRef={documentPreview}
+                previewRefs={documentPreviews}
               />
             )
           ) : (
@@ -694,20 +698,157 @@ export function PedagogicalChat(): React.ReactElement {
 
 function DocumentPreview({
   content,
-  previewRef,
+  previewRefs,
 }: {
   content: string;
-  previewRef: React.RefObject<HTMLElement | null>;
+  previewRefs: React.RefObject<Array<HTMLElement | null>>;
 }): React.ReactElement {
+  const pages = splitDocumentPages(content);
+  previewRefs.current.length = pages.length;
+
+  return (
+    <div className="studioDocumentCanvas">
+      <div className="studioDocumentPages">
+        {pages.map((page, pageIndex) => (
+          <article
+            className={`studioA4Preview a4Page-${page.kind}`}
+            key={`${page.kind}-${pageIndex}`}
+            ref={(element) => {
+              previewRefs.current[pageIndex] = element;
+            }}
+          >
+            <header className="a4Brand">
+              <span>A+</span>
+              <div>
+                <strong>ACESSA+</strong>
+                <small>{pageLabel(page.kind)}</small>
+              </div>
+              <em>
+                Página {pageIndex + 1} de {pages.length}
+              </em>
+            </header>
+            {renderDocumentLines(page.lines, pageIndex)}
+            <div className="a4Footer">
+              ACESSA+ · material editável para revisão docente
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type DocumentPageKind = "student" | "answer" | "teacher" | "planning";
+type DocumentPage = { kind: DocumentPageKind; lines: string[] };
+
+function splitDocumentPages(content: string): DocumentPage[] {
+  const source = content.replace(/\r/g, "").split("\n");
+  const pages: DocumentPage[] = [];
+  let current: DocumentPage = { kind: "student", lines: [] };
+
+  const pushPage = (): void => {
+    if (current.lines.some((line) => line.trim())) pages.push(current);
+  };
+
+  for (const line of source) {
+    const normalized = cleanMarkdown(line)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const boundary = pageBoundary(normalized);
+    if (boundary && current.lines.some((item) => item.trim())) {
+      pushPage();
+      current = { kind: boundary, lines: [] };
+    } else if (boundary) current.kind = boundary;
+    current.lines.push(line);
+  }
+  pushPage();
+  return pages.length ? pages : [{ kind: "student", lines: source }];
+}
+
+function pageBoundary(normalizedLine: string): DocumentPageKind | null {
+  if (/^(?:gabarito|respostas comentadas)/.test(normalizedLine))
+    return "answer";
+  if (
+    /^(?:guia|orientacoes|mediacao) (?:do|ao|para o) professor/.test(
+      normalizedLine,
+    )
+  )
+    return "teacher";
+  if (/^planejamento da sequencia didatica/.test(normalizedLine))
+    return "planning";
+  if (
+    /^(?:aula \d+.*(?:folha a4|pagina do estudante)|material do estudante|folha do estudante|frente\b|verso\b)/.test(
+      normalizedLine,
+    )
+  )
+    return "student";
+  return null;
+}
+
+function pageLabel(kind: DocumentPageKind): string {
+  if (kind === "answer") return "Gabarito comentado";
+  if (kind === "teacher") return "Guia do professor";
+  if (kind === "planning") return "Planejamento pedagógico";
+  return "Folha do estudante";
+}
+
+function renderDocumentLines(
+  lines: string[],
+  pageIndex: number,
+): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  const lines = content.replace(/\r/g, "").split("\n");
   let code: string[] | null = null;
+  let table: string[][] = [];
+
+  const flushTable = (index: number): void => {
+    if (!table.length) return;
+    const meaningfulRows = table.filter(
+      (row) => !row.every((cell) => /^:?-{3,}:?$/.test(cell)),
+    );
+    const [head, ...body] = meaningfulRows;
+    if (head) {
+      nodes.push(
+        <table className="a4Table" key={`table-${pageIndex}-${index}`}>
+          <thead>
+            <tr>
+              {head.map((cell, cellIndex) => (
+                <th key={cellIndex}>{cleanMarkdown(cell)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {body.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex}>{cleanMarkdown(cell)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>,
+      );
+    }
+    table = [];
+  };
 
   for (const [index, rawLine] of lines.entries()) {
     const line = rawLine.trim();
+    if (/^\|.*\|$/.test(line)) {
+      table.push(
+        line
+          .slice(1, -1)
+          .split("|")
+          .map((cell) => cell.trim()),
+      );
+      continue;
+    }
+    flushTable(index);
     if (line.startsWith("```")) {
       if (code) {
-        nodes.push(<pre key={`code-${index}`}>{code.join("\n")}</pre>);
+        nodes.push(
+          <pre key={`code-${pageIndex}-${index}`}>{code.join("\n")}</pre>,
+        );
         code = null;
       } else code = [];
       continue;
@@ -721,7 +862,10 @@ function DocumentPreview({
     if (heading) {
       const Tag = heading.level === 1 ? "h1" : "h2";
       nodes.push(
-        <Tag className={heading.className} key={`heading-${index}`}>
+        <Tag
+          className={heading.className}
+          key={`heading-${pageIndex}-${index}`}
+        >
           {heading.label}
         </Tag>,
       );
@@ -730,34 +874,32 @@ function DocumentPreview({
     const listItem = line.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/);
     if (listItem) {
       nodes.push(
-        <p className="a4ListItem" key={`item-${index}`}>
+        <p className="a4ListItem" key={`item-${pageIndex}-${index}`}>
           <span aria-hidden="true">✓</span>
           {cleanMarkdown(listItem[1] ?? "")}
         </p>,
       );
       continue;
     }
-    nodes.push(<p key={`paragraph-${index}`}>{cleanMarkdown(line)}</p>);
+    const question = /^\*{0,2}\d+[.)]\s/.test(line);
+    const callout =
+      /^>/.test(line) ||
+      /^(?:banco de palavras|dica|aten[cç][aã]o)\s*:/i.test(
+        cleanMarkdown(line),
+      );
+    nodes.push(
+      <p
+        className={question ? "a4Question" : callout ? "a4Callout" : undefined}
+        key={`paragraph-${pageIndex}-${index}`}
+      >
+        {cleanMarkdown(line).replace(/^>\s*/, "")}
+      </p>,
+    );
   }
-  if (code?.length) nodes.push(<pre key="code-final">{code.join("\n")}</pre>);
-
-  return (
-    <div className="studioDocumentCanvas">
-      <article className="studioA4Preview" ref={previewRef}>
-        <header className="a4Brand">
-          <span>A+</span>
-          <div>
-            <strong>ACESSA+</strong>
-            <small>Material pedagógico inclusivo</small>
-          </div>
-        </header>
-        {nodes}
-        <div className="a4Footer">
-          ACESSA+ · material editável para revisão docente
-        </div>
-      </article>
-    </div>
-  );
+  flushTable(lines.length);
+  if (code?.length)
+    nodes.push(<pre key={`code-final-${pageIndex}`}>{code.join("\n")}</pre>);
+  return nodes;
 }
 
 function documentHeading(line: string): {
