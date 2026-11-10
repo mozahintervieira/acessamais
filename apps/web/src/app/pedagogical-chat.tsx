@@ -711,7 +711,7 @@ function DocumentPreview({
       <div className="studioDocumentPages">
         {pages.map((page, pageIndex) => (
           <article
-            className={`studioA4Preview a4Page-${page.kind}`}
+            className={`studioA4Preview a4Page-${page.kind} ${documentSubjectClass(page.lines)}`}
             key={`${page.kind}-${pageIndex}`}
             ref={(element) => {
               previewRefs.current[pageIndex] = element;
@@ -923,12 +923,35 @@ function documentHeading(line: string): {
     ? "a4Section a4Reading"
     : /exemplo|modelo resolvido/.test(normalized)
       ? "a4Section a4Example"
-      : /gabarito/.test(normalized)
+      : /recurso visual|apoio visual|mapa de|infografico|grafico|diagrama|linha do tempo|sequencia visual/.test(
+            normalized,
+          )
+        ? "a4Section a4Visual"
+        : /gabarito/.test(normalized)
         ? "a4Section a4Answer"
         : /guia|orientacoes.*professor|mediacao.*professor/.test(normalized)
           ? "a4Section a4Teacher"
           : "a4Section";
   return { level: primary ? 1 : 2, label, className };
+}
+
+function documentSubjectClass(lines: string[]): string {
+  const normalized = lines
+    .slice(0, 45)
+    .join(" ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (/lingua portuguesa|portugues/.test(normalized))
+    return "a4Subject-portuguese";
+  if (/matematica/.test(normalized)) return "a4Subject-math";
+  if (/quimica|fisica|biologia|ciencias/.test(normalized))
+    return "a4Subject-science";
+  if (/geografia|historia|filosofia|sociologia/.test(normalized))
+    return "a4Subject-humanities";
+  if (/arte|educacao fisica|lingua inglesa/.test(normalized))
+    return "a4Subject-languages";
+  return "a4Subject-general";
 }
 
 function cleanMarkdown(value: string): string {
