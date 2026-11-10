@@ -863,11 +863,7 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   );
   assert.match(clientSource, /messages: requestMessages/);
   assert.match(clientSource, /content: activeProject\.document/);
-  assert.ok(
-    clientSource.includes(".replace(/^#{1,6}"),
-    "o editor deve remover marcadores de título antes de separar gabarito e guia",
-  );
-  console.log(
+  const pageBoundaryLine = clientSource\n    .split(/\\r?\\n/)\n    .find((line) => line.includes(".replace(/^#{1,6}"));\n  assert.equal(\n    pageBoundaryLine?.trim(),\n    String.raw`.replace(/^#{1,6}\\s*/, "")`,\n    "o separador de páginas deve usar espaço em branco, não uma barra literal",\n  );\n  console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );
 })().catch((error) => {
