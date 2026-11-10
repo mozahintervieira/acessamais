@@ -752,6 +752,7 @@ function splitDocumentPages(content: string): DocumentPage[] {
 
   for (const line of source) {
     const normalized = cleanMarkdown(line)
+      .replace(/^#{1,6}\\s*/, "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
