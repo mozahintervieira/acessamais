@@ -518,7 +518,7 @@ Observe o grupo A: seu valor é 10.
 
 **QUESTÕES**
 Questão 1. Observe a tabela de dados e marque o maior valor. ☐ 10 ☐ 20 ☐ 30
-Questão 2. Compare os grupos A e B. Resposta: _____
+Questão 2. Compare os grupos A e B. **Resposta:** _____
 Questão 3. Explique a diferença entre B e C. Resposta: _____
 Questão 4. Crie uma conclusão usando os dados. Resposta: _____
 
