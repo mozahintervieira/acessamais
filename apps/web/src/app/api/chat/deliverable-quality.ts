@@ -253,7 +253,7 @@ function hasResponseSpace(studentSection: string): boolean {
   if (taskCount === 0) return false;
   const responseBlocks = [
     ...studentSection.matchAll(
-      /\b(?:Resposta|C[aá]lculo|Registro)\s*:\s*(?:_{3,}|(?:\r?\n\s*_{3,})+)/gim,
+      /\*{0,2}(?:Resposta|C[aá]lculo|Registro)\s*:\s*\*{0,2}\s*(?:_{3,}|(?:\r?\n\s*_{3,})+)/gim,
     ),
   ].length;
   const choiceTasks = [
