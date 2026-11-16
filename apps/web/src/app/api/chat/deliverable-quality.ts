@@ -249,9 +249,19 @@ function taskUsesVisualResource(studentSection: string): boolean {
 }
 
 function hasResponseSpace(studentSection: string): boolean {
-  return /_{5,}|\bResposta\s*:\s*(?:\n|_{3,})|\bC[aá]lculo\s*:\s*(?:\n|_{3,})|☐|\(\s*\)/i.test(
-    studentSection,
-  );
+  const taskCount = countStudentTasks(studentSection);
+  if (taskCount === 0) return false;
+  const responseBlocks = [
+    ...studentSection.matchAll(
+      /\b(?:Resposta|C[aá]lculo|Registro)\s*:\s*(?:_{3,}|(?:\r?\n\s*_{3,})+)/gim,
+    ),
+  ].length;
+  const choiceTasks = [
+    ...studentSection.matchAll(
+      /^\s*\*{0,2}(?:(?:quest[aã]o|atividade|miss[aã]o)\s*)?\d{1,2}[.)][\s\S]{0,450}?(?:☐|\(\s*\))[\s\S]{0,180}?(?:☐|\(\s*\))/gim,
+    ),
+  ].length;
+  return responseBlocks + choiceTasks >= taskCount;
 }
 
 export function asksForDidacticSequence(request: string): boolean {
