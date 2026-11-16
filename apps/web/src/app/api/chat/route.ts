@@ -34,14 +34,18 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 1. Inclua BASE CURRICULAR CONSULTADA somente quando o documento oficial específico tiver sido realmente lido: etapa/ano, componente, objeto de conhecimento e habilidade oficial, com código e redação comprovados. Se a fonte específica não for confirmada, não crie uma seção curricular longa; concentre-se no material e deixe o sistema acrescentar uma nota curta ao final.
 2. Entregue MATERIAL DO ESTUDANTE pronto para uso, com título adequado à faixa etária, objetivo em linguagem clara e LEITURA GUIADA que explique o conteúdo necessário para realizar a atividade. A leitura deve ensinar, não apenas apresentar o tema.
 3. Inclua EXEMPLO COMPLETO RESOLVIDO, com raciocínio explicado passo a passo e resposta final. Nunca chame uma instrução vaga de exemplo.
-4. Crie questões e tarefas reais, completas e progressivas, em quantidade solicitada, com comandos objetivos e espaço/resposta esperada claramente definidos. Quando o pedido for uma folha pronta para impressão, cada questão deve poder ser realizada diretamente na folha: não delegue ao professor a criação de cartões, imagens, perguntas, caça ao tesouro ou outros materiais que não foram entregues. Organize progressão cognitiva pela Taxonomia de Bloom sem exibir jargão desnecessário ao estudante.
-5. Inclua GABARITO COMENTADO separado da folha do estudante, com a resposta correta ou resposta esperada de cada questão e critérios de correção; não substitua respostas por uma descrição do objetivo da tarefa e não deixe respostas visíveis na seção do estudante.
+4. Crie questões e tarefas reais, completas e progressivas, em quantidade solicitada, com comandos objetivos e espaço/resposta esperada claramente definidos. Organize progressão cognitiva pela Taxonomia de Bloom sem exibir jargão desnecessário ao estudante.
+5. Inclua GABARITO COMENTADO separado da folha do estudante, com respostas e critérios de correção; não deixe respostas visíveis na seção do estudante.
 6. Inclua GUIA DO PROFESSOR com objetivo, mediação, evidências de aprendizagem, avaliação formativa, princípios de DUA, acessibilidade e adaptações coerentes com as barreiras e apoios informados. Diagnóstico nunca substitui a descrição funcional do estudante.
 7. Use CAA, tecnologia assistiva, recursos concretos, multissensoriais ou tecnológicos somente quando tiverem função pedagógica clara. Para DV, considere alto contraste, fonte ampliada, descrição acessível, áudio ou recurso tátil; para DA, linguagem visual e Libras quando pertinente; para estudantes não alfabetizados, pareamento, pistas visuais e comandos curtos; para TEA e TDAH, previsibilidade, segmentação e baixa ambiguidade; para altas habilidades, aprofundamento e autoria. Não infantilize adolescentes ou adultos.
 8. Quando o professor pedir folha A4, atividade visual, lúdica ou "como imagem", produza primeiro TODO o conteúdo pedagógico completo no padrão acima. Cada atividade do estudante deve ocupar uma única face A4: não escreva "frente e verso" e não separe texto-base, exemplo e questões em lados diferentes. Organize a resposta com título curto, blocos visuais, comandos concisos, espaço real de resposta e elementos imprimíveis. A interface separará estudante, gabarito e guia em páginas e permitirá exportar PNG e PDF.
 9. A folha do estudante contém somente o que o estudante precisa ver. Nunca coloque nela justificativa curricular, status da consulta, fontes, gabarito, critérios de correção ou orientações ao professor. Essas informações devem aparecer depois, em páginas próprias.
 10. Não chame uma tabela de sinais (+, !, setas), uma lista de palavras ou um parágrafo de "apoio visual". Quando o apoio visual for pertinente, construa um recurso funcional ligado à tarefa: tabela de dados, gráfico textual renderizável, mapa esquemático, linha do tempo, diagrama, sequência visual, cartões de escolha ou modelo visual com rótulos e dados concretos. O estudante deve precisar consultar esse recurso para responder pelo menos uma questão.
-
+11. Use como referência editorial as sequências didáticas do professor: cabeçalho claro com componente e etapa, título curto e expressivo, texto-base contextualizado, recurso visual curricular de destaque, quatro atividades progressivas por padrão e áreas reais para resposta. A folha deve parecer material didático diagramado, não relatório, formulário ou resposta de chat.
+12. Em Língua Portuguesa, quando você criar o texto-base, identifique-o honestamente como TEXTO AUTORAL PARA ESTA ATIVIDADE. Não apresente texto inventado como notícia, reportagem, campanha ou publicação real. Se o pedido exigir um gênero, produza um exemplar autoral completo e informe o contexto comunicativo fictício sem atribuí-lo a uma instituição real.
+13. O recurso visual deve ensinar conteúdo e participar da resolução. Quadros sobre "o que é ideia central", bancos de palavras e lembretes metacognitivos podem complementar, mas não substituem infográfico, comparação visual, gráfico, mapa, diagrama, linha do tempo, sequência ilustrada ou tabela de dados do próprio conteúdo. Pelo menos uma questão deve mandar explicitamente consultar esse recurso.
+14. Na seção ATIVIDADES, entregue quatro tarefas progressivas, salvo quantidade diferente pedida pelo professor: localizar ou reconhecer; comparar ou explicar; aplicar com apoio; produzir, decidir ou justificar. Inclua alternativas, dados, textos e todos os elementos necessários. Evite perguntas genéricas que poderiam servir para qualquer tema.
+15. Preserve a riqueza pedagógica em revisões. Comandos como "revise", "melhore", "refaça", "corrija", "simplifique" ou "adapte" não autorizam apagar texto-base, recurso visual, modelagem, progressão, espaço de resposta, gabarito ou guia do professor, salvo pedido explícito.
 
 PADRÃO ESPECÍFICO PARA SEQUÊNCIA DIDÁTICA:
 - Trate "sequência didática" ou "SD" como um produto completo, diferente de uma atividade isolada. Nunca reduza uma SD solicitada a duas páginas de um único componente.
@@ -111,10 +115,6 @@ export async function POST(request: Request): Promise<NextResponse> {
         await fetchCurrentCurriculumCatalog(currentYear);
       const latestRequest = messages[messages.length - 1].content;
       const sequenceRequest = asksForDidacticSequence(latestRequest);
-      const qualityRequest = pedagogicalQualityRequest(messages, latestRequest);
-      const primaryModel = process.env.OPENAI_MODEL?.trim() || "gpt-6-luna";
-      const qualityModel =
-        process.env.OPENAI_QUALITY_MODEL?.trim() || "gpt-6-luna";
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -123,7 +123,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
         signal: controller.signal,
         body: JSON.stringify({
-          model: primaryModel,
+          model:
+            process.env.OPENAI_PEDAGOGICAL_MODEL?.trim() ||
+            process.env.OPENAI_MODEL?.trim() ||
+            "gpt-6.1-sol",
           store: false,
           instructions:
             instructions +
@@ -200,86 +203,69 @@ export async function POST(request: Request): Promise<NextResponse> {
           },
           { status: 502 },
         );
-      let quality = validatePedagogicalDeliverable(qualityRequest, text);
+      let quality = validatePedagogicalDeliverable(latestRequest, text);
       if (!quality.valid) {
         stage = "quality-retry";
         const firstText = text;
         const firstEvidence = evidence;
-        try {
-          const retryResponse = await fetch(
-            "https://api.openai.com/v1/responses",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-              },
-              signal: controller.signal,
-              body: JSON.stringify({
-                model: qualityModel,
-                store: false,
-                instructions:
-                  instructions +
-                  "\n\n" +
-                  curriculumInstructions(currentYear) +
-                  "\n\n" +
-                  curriculumCatalogInstructions(
-                    curriculumCatalog,
-                    latestRequest,
-                  ) +
-                  `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
-                tools: [curriculumSearchTool],
-                tool_choice: "required",
-                include: ["web_search_call.action.sources"],
-                input: [
-                  ...messages.map(
-                    (item: { role: string; content: string }) => ({
-                      role: item.role,
-                      content: item.content,
-                    }),
-                  ),
-                  {
-                    role: "assistant",
-                    content: firstText,
-                  },
-                  {
-                    role: "user",
-                    content: `Revise a versão acima e entregue o material completo. Corrija especificamente: ${quality.issues.join("; ")}. Não explique a revisão; devolva o material final integral, mantendo todos os requisitos válidos do pedido original.`,
-                  },
-                ].map((item: { role: string; content: string }) => ({
+        const retryResponse = await fetch(
+          "https://api.openai.com/v1/responses",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              model:
+                process.env.OPENAI_PEDAGOGICAL_MODEL?.trim() ||
+                process.env.OPENAI_MODEL?.trim() ||
+                "gpt-6.1-sol",
+              store: false,
+              instructions:
+                instructions +
+                "\n\n" +
+                curriculumInstructions(currentYear) +
+                "\n\n" +
+                curriculumCatalogInstructions(
+                  curriculumCatalog,
+                  latestRequest,
+                ) +
+                `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
+              tools: [curriculumSearchTool],
+              tool_choice: "required",
+              include: ["web_search_call.action.sources"],
+              input: messages.map(
+                (item: { role: string; content: string }) => ({
                   role: item.role,
                   content: item.content,
-                })),
-                max_output_tokens: sequenceRequest ? 14000 : 7000,
-              }),
-            },
+                }),
+              ),
+              max_output_tokens: sequenceRequest ? 14000 : 7000,
+            }),
+          },
+        );
+        if (retryResponse.ok) {
+          const retryPayload = await retryResponse.json();
+          const retryText = extractResponseText(retryPayload);
+          const retryEvidence = curriculumEvidence(
+            retryPayload,
+            currentYear,
+            curriculumCatalog,
+            [],
           );
-          if (retryResponse.ok) {
-            const retryPayload = await retryResponse.json();
-            const retryText = extractResponseText(retryPayload);
-            const retryEvidence = curriculumEvidence(
-              retryPayload,
-              currentYear,
-              curriculumCatalog,
-              [],
-            );
-            if (retryText.trim()) {
-              payload = retryPayload;
-              text = retryText;
-              evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
-              quality = validatePedagogicalDeliverable(qualityRequest, text);
-            }
+          if (retryText.trim()) {
+            payload = retryPayload;
+            text = retryText;
+            evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
+            quality = validatePedagogicalDeliverable(latestRequest, text);
           }
-        } catch (retryError) {
-          console.error("chat_quality_retry_failed", {
-            error:
-              retryError instanceof Error ? retryError.name : "UnknownError",
-          });
         }
         if (!text.trim()) {
           text = firstText;
           evidence = firstEvidence;
-          quality = validatePedagogicalDeliverable(qualityRequest, text);
+          quality = validatePedagogicalDeliverable(latestRequest, text);
         }
         if (!quality.valid) {
           console.error("chat_quality_needs_review", {
@@ -288,7 +274,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
       }
       const safeText = enforceRequiredDeliverableStructure(
-        qualityRequest,
+        latestRequest,
         enforceDeliverableIntegrity(
           enforceCurriculumIntegrity(
             text,
@@ -299,18 +285,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         ),
       );
       const finalQuality = validatePedagogicalDeliverable(
-        qualityRequest,
+        latestRequest,
         safeText,
       );
-      const alignmentNotice =
-        evidence.status === "CURRENT_YEAR_DOCUMENT_CITED"
-          ? ""
-          : evidence.status === "CURRENT_YEAR_INDEX_ONLY"
-            ? `\n\nNOTA CURRICULAR: a página oficial das Orientações Curriculares ${currentYear} foi consultada, mas o documento específico do componente e da etapa não foi comprovado nesta resposta. Por isso, o ACESSA+ não atribuiu código ou habilidade oficial.`
-            : `\n\nNOTA CURRICULAR: não foi possível comprovar, no documento oficial específico de ${currentYear}, o código e a habilidade correspondentes. O material foi mantido como proposta pedagógica para revisão docente, sem alinhamento curricular declarado.`;
       return NextResponse.json(
         {
-          reply: safeText + alignmentNotice,
+          reply: safeText,
           quality: {
             status: finalQuality.valid ? "VERIFIED" : "NEEDS_TEACHER_REVIEW",
             issues: finalQuality.issues,
@@ -383,7 +363,11 @@ function enforceCurriculumIntegrity(
       .replace(/\bpictogramas?\b/gi, "pistas textuais");
   }
   if (status === "CURRENT_YEAR_DOCUMENT_CITED") return result;
-  let sanitized = removeUnverifiedCurriculumSections(result);
+  const basePattern =
+    /(?:\*\*)?BASE CURRICULAR CONSULTADA:?\*{0,2}[\s\S]*?(?=(?:\*\*)?MATERIAL DO ESTUDANTE:?\*{0,2})/i;
+  let sanitized = basePattern.test(result)
+    ? result.replace(basePattern, "")
+    : result;
   sanitized = sanitized.replace(
     /\b(?:EI|EF|EM)\d{2}[A-Z]{2,5}\d{2}(?:\/[A-Z]{2})?\b/g,
     "código curricular não confirmado",
@@ -391,45 +375,13 @@ function enforceCurriculumIntegrity(
   return sanitized;
 }
 
-function removeUnverifiedCurriculumSections(text: string): string {
-  let dropping = false;
-  return text
-    .split(/\r?\n/)
-    .filter((line) => {
-      const heading = normalizeHeading(line);
-      if (
-        /^(?:BASE CURRICULAR CONSULTADA|REFER[ÊE]NCIA CURRICULAR|ALINHAMENTO CURRICULAR)(?:\s+\d{4}.*)?$/i.test(
-          heading,
-        )
-      ) {
-        dropping = true;
-        return false;
-      }
-      if (
-        dropping &&
-        /^(?:(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|LEITURA GUIADA|EXEMPLO(?: COMPLETO)? RESOLVIDO|QUEST[ÕO]ES|ATIVIDADES|GABARITO(?: COMENTADO)?|GUIA DO PROFESSOR)$/i.test(
-          heading,
-        )
-      ) {
-        dropping = false;
-        return true;
-      }
-      return !dropping;
-    })
-    .join("\n");
-}
-
-function normalizeHeading(line: string): string {
-  return line
-    .trim()
-    .replace(/^#{1,6}\s*/, "")
-    .replace(/^\*\*/, "")
-    .replace(/[:*]+\s*$/, "")
-    .trim();
-}
-
 function enforceDeliverableIntegrity(text: string): string {
   return text
+    .replace(
+      /(^|\n)\s*#{0,6}\s*\*{0,2}(?:ALINHAMENTO INFORMADO E CONFER[ÊE]NCIA|ALINHAMENTO CURRICULAR|NOTA CURRICULAR)\*{0,2}\s*:?\s*\n[\s\S]*?(?=\n\s*(?:#{0,6}\s*)?\*{0,2}(?:MATERIAL|FOLHA|ATIVIDADE|CADERNO) (?:DO|PARA O) ESTUDANTE\b|\n\s*(?:#{0,6}\s*)?\*{0,2}(?:GABARITO|GUIA DO PROFESSOR|ORIENTA[CÇ][ÕO]ES AO PROFESSOR)\b|$)/gim,
+      "$1",
+    )
+    .replace(/\n*NOTA CURRICULAR:[^\n]*(?:\n|$)/gi, "\n")
     .replace(
       /\n*(?:\*\*)?FONTES OFICIAIS CONSULTADAS(?: PELO SISTEMA)?:?\*{0,2}[\s\S]*$/i,
       "",
@@ -449,29 +401,6 @@ function enforceDeliverableIntegrity(text: string): string {
       /\blinguagem de sinais\b/gi,
       "Libras, quando pertinente e com profissional habilitado",
     );
-}
-
-function pedagogicalQualityRequest(
-  messages: Array<{ role: "user" | "assistant"; content: string }>,
-  latestRequest: string,
-): string {
-  const previousMaterialExists = messages
-    .slice(0, -1)
-    .some(
-      (message) =>
-        message.role === "assistant" &&
-        /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i.test(
-          message.content,
-        ),
-    );
-  const isRevision =
-    /^(?:agora\s+)?(?:adapte|adicione|altere|inclua|mantenha|melhore|organize|permita|reduza|remova|retire|simplifique|substitua|troque)\b/i.test(
-      latestRequest.trim(),
-    );
-
-  return previousMaterialExists && isRevision
-    ? `Adapte a atividade existente pronta para impressão. ${latestRequest}`
-    : latestRequest;
 }
 
 function enforceRequiredDeliverableStructure(
@@ -520,3 +449,4 @@ function extractResponseText(payload: any): string {
     .join("\n")
     .trim();
 }
+

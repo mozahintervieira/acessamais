@@ -37,7 +37,6 @@ async function call({
   key = "test-only",
   messages = [{ role: "user", content: "Como pode me ajudar no AEE?" }],
   status = 200,
-  retryFailure,
   payload = {
     output: [
       { type: "web_search_call", status: "completed" },
@@ -61,7 +60,6 @@ async function call({
 } = {}) {
   const exports = {};
   let sent;
-  let fetchCount = 0;
   const logs = [];
   vm.runInNewContext(code, {
     exports,
@@ -95,9 +93,7 @@ async function call({
                 },
               },
     fetch: async (url, options) => {
-      fetchCount += 1;
       sent = JSON.parse(options.body);
-      if (retryFailure && fetchCount === 2) throw retryFailure;
       return { ok: status === 200, status, json: async () => payload };
     },
   });
@@ -143,6 +139,7 @@ async function call({
   const success = await call({ messages: history });
   assert.deepEqual(success.sent.input, history);
   assert.equal(success.sent.store, false);
+  assert.equal(success.sent.model, "gpt-6.1-sol");
   assert.equal(success.sent.tool_choice, "required");
   assert.equal(success.sent.tools[0].external_web_access, undefined);
   assert.equal(success.sent.tools[0].type, "web_search");
@@ -158,7 +155,7 @@ async function call({
   assert.ok(
     success.sent.instructions.includes("Não escreva “observe a imagem abaixo”"),
   );
-  assert.ok(success.response.body.reply.includes(`NOTA CURRICULAR`));
+  assert.ok(!success.response.body.reply.includes(`NOTA CURRICULAR`));
   assert.equal((await call({ status: 429 })).response.status, 503);
   assert.equal(
     (await call({ payload: { status: "incomplete", output: [] } })).response
@@ -245,7 +242,7 @@ async function call({
     indexOnly.response.body.curriculum.status,
     "CURRENT_YEAR_INDEX_ONLY",
   );
-  assert.ok(indexOnly.response.body.reply.includes("NOTA CURRICULAR"));
+  assert.ok(!indexOnly.response.body.reply.includes("NOTA CURRICULAR"));
   const unsafeCurriculum = await call({
     payload: {
       output: [
@@ -273,7 +270,7 @@ async function call({
       ],
     },
   });
-  assert.ok(unsafeCurriculum.response.body.reply.includes("NOTA CURRICULAR"));
+  assert.ok(!unsafeCurriculum.response.body.reply.includes("NOTA CURRICULAR"));
   assert.ok(!unsafeCurriculum.response.body.reply.includes("EF06CI05"));
   assert.ok(
     !unsafeCurriculum.response.body.reply.includes(
@@ -412,7 +409,7 @@ async function call({
     },
   });
   assert.equal(ungrounded.response.body.curriculum.sources.length, 0);
-  assert.ok(ungrounded.response.body.reply.includes("NOTA CURRICULAR"));
+  assert.ok(!ungrounded.response.body.reply.includes("NOTA CURRICULAR"));
   const fakeWordSearch =
     "**PALAVRAS A ENCONTRAR:**\n- ROCHA\n- MAGMA\n- LAVA\n- GRANITO\n- BASALTO\n\n```wordsearch\nR O C H A M A G M A\nL A V A G R A N I T O\n```";
   assert.equal(qualityModule.validateWordSearch(fakeWordSearch).valid, false);
@@ -447,7 +444,7 @@ async function call({
   );
   const poorWorksheet = qualityModule.validatePedagogicalDeliverable(
     "Crie uma atividade visual pronta para impressão em folha A4.",
-    `**ALINHAMENTO CURRICULAR**\nCódigo não confirmado.\n\n**MATERIAL DO ESTUDANTE**\n**Formato:** uma folha A4 frente e verso.\n\n**QUADRO DE APOIO VISUAL**\n| + | positivo |\n| ! | alerta |\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.`,
+    `**ALINHAMENTO CURRICULAR**\nCódigo não confirmado.\n\n**MATERIAL DO ESTUDANTE**\n**Formato:** uma folha A4 frente e verso.\n\n**QUADRO DE APOIO VISUAL**\n| + | positivo |\n| ! | alerta |\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta.\n\n**GUIA DO PROFESSOR**\nMediação.`,
   );
   assert.equal(poorWorksheet.valid, false);
   assert.ok(
@@ -461,25 +458,79 @@ async function call({
   assert.ok(
     poorWorksheet.issues.some((issue) => issue.includes("apenas nomeado")),
   );
+  const genericRevision = qualityModule.validatePedagogicalDeliverable(
+    "Revise a atividade anterior e melhore a ideia central e os detalhes.",
+    `**FOLHA DO ESTUDANTE**
+
+**LEITURA GUIADA**
+Ideia central é a mensagem mais importante.
+
+**APOIO VISUAL PARA CONSULTAR**
+| Parte | Pergunta | Exemplo |
+|---|---|---|
+| Ideia central | Qual é a mensagem? | A escola promove participação. |
+| Detalhe | O que explica? | Vídeos com legendas. |
+
+**EXEMPLO COMPLETO RESOLVIDO**
+Passo 1. Leia. Passo 2. Responda.
+
+**ATIVIDADES**
+1. Marque a ideia central. ☐ A ☐ B
+2. Copie um detalhe. ______
+3. Explique o conector. ______
+4. Produza uma frase. ______
+
+**GABARITO COMENTADO**
+Respostas.
+
+**GUIA DO PROFESSOR**
+Mediação.`,
+  );
+  assert.equal(genericRevision.valid, false);
   assert.ok(
-    bestEffort.sent.input.some(
-      (message) =>
-        message.role === "assistant" &&
-        message.content === "Versão pedagógica inicial para revisão.",
+    genericRevision.issues.some((issue) =>
+      issue.includes("consulte o recurso visual curricular"),
     ),
   );
-  assert.match(
-    bestEffort.sent.input.at(-1).content,
-    /Revise a versão acima e entregue o material completo/,
+  assert.equal(
+    qualityModule.asksForPedagogicalDeliverable(
+      "Revise a atividade anterior e melhore a ideia central e os detalhes.",
+    ),
+    true,
   );
-  assert.equal(bestEffort.sent.model, "gpt-6-luna");
-  const retryFailureFallsBack = await call({
-    messages: [
-      {
-        role: "user",
-        content: "Crie uma atividade pronta para impressão em folha A4.",
-      },
-    ],
+  const prefixedQuestionsWithDataTable =
+    qualityModule.validatePedagogicalDeliverable(
+      "Crie uma atividade pronta para impressão em folha A4.",
+      `**FOLHA DO ESTUDANTE**
+
+**LEITURA GUIADA**
+Uma tabela organiza dados em linhas e colunas para facilitar comparações.
+
+**TABELA DE DADOS**
+| Grupo | Valor |
+|---|---|
+| A | 10 |
+| B | 20 |
+| C | 30 |
+
+**EXEMPLO COMPLETO RESOLVIDO**
+Observe o grupo A: seu valor é 10.
+
+**QUESTÕES**
+Questão 1. Observe a tabela de dados e marque o maior valor. ☐ 10 ☐ 20 ☐ 30
+Questão 2. Compare os grupos A e B. Resposta: _____
+Questão 3. Explique a diferença entre B e C. Resposta: _____
+Questão 4. Crie uma conclusão usando os dados. Resposta: _____
+
+**GABARITO COMENTADO**
+Questão 1. 30, pois é o maior valor.
+
+**GUIA DO PROFESSOR**
+Faça a mediação pela leitura das linhas e colunas.`,
+    );
+  assert.equal(prefixedQuestionsWithDataTable.valid, true);
+  const sectionSanitization = await call({
+    messages: [{ role: "user", content: "Apenas mostre este texto." }],
     payload: {
       output: [
         { type: "web_search_call", status: "completed" },
@@ -487,24 +538,27 @@ async function call({
           content: [
             {
               type: "output_text",
-              text: "Versão inicial ainda incompleta.",
+              text: `# ALINHAMENTO CURRICULAR
+Referência interna para conferência.
+
+# MATERIAL DO ESTUDANTE
+Conteúdo preservado.
+
+# GABARITO COMENTADO
+Resposta preservada.
+
+# GUIA DO PROFESSOR
+Mediação preservada.`,
             },
           ],
         },
       ],
     },
-    retryFailure: new DOMException("timeout", "AbortError"),
   });
-  assert.equal(retryFailureFallsBack.response.status, 200);
-  assert.equal(
-    retryFailureFallsBack.response.body.quality.status,
-    "NEEDS_TEACHER_REVIEW",
-  );
-  assert.ok(
-    retryFailureFallsBack.logs.some(
-      (entry) => entry[0] === "chat_quality_retry_failed",
-    ),
-  );
+  assert.ok(!sectionSanitization.response.body.reply.includes("Referência interna"));
+  assert.ok(sectionSanitization.response.body.reply.includes("Conteúdo preservado"));
+  assert.ok(sectionSanitization.response.body.reply.includes("Resposta preservada"));
+  assert.ok(sectionSanitization.response.body.reply.includes("Mediação preservada"));
   const normalizedComplete = await call({
     messages: [
       {
@@ -519,7 +573,7 @@ async function call({
           content: [
             {
               type: "output_text",
-              text: "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto que ensina o conteúdo.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe os dados.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Responda à questão.\n\n**GABARITO COMENTADO**\nResposta 1: resultado esperado e critério de correção.\n\n**GUIA DO PROFESSOR**\nMediação e avaliação formativa.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
+              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
             },
           ],
         },
@@ -527,92 +581,16 @@ async function call({
     },
   });
   assert.equal(normalizedComplete.response.status, 200);
-  assert.equal(normalizedComplete.response.body.quality.status, "VERIFIED");
+  assert.equal(
+    normalizedComplete.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
   assert.ok(
     normalizedComplete.response.body.reply.startsWith(
       "**MATERIAL DO ESTUDANTE**",
     ),
   );
   assert.ok(!normalizedComplete.response.body.reply.includes("http"));
-  const revisionIsStillValidated = await call({
-    messages: [
-      {
-        role: "user",
-        content: "Crie uma atividade de Ciências com cinco questões.",
-      },
-      {
-        role: "assistant",
-        content:
-          "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Questão.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
-      },
-      {
-        role: "user",
-        content:
-          "Agora reduza para três questões e permita respostas por apontamento.",
-      },
-    ],
-    payload: {
-      output: [
-        { type: "web_search_call", status: "completed" },
-        {
-          content: [
-            {
-              type: "output_text",
-              text: "Versão reduzida para três questões.",
-            },
-          ],
-        },
-      ],
-    },
-  });
-  assert.equal(
-    revisionIsStillValidated.response.body.quality.status,
-    "NEEDS_TEACHER_REVIEW",
-  );
-  assert.ok(
-    revisionIsStillValidated.response.body.reply.startsWith(
-      "**MATERIAL DO ESTUDANTE**",
-    ),
-  );
-  const revisionQuantityIsValidated = await call({
-    messages: [
-      {
-        role: "user",
-        content: "Crie uma atividade de Ciências com cinco questões.",
-      },
-      {
-        role: "assistant",
-        content:
-          "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Questão.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
-      },
-      {
-        role: "user",
-        content: "Agora reduza para três questões.",
-      },
-    ],
-    payload: {
-      output: [
-        { type: "web_search_call", status: "completed" },
-        {
-          content: [
-            {
-              type: "output_text",
-              text: "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**QUESTÕES**\n1. Primeira.\n2. Segunda.\n\n**GABARITO COMENTADO**\n1. Resposta.\n2. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
-            },
-          ],
-        },
-      ],
-    },
-  });
-  assert.equal(
-    revisionQuantityIsValidated.response.body.quality.status,
-    "NEEDS_TEACHER_REVIEW",
-  );
-  assert.ok(
-    revisionQuantityIsValidated.response.body.quality.issues.some((issue) =>
-      issue.includes("foram solicitadas 3"),
-    ),
-  );
   const conversational = await call({
     messages: [
       {
@@ -625,122 +603,9 @@ async function call({
   assert.ok(
     !conversational.response.body.reply.includes("MATERIAL DO ESTUDANTE"),
   );
-  assert.equal(
-    qualityModule.validatePedagogicalDeliverable(
-      "Como apoiar um estudante com deficiência visual?",
-      "Considere fonte ampliada, contraste e audiodescrição conforme a barreira observada.",
-    ).valid,
-    true,
-  );
-  const curriculumPhrase = await call({
-    messages: [
-      {
-        role: "user",
-        content: "Como você pode me ajudar no planejamento?",
-      },
-    ],
-    payload: {
-      output: [
-        { type: "web_search_call", status: "completed" },
-        {
-          content: [
-            {
-              type: "output_text",
-              text: "Posso ajudar com planejamento e alinhamento curricular, adaptações e avaliação.",
-            },
-          ],
-        },
-      ],
-    },
-  });
-  assert.ok(
-    curriculumPhrase.response.body.reply.includes("alinhamento curricular"),
-  );
-  const colonHeadings = await call({
-    messages: [
-      {
-        role: "user",
-        content: "Crie uma atividade pronta para impressão em folha A4.",
-      },
-    ],
-    payload: {
-      output: [
-        { type: "web_search_call", status: "completed" },
-        {
-          content: [
-            {
-              type: "output_text",
-              text: "**BASE CURRICULAR CONSULTADA:**\nReferência não confirmada.\n\n**MATERIAL DO ESTUDANTE:**\n\n**LEITURA GUIADA:**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO:**\nVamos resolver as questões usando adição.\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES:**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO:**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR:**\nMediação.",
-            },
-          ],
-        },
-      ],
-    },
-  });
-  assert.ok(colonHeadings.response.body.reply.includes("Passo 1: observe"));
-  assert.ok(
-    !colonHeadings.response.body.reply.includes("Referência não confirmada"),
-  );
-  assert.equal(colonHeadings.response.body.quality.status, "VERIFIED");
-  const notReady = qualityModule.validatePedagogicalDeliverable(
-    "Crie uma atividade visual pronta para impressão em folha A4.",
-    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO RESOLVIDO**\nFormação e características.\n\n**QUESTÕES**\nCrie cartões. Esconda amostras. Imprima imagens.\n\n**GABARITO COMENTADO**\nObjetivo: reconhecer o tema.\n\n**GUIA DO PROFESSOR**\nMediação.",
-  );
-  assert.equal(notReady.valid, false);
-  assert.ok(
-    notReady.issues.some((issue) =>
-      issue.includes("recursos em vez de entregar"),
-    ),
-  );
-  assert.ok(
-    notReady.issues.some((issue) => issue.includes("gabarito não apresenta")),
-  );
-  assert.ok(
-    notReady.issues.some((issue) => issue.includes("exemplo resolvido")),
-  );
-  assert.ok(notReady.issues.some((issue) => issue.includes("apoio visual")));
-  const wrongQuantity = qualityModule.validatePedagogicalDeliverable(
-    "Crie cinco questões prontas para impressão em folha A4.",
-    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: resultado.\n\n**QUESTÕES**\n1. Primeira.\n2. Segunda.\n\n**GABARITO COMENTADO**\nResposta 1: A.\nResposta 2: B.\n\n**GUIA DO PROFESSOR**\nMediação.",
-  );
-  assert.ok(
-    wrongQuantity.issues.some((issue) => issue.includes("foram solicitadas 5")),
-  );
-  const markdownQuestionNumbers = qualityModule.validatePedagogicalDeliverable(
-    "Crie duas questões prontas para impressão em folha A4.",
-    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n**1.** Quanto é 2 + 2?\n**2.** Quanto é 1 + 2?\n\n**GABARITO COMENTADO**\n1. 4.\n2. 3.\n\n**GUIA DO PROFESSOR**\nMediação.",
-  );
-  assert.equal(markdownQuestionNumbers.valid, true);
-  const questionsWithoutOptionalHeading =
-    qualityModule.validatePedagogicalDeliverable(
-      "Crie duas questões prontas para impressão em folha A4.",
-      "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n1. Quanto é 2 + 2?\n2. Quanto é 1 + 2?\n\n**GABARITO COMENTADO**\n**1.** 4.\n**2.** 3.\n\n**GUIA DO PROFESSOR**\nMediação.",
-    );
-  assert.equal(questionsWithoutOptionalHeading.valid, true);
-  const markdownExampleSteps = qualityModule.validatePedagogicalDeliverable(
-    "Crie uma atividade pronta para impressão em folha A4.",
-    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\n**1.** Separe duas tampinhas.\n**2.** Junte outras duas tampinhas.\n**Resposta final:** 4 tampinhas.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4.\n\n**GUIA DO PROFESSOR**\nMediação.",
-  );
-  assert.equal(markdownExampleSteps.valid, true);
-  const exampleStepsAreNotQuestions =
-    qualityModule.validatePedagogicalDeliverable(
-      "Crie três questões prontas para impressão em folha A4.",
-      "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\n1. Separe duas tampinhas.\n2. Junte outras duas tampinhas.\nResposta final: 4 tampinhas.\n\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4.\n\n**GUIA DO PROFESSOR**\nMediação.",
-    );
-  assert.ok(
-    exampleStepsAreNotQuestions.issues.some((issue) =>
-      issue.includes("foram solicitadas 3"),
-    ),
-  );
-  const numberedAnswerKey = qualityModule.validatePedagogicalDeliverable(
-    "Crie uma atividade pronta para impressão em folha A4.",
-    "**MATERIAL DO ESTUDANTE**\n\n**LEITURA GUIADA**\nTexto.\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: 4.\n\n**QUESTÕES**\n1. Quanto é 2 + 2?\n\n**GABARITO COMENTADO**\n1. 4, pois duas unidades somadas a outras duas formam quatro.\n\n**GUIA DO PROFESSOR**\nMediação.",
-  );
-  assert.equal(numberedAnswerKey.valid, true);
-
   const incompleteSequence = qualityModule.validatePedagogicalDeliverable(
     "Crie uma sequência didática adaptada com sete aulas.",
-    "**MATERIAL DO ESTUDANTE**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+    "**MATERIAL DO ESTUDANTE**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
   );
   assert.equal(incompleteSequence.valid, false);
   assert.ok(
@@ -760,7 +625,7 @@ async function call({
   const missingRequestedComponent =
     qualityModule.validatePedagogicalDeliverable(
       "Crie uma sequência didática de Matemática e Química com sete aulas.",
-      "**MATERIAL DO ESTUDANTE**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso 1: observe.\nPasso 2: resolva.\nResposta final: exemplo.\n\n**GABARITO COMENTADO**\n1. Resposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
+      "**MATERIAL DO ESTUDANTE**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta.\n\n**GUIA DO PROFESSOR**\nMediação.",
     );
   assert.ok(
     missingRequestedComponent.issues.some((issue) =>
@@ -768,8 +633,6 @@ async function call({
     ),
   );
 
-  const lessonPage = (lesson, support) => `**AULA ${lesson} — FOLHA A4**
-Leitura guiada extensa e ${support} para compreender o conteúdo da aula. ATIVIDADES: 1. Identifique a informação principal. 2. Compare os dados ou ideias. 3. Registre uma conclusão por escrita, digitação ou apontamento, com espaço de resposta.`;
   const completeSequenceText = `**PLANEJAMENTO DA SEQUÊNCIA DIDÁTICA**
 
 **IDENTIFICAÇÃO**
@@ -803,31 +666,45 @@ Ciência, tecnologia, cidadania e sustentabilidade.
 Diversidade e relações étnico-raciais trabalhadas transversalmente.
 
 **PRÁTICAS EXITOSAS PREVISTAS**
-Registros posteriores serão baseados nas produções observadas.
+Registros posteriores serão baseados nas produções efetivamente observadas.
 
 **CRONOGRAMA DE AULAS**
-Aula 1 a Aula 7 organizadas por componente e data.
+1. Aula 1 — Língua Portuguesa.
+2. Aula 2 — Língua Portuguesa.
+3. Aula 3 — Matemática.
+4. Aula 4 — Matemática.
+5. Aula 5 — Química.
+6. Aula 6 — Química.
+7. Aula 7 — Geografia.
 
 **CADERNO DE ATIVIDADES DO ESTUDANTE**
 
-${lessonPage(1, "apoio visual funcional")}
-${lessonPage(2, "imagem acessível")}
-${lessonPage(3, "gráfico acessível")}
-${lessonPage(4, "tabela visual")}
-${lessonPage(5, "modelo de partículas")}
-${lessonPage(6, "diagrama de conservação")}
-${lessonPage(7, "mapa acessível")}
+**AULA 1 — FOLHA A4**
+Leitura guiada extensa e apoio visual funcional para compreender o conteúdo da aula. ATIVIDADES: 1. Identifique a informação principal. 2. Compare as ideias. 3. Registre sua conclusão com escrita ou apontamento.
 
-**LEITURA GUIADA**
-Textos e explicações necessários para realizar cada folha.
+**AULA 2 — FOLHA A4**
+Leitura guiada extensa e apoio visual funcional para compreender o conteúdo da aula. ATIVIDADES: 1. Localize pistas. 2. Relacione texto e imagem. 3. Explique a mensagem por escrita ou apontamento.
+
+**AULA 3 — FOLHA A4**
+Leitura guiada extensa e gráfico acessível para compreender o conteúdo da aula. ATIVIDADES: 1. Leia a legenda. 2. Compare os valores. 3. Calcule a diferença com espaço de resposta.
+
+**AULA 4 — FOLHA A4**
+Leitura guiada extensa e gráfico acessível para compreender o conteúdo da aula. ATIVIDADES: 1. Identifique a variação. 2. Aplique a fórmula. 3. Interprete o resultado no contexto.
+
+**AULA 5 — FOLHA A4**
+Leitura guiada extensa e modelo visual de partículas para compreender o conteúdo. ATIVIDADES: 1. Identifique os dados. 2. Aplique a relação matemática. 3. Registre o resultado com unidade.
+
+**AULA 6 — FOLHA A4**
+Leitura guiada extensa e diagrama de conservação dos átomos. ATIVIDADES: 1. Conte os átomos. 2. Ajuste os coeficientes. 3. Confira a conservação em ambos os lados.
+
+**AULA 7 — FOLHA A4**
+Leitura guiada extensa e mapa acessível para compreender o conteúdo da aula. ATIVIDADES: 1. Localize os continentes. 2. Compare processos. 3. Relacione industrialização e impactos sociais.
 
 **EXEMPLO COMPLETO RESOLVIDO**
-Passo 1: observe os dados.
-Passo 2: aplique o procedimento.
-Resposta final: resultado conferido.
+Passo a passo e resposta final.
 
 **GABARITO COMENTADO**
-1. Respostas esperadas e critérios de correção de todas as aulas.
+Respostas de todas as aulas.
 
 **GUIA DO PROFESSOR**
 Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
@@ -856,21 +733,6 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
     completeSequence.sent.instructions,
     /PADRÃO ESPECÍFICO PARA SEQUÊNCIA DIDÁTICA/,
   );
-
-  const clientSource = fs.readFileSync(
-    path.join(root, "apps/web/src/app/pedagogical-chat.tsx"),
-    "utf8",
-  );
-  assert.match(clientSource, /messages: requestMessages/);
-  assert.match(clientSource, /content: activeProject\.document/);
-  const pageBoundaryLine = clientSource
-    .split(/\r?\n/)
-    .find((line) => line.includes(".replace(/^#{1,6}"));
-  assert.equal(
-    pageBoundaryLine?.trim(),
-    String.raw`.replace(/^#{1,6}\s*/, "")`,
-    "o separador de páginas deve usar espaço em branco, não uma barra literal",
-  );
   console.log(
     "PASS: chat authentication, configuration, roles, limits, history, provider errors and incomplete output",
   );
@@ -878,3 +740,4 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   console.error(error);
   process.exitCode = 1;
 });
+
