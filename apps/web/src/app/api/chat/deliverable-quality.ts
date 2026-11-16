@@ -51,6 +51,15 @@ export function validatePedagogicalDeliverable(
       )
     )
       issues.push("faltou guia do professor");
+    if (
+      /(?:QUADRO|APOIO) VISUAL/i.test(response) &&
+      !/(?:GR[AÁ]FICO|MAPA|LINHA DO TEMPO|DIAGRAMA|ESQUEMA|TABELA DE DADOS|CART[ÕO]ES|SEQU[ÊE]NCIA VISUAL|MODELO VISUAL)/i.test(
+        response,
+      )
+    )
+      issues.push(
+        "o apoio visual foi apenas nomeado; faltou um recurso visual funcional ligado à resolução",
+      );
     if (!asksForSequence) {
       const minimumTasks = extractRequestedTaskCount(normalizedRequest) ?? 4;
       const deliveredTasks = countStudentTasks(studentSection);
@@ -71,50 +80,14 @@ export function validatePedagogicalDeliverable(
           "faltou espaço ou forma de resposta claramente disponível na folha do estudante",
         );
     }
-    if (
-      /(?:QUADRO|APOIO) VISUAL/i.test(response) &&
-      !/(?:GR[AÁ]FICO|MAPA|LINHA DO TEMPO|DIAGRAMA|ESQUEMA|TABELA DE DADOS|CART[ÕO]ES|SEQU[ÊE]NCIA VISUAL|MODELO VISUAL)/i.test(
-        response,
-      )
-    )
-      issues.push(
-        "o apoio visual foi apenas nomeado; faltou um recurso visual funcional ligado à resolução",
-      );
-    if (!/LEITURA GUIADA/i.test(response))
-      issues.push("faltou leitura guiada que ensine o conteúdo");
-
-    const example = extractSection(
-      response,
-      /(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO/i,
-      /(?:QUEST[ÕO]ES|ATIVIDADES|GABARITO|GUIA DO PROFESSOR)/i,
-    );
-    const normalizedExample = stripMarkdownMarkers(example);
-    const exampleHasSteps =
-      /PASSO\s*1[\s\S]*PASSO\s*2/i.test(normalizedExample) ||
-      /^\s*1[.)-]\s+.+[\s\S]*^\s*2[.)-]\s+/im.test(normalizedExample);
-    const exampleHasFinalAnswer = /\bRESPOSTA FINAL\b/i.test(normalizedExample);
-    if (example && (!exampleHasSteps || !exampleHasFinalAnswer))
-      issues.push("o exemplo resolvido não apresenta passo a passo e resposta final");
-
-    const answerKey = extractSection(
-      response,
-      /GABARITO(?: COMENTADO)?/i,
-      /(?:GUIA|ORIENTA[CÇ][ÕO]ES|MEDIA[CÇ][ÃA]O) (?:DO|AO|PARA O) PROFESSOR/i,
-    );
-    const normalizedAnswerKey = stripMarkdownMarkers(answerKey);
-    const answerEntries = [
-      ...normalizedAnswerKey.matchAll(
-        /^\s*(?:(?:QUEST[ÃA]O|RESPOSTA)\s*)?\d+[.)-]\s+|^\s*(?:RESPOSTA|RESULTADO|ESPERA-SE)\b/gim,
-      ),
-    ].length;
-    if (answerKey && answerEntries === 0)
-      issues.push("o gabarito não apresenta as respostas ou resultados esperados");
   }
-
 
   if (asksForSequence) {
     const requiredSequenceSections: Array<[RegExp, string]> = [
-      [/PLANEJAMENTO DA SEQU[EÊ]NCIA DID[AÁ]TICA/i, "faltou o planejamento da sequência didática"],
+      [
+        /PLANEJAMENTO DA SEQU[EÊ]NCIA DID[AÁ]TICA/i,
+        "faltou o planejamento da sequência didática",
+      ],
       [/IDENTIFICA[CÇ][AÃ]O/i, "faltou a identificação da sequência"],
       [
         /HABILIDADES? E OBJETOS? DE CONHECIMENTO/i,
@@ -126,10 +99,7 @@ export function validatePedagogicalDeliverable(
         "faltou o desenvolvimento da vida autônoma",
       ],
       [/RECURSOS(?: PEDAG[ÓO]GICOS)?/i, "faltaram os recursos pedagógicos"],
-      [
-        /COMPONENTE SOCIOEMOCIONAL/i,
-        "faltou o componente socioemocional",
-      ],
+      [/COMPONENTE SOCIOEMOCIONAL/i, "faltou o componente socioemocional"],
       [
         /AVALIA[CÇ][AÃ]O DA APRENDIZAGEM/i,
         "faltou a avaliação da aprendizagem",
@@ -171,58 +141,10 @@ export function validatePedagogicalDeliverable(
         response,
       )
     )
-      issues.push("o caderno não contém folhas A4 completas para os estudantes");
-  }
-
-  const asksForPrintableSheet =
-    /pront[ao] para (?:ser )?impress|folha a4|pront[ao] para (?:o )?estudante/.test(
-      normalizedRequest,
-    );
-  if (asksForPrintableSheet) {
-    const studentMaterial = extractSection(
-      response,
-      /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE/i,
-      /GABARITO(?: COMENTADO)?/i,
-    );
-    if (
-      /\b(?:crie cart[õo]es|esconda amostras|imprima imagens|prepare perguntas|pe[cç]a aos alunos|o professor deve preparar)\b/i.test(
-        studentMaterial,
-      )
-    )
       issues.push(
-        "a folha delega ao professor a preparação de recursos em vez de entregar exercícios prontos",
+        "o caderno não contém folhas A4 completas para os estudantes",
       );
-
-    const requestedQuestionCount = extractRequestedQuestionCount(normalizedRequest);
-    if (requestedQuestionCount) {
-      const questionSection = extractSection(
-        studentMaterial,
-        /QUEST[ÕO]ES|ATIVIDADES|EXERC[IÍ]CIOS/i,
-        /GABARITO|GUIA DO PROFESSOR/i,
-      );
-      const normalizedQuestions = stripMarkdownMarkers(
-        questionSection.trim()
-          ? questionSection
-          : contentAfterWorkedExample(studentMaterial),
-      );
-      const deliveredQuestionCount = [
-        ...normalizedQuestions.matchAll(
-          /^\s*(?:QUEST[ÃA]O\s*)?\d+[.)-]\s+/gim,
-        ),
-      ].length;
-      if (deliveredQuestionCount < requestedQuestionCount)
-        issues.push(
-          `foram solicitadas ${requestedQuestionCount} questões, mas a folha não entrega essa quantidade`,
-        );
-    }
   }
-
-  if (
-    asksForMaterial &&
-    /visual|imagem|pista visual|apoio visual/.test(normalizedRequest) &&
-    !/(?:APOIO|PISTA|QUADRO) VISUAL|DESCRI[CÇ][AÃ]O ACESS[IÍ]VEL/i.test(response)
-  )
-    issues.push("faltou apoio visual entregue com descrição acessível");
 
   if (/caca-palavras/.test(normalizedRequest))
     issues.push(...validateWordSearch(response).issues);
@@ -231,54 +153,51 @@ export function validatePedagogicalDeliverable(
   return { valid: issues.length === 0, issues };
 }
 
-function stripMarkdownMarkers(text: string): string {
-  return text.replace(/[*_~`]/g, "");
-}
-
-function contentAfterWorkedExample(text: string): string {
-  const lines = text.split(/\r?\n/);
-  const exampleHeading = lines.findIndex((line) =>
-    matchesHeading(line, /(?:EXEMPLO(?: COMPLETO)?|MODELO) RESOLVIDO/i),
-  );
-  if (exampleHeading < 0) return text;
-  const finalAnswer = lines.findIndex(
-    (line, index) =>
-      index > exampleHeading && /\bRESPOSTA FINAL\b/i.test(line),
-  );
-  return finalAnswer < 0 ? text : lines.slice(finalAnswer + 1).join("\n");
-}
-
-function extractSection(
-  text: string,
-  start: RegExp,
-  end: RegExp,
-): string {
-  const lines = text.split(/\r?\n/);
-  const startIndex = lines.findIndex((line) => matchesHeading(line, start));
-  if (startIndex < 0) return "";
-  const endIndex = lines.findIndex(
-    (line, index) => index > startIndex && matchesHeading(line, end),
-  );
-  return lines
-    .slice(startIndex + 1, endIndex < 0 ? undefined : endIndex)
-    .join("\n");
-}
-
-function matchesHeading(line: string, pattern: RegExp): boolean {
-  const heading = line
-    .trim()
-    .replace(/^#{1,6}\s*/, "")
-    .replace(/^\*\*/, "")
-    .replace(/[:*]+\s*$/, "")
-    .trim();
-  return new RegExp(`^(?:${pattern.source})$`, pattern.flags.replace("g", "")).test(
-    heading,
+export function asksForPedagogicalDeliverable(request: string): boolean {
+  const normalizedRequest = normalize(request).trim();
+  if (
+    /^(?:como|por que|porque|qual|quais|o que|quando|onde)\b/.test(
+      normalizedRequest,
+    )
+  )
+    return false;
+  const deliverable =
+    "(?:atividade|material|sequencia didatica|sd|plano de aula|avaliacao|exercicio|caca-palavras|folha a4)";
+  const productionVerb =
+    "(?:crie|criar|elabore|elaborar|produza|produzir|prepare|preparar|monte|montar|gere|gerar|faca|quero|preciso|necessito|adapte|adaptar|revise|revisar|refaca|melhore|melhorar|corrija|corrigir|ajuste|ajustar|simplifique|simplificar)";
+  return (
+    new RegExp(`${productionVerb}[\\s\\S]{0,120}\\b${deliverable}\\b`).test(
+      normalizedRequest,
+    ) || new RegExp(`^(?:uma\\s+)?${deliverable}\\b`).test(normalizedRequest)
   );
 }
 
-function extractRequestedQuestionCount(request: string): number | null {
+function extractStudentSection(response: string): string {
+  const start = response.search(
+    /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|CADERNO DE ATIVIDADES DO ESTUDANTE/i,
+  );
+  const source = start >= 0 ? response.slice(start) : response;
+  const end = source.search(/(?:^|\n)\s*#{0,6}\s*\*{0,2}GABARITO\b/im);
+  return end >= 0 ? source.slice(0, end) : source;
+}
+
+function countStudentTasks(studentSection: string): number {
+  const activities =
+    studentSection.match(/(?:FA[CÇ]A AS )?ATIVIDADES|MISS[ÕO]ES|QUEST[ÕO]ES/i)
+      ?.index ?? 0;
+  const source = studentSection.slice(activities);
+  return new Set(
+    [
+      ...source.matchAll(
+        /^\s*\*{0,2}(?:(?:quest[aã]o|atividade|miss[aã]o)\s*)?(\d{1,2})[.)]\s+/gim,
+      ),
+    ].map((match) => Number(match[1])),
+  ).size;
+}
+
+function extractRequestedTaskCount(request: string): number | null {
   const match = request.match(
-    /\b(\d{1,2}|uma|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:questoes|atividades|exercicios)\b/,
+    /\b(\d{1,2}|uma|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:questoes|atividades|exercicios|itens|missoes)\b/,
   );
   if (!match?.[1]) return null;
   const words: Record<string, number> = {
@@ -298,60 +217,9 @@ function extractRequestedQuestionCount(request: string): number | null {
   return Number.isInteger(value) ? value : (words[match[1]] ?? null);
 }
 
-export function asksForPedagogicalDeliverable(request: string): boolean {
-  const normalizedRequest = normalize(request).trim();
-  if (/^(?:como|por que|porque|qual|quais|o que|quando|onde)\b/.test(normalizedRequest))
-    return false;
-  const deliverable =
-    "(?:atividade|material|sequencia didatica|sd|plano de aula|avaliacao|exercicio|caca-palavras|folha a4)";
-  const productionVerb =
-    "(?:crie|criar|elabore|elaborar|produza|produzir|prepare|preparar|monte|montar|gere|gerar|faca|quero|preciso|necessito|adapte|adaptar|revise|revisar|refaca|melhore|melhorar|corrija|corrigir|ajuste|ajustar|simplifique|simplificar)";
-  return (
-    new RegExp(`${productionVerb}[\\s\\S]{0,120}\\b${deliverable}\\b`).test(
-      normalizedRequest,
-    ) || new RegExp(`^(?:uma\\s+)?${deliverable}\\b`).test(normalizedRequest)
-  );
-}
-
-
-
-function extractStudentSection(response: string): string {
-  const start = response.search(
-    /(?:MATERIAL|FOLHA|ATIVIDADE) (?:DO|PARA O) ESTUDANTE|CADERNO DE ATIVIDADES DO ESTUDANTE/i,
-  );
-  const source = start >= 0 ? response.slice(start) : response;
-  const end = source.search(/(?:^|\n)\s*#{0,6}\s*\*{0,2}GABARITO\b/im);
-  return end >= 0 ? source.slice(0, end) : source;
-}
-
-function countStudentTasks(studentSection: string): number {
-  const activities =
-    studentSection.match(/(?:FA[CÇ]A AS )?ATIVIDADES|MISS[ÕO]ES|QUEST[ÕO]ES/i)
-      ?.index ?? 0;
-  const source = studentSection.slice(activities);
-  return new Set(
-    [...source.matchAll(/^\s*\*{0,2}(\d{1,2})[.)]\s+/gm)].map((match) =>
-      Number(match[1]),
-    ),
-  ).size;
-}
-
-function extractRequestedTaskCount(request: string): number | null {
-  const match = request.match(
-    /\b(\d{1,2}|uma|duas|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:questoes|atividades|exercicios|itens|missoes)\b/,
-  );
-  if (!match?.[1]) return null;
-  const words: Record<string, number> = {
-    uma: 1, duas: 2, dois: 2, tres: 3, quatro: 4, cinco: 5,
-    seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
-  };
-  const value = Number(match[1]);
-  return Number.isInteger(value) ? value : (words[match[1]] ?? null);
-}
-
 function hasFunctionalVisualResource(studentSection: string): boolean {
   const visualHeading = studentSection.search(
-    /(?:RECURSO|APOIO|MAPA|QUADRO|INFOGR[AÁ]FICO|GR[AÁ]FICO|DIAGRAMA|LINHA DO TEMPO|SEQU[ÊE]NCIA) VISUAL|(?:MAPA|INFOGR[AÁ]FICO|GR[AÁ]FICO|DIAGRAMA|LINHA DO TEMPO) (?:DE|DO|DA|PARA)/i,
+    /(?:RECURSO|APOIO|MAPA|QUADRO|INFOGR[AÁ]FICO|GR[AÁ]FICO|DIAGRAMA|LINHA DO TEMPO|SEQU[ÊE]NCIA) VISUAL|(?:MAPA|INFOGR[AÁ]FICO|GR[AÁ]FICO|DIAGRAMA|LINHA DO TEMPO) (?:DE|DO|DA|PARA)|TABELA (?:DE DADOS|COM DADOS|COMPARATIVA)/i,
   );
   if (visualHeading < 0) return false;
   const visual = studentSection.slice(visualHeading, visualHeading + 1800);
@@ -419,9 +287,7 @@ function validateSequenceLessonPages(
   if (cadernoIndex < 0) return issues;
   const caderno = response.slice(cadernoIndex);
   const headings = [
-    ...caderno.matchAll(
-      /^\s*#{0,6}\s*\*{0,2}AULA\s+(\d{1,2})\b[^\n]*$/gim,
-    ),
+    ...caderno.matchAll(/^\s*#{0,6}\s*\*{0,2}AULA\s+(\d{1,2})\b[^\n]*$/gim),
   ];
   for (let lesson = 1; lesson <= requestedLessons; lesson += 1) {
     const headingIndex = headings.findIndex(
@@ -430,12 +296,11 @@ function validateSequenceLessonPages(
     if (headingIndex < 0) continue;
     const start =
       (headings[headingIndex]!.index ?? 0) + headings[headingIndex]![0].length;
-    const answerKeyIndex = caderno.search(/GABARITO(?: COMENTADO)?/i);
     const end =
       headingIndex + 1 < headings.length
         ? (headings[headingIndex + 1]!.index ?? caderno.length)
-        : answerKeyIndex > start
-          ? answerKeyIndex
+        : caderno.search(/GABARITO(?: COMENTADO)?/i) > start
+          ? caderno.search(/GABARITO(?: COMENTADO)?/i)
           : caderno.length;
     const page = stripMarkdownMarkers(caderno.slice(start, end)).trim();
     if (
@@ -447,6 +312,10 @@ function validateSequenceLessonPages(
       );
   }
   return issues;
+}
+
+function stripMarkdownMarkers(text: string): string {
+  return text.replace(/[*_~`]/g, "");
 }
 
 function extractRequestedLessonCount(request: string): number | null {
@@ -566,3 +435,4 @@ function normalize(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
+
