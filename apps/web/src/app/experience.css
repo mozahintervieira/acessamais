@@ -977,7 +977,7 @@ body > .aiStudioShell {
   max-width: 650px;
   font-size: clamp(3.7rem, 6.1vw, 6.8rem);
 }
-.incubatorHero .landingHeroArt { position: relative; }
+.incubatorHero .landingHeroArt { isolation: isolate; }
 .heroOutputProof {
   position: absolute;
   right: clamp(18px, 3vw, 48px);
