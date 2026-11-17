@@ -60,8 +60,9 @@ export function PublicLanding(): React.ReactElement {
           <p className="landingKicker"><span aria-hidden="true" /> Inteligência pedagógica inclusiva</p>
           <h1 id="landing-title">A IA que pensa com o professor.</h1>
           <p className="landingLead">Transforme uma intenção pedagógica em atividades acessíveis, planejamentos e materiais editáveis — com currículo, DUA e inclusão no centro.</p>
-          <div className="landingCtas"><a className="landingButton" href="/cadastro">Entrar no laboratório <span aria-hidden="true">→</span></a><a className="landingTextButton" href="#demonstracao"><span aria-hidden="true">▷</span> Ver o produto em ação</a></div>
-          <div className="landingSignals" aria-label="Estado atual do produto"><span>Conversa com contexto</span><span>Editor A4</span><span>Currículo ES 2026</span></div>
+          <div className="landingCtas"><a className="landingButton" href="/cadastro">Acessar o protótipo <span aria-hidden="true">→</span></a><a className="landingTextButton" href="#demonstracao"><span aria-hidden="true">▷</span> Ver o produto em ação</a></div>
+          <p className="prototypeAccessNote">Cadastro necessário para criar e manter projetos no laboratório.</p>
+          <div className="landingSignals" aria-label="Estado atual do produto"><span>Conversa com contexto</span><span>Editor A4</span><span>BNCC + Currículo ES 2026</span></div>
         </div>
         <div className="landingHeroArt" role="img" aria-label="Livro aberto conectado a interfaces de acessibilidade e inteligência artificial">
           <div className="heroOutputProof">
@@ -74,6 +75,7 @@ export function PublicLanding(): React.ReactElement {
       </section>
 
       <section className="landingTrustLine" aria-label="Fundamentos do ACESSA+"><span>BNCC</span><span>Currículo Capixaba</span><span>DUA</span><span>Bloom</span><span>CAA</span><span>Tecnologia Assistiva</span></section>
+      <p className="curriculumScopeNote"><strong>Base nacional, aplicação territorial.</strong> A BNCC orienta as aprendizagens essenciais; o Currículo Capixaba é a referência territorial inicial do protótipo, preparado para incorporar currículos de outras redes na expansão nacional.</p>
 
       <section className="ventureStatement" id="produto" aria-labelledby="venture-title">
         <div><p className="landingKicker"><span aria-hidden="true" /> O problema que decidimos enfrentar</p><h2 id="venture-title">Ensinar para todos ainda exige um trabalho invisível e fragmentado.</h2></div>
@@ -81,8 +83,15 @@ export function PublicLanding(): React.ReactElement {
       </section>
 
       <section className="landingSection landingSteps" aria-labelledby="layers-title">
-        <div className="landingSectionIntro"><p className="landingKicker"><span aria-hidden="true" /> Uma incubadora de decisões pedagógicas</p><h2 id="layers-title">Do pedido livre ao material utilizável.</h2><p>Sem transformar a prática docente em um formulário. O sistema pergunta apenas o que realmente muda a proposta.</p></div>
+        <div className="landingSectionIntro"><p className="landingKicker"><span aria-hidden="true" /> Uma incubadora de decisões pedagógicas</p><h2 id="layers-title">Do pedido livre ao material utilizável.</h2><p>Sem transformar a prática docente em um formulário. Quando uma informação pode mudar a adaptação, a conversa pode solicitar um esclarecimento.</p></div>
         <div className="landingStepGrid">{operatingLayers.map((item) => <article key={item.number}><span>{item.number}</span><h3>{item.title}</h3><p>{item.text}</p></article>)}</div>
+        <aside className="flowConversationExample" aria-labelledby="conversation-example-title">
+          <div><span>CONVERSA ILUSTRATIVA</span><h3 id="conversation-example-title">O contexto entra pela conversa.</h3><p>O exemplo demonstra como uma informação relevante pode ser esclarecida antes da adaptação. Não representa uma resposta fixa.</p></div>
+          <div className="flowConversationMessages">
+            <p><strong>Professor</strong> “Adapte esta atividade de frações do 6º ano.”</p>
+            <p><strong>ACESSA+</strong> “O estudante já reconhece partes iguais de um inteiro?”</p>
+          </div>
+        </aside>
       </section>
 
       <section className="productDemo" id="demonstracao" aria-labelledby="demo-title">
@@ -109,10 +118,63 @@ export function PublicLanding(): React.ReactElement {
                 <div><dt>ENTREGA DEMONSTRADA</dt><dd>{item.delivery}</dd></div>
                 <div><dt>ACESSIBILIDADE</dt><dd>{item.access}</dd></div>
               </dl>
-              <a href={item.href}>Abrir exemplo completo <span aria-hidden="true">↗</span></a>
+              <a href={index === 0 ? "#atividade-fracoes" : item.href}>{index === 0 ? "Ir para a atividade completa" : "Abrir exemplo completo"} <span aria-hidden="true">↗</span></a>
             </article>
           ))}
         </div>
+        <details className="fractionDemoDisclosure" id="atividade-fracoes">
+          <summary><span>Ver atividade completa</span><small>Exemplo público · sem cadastro</small><i aria-hidden="true">＋</i></summary>
+          <div className="fractionDemoContent">
+            <header className="fractionDemoHeading">
+              <p className="landingKicker"><span aria-hidden="true" /> Demonstração pedagógica</p>
+              <h3>Frações com apoio concreto — 6º ano</h3>
+              <p><strong>Exemplo preparado e revisado pela equipe do Acessa+.</strong> Esta é uma vitrine estática: mostra o padrão esperado, mas não gera um novo material.</p>
+              <p><b>Objetivo preservado nas duas versões:</b> representar frações como partes iguais de um todo e comparar frações simples.</p>
+            </header>
+
+            <div className="fractionComparison" aria-label="Comparação entre atividade de partida e versão adaptada">
+              <article className="startingActivity">
+                <div className="comparisonLabel"><span>ATIVIDADE DE PARTIDA</span><small>Exemplo demonstrativo</small></div>
+                <h4>Frações — 6º ano</h4>
+                <p><strong>Objetivo:</strong> representar frações como partes iguais de um todo e comparar frações simples.</p>
+                <ol>
+                  <li>Uma barra foi dividida em quatro partes iguais. Três partes foram consideradas. Escreva a fração correspondente.</li>
+                  <li>Compare <strong>1/2</strong> e <strong>1/4</strong>. Qual fração é maior? Justifique.</li>
+                  <li>Desenhe uma figura dividida em três partes iguais e represente <strong>2/3</strong>.</li>
+                </ol>
+                <p className="startingActivityNote">Versão curta criada para esta demonstração, pois o repositório não contém a atividade de partida correspondente.</p>
+              </article>
+
+              <article className="publicA4Preview" aria-labelledby="fraction-sheet-title">
+                <header className="publicA4Brand"><span>A+</span><div><strong>ACESSA+</strong><small>MATEMÁTICA · 6º ANO</small></div><em>Folha do estudante</em></header>
+                <h4 id="fraction-sheet-title">Frações: partes iguais de um todo</h4>
+                <p className="a4Objective"><strong>Hoje eu vou:</strong> representar e comparar frações simples.</p>
+                <section aria-labelledby="guided-reading-title">
+                  <h5 id="guided-reading-title">Leitura guiada</h5>
+                  <p>Uma fração mostra quantas partes iguais de um todo estamos considerando. O número de baixo indica em quantas partes iguais o todo foi dividido. O número de cima indica quantas partes foram consideradas.</p>
+                </section>
+                <section className="fractionWorkedExample" aria-labelledby="worked-example-title">
+                  <h5 id="worked-example-title">Exemplo resolvido: 3/4</h5>
+                  <div className="fractionBar" role="img" aria-label="Barra dividida em quatro partes iguais. As três primeiras estão marcadas com o símbolo de seleção e representam três quartos; a quarta não está marcada.">
+                    <span className="selected" aria-hidden="true">✓<small>1</small></span><span className="selected" aria-hidden="true">✓<small>2</small></span><span className="selected" aria-hidden="true">✓<small>3</small></span><span aria-hidden="true"><small>4</small></span>
+                  </div>
+                  <ol><li>O todo foi dividido em <strong>4 partes iguais</strong>.</li><li><strong>3 partes</strong> estão marcadas.</li><li>A fração representada é <strong>3/4</strong>.</li></ol>
+                </section>
+                <section className="fractionStudentQuestions" aria-labelledby="fraction-questions-title">
+                  <h5 id="fraction-questions-title">Agora é sua vez</h5>
+                  <div><b>1</b><p>Uma barra tem 4 partes iguais. Marque duas partes. Qual fração você formou?</p><span className="responseLine">Resposta:</span></div>
+                  <div><b>2</b><p>Qual é maior: <strong>1/2</strong> ou <strong>1/4</strong>?</p><div className="fractionChoiceOptions" aria-label="Opções de resposta: um meio ou um quarto"><span><i aria-hidden="true">□</i> 1/2</span><span><i aria-hidden="true">□</i> 1/4</span></div><span className="responseLine">Explique:</span></div>
+                  <div><b>3</b><p>Divida o quadro em 3 partes iguais e represente <strong>2/3</strong>.</p><span className="drawingResponse" aria-label="Espaço em branco para desenhar a resposta" /></div>
+                </section>
+                <footer>Você pode responder marcando, desenhando, falando ou escrevendo.</footer>
+              </article>
+            </div>
+            <aside className="fractionAnswerKey" aria-labelledby="fraction-answer-title">
+              <div><span>SEPARADO DA FOLHA DO ESTUDANTE</span><h4 id="fraction-answer-title">Gabarito comentado</h4></div>
+              <ol><li><strong>2/4</strong>. Foram consideradas duas das quatro partes iguais.</li><li><strong>1/2</strong>. Quando o todo é o mesmo, uma de duas partes iguais é maior que uma de quatro partes iguais.</li><li>Espera-se uma figura dividida em três partes iguais, com duas partes identificadas: <strong>2/3</strong>.</li></ol>
+            </aside>
+          </div>
+        </details>
         <div className="evidenceFlow" aria-label="Percurso demonstrado pelo produto"><span>PEDIDO LIVRE</span><i>→</i><span>CONTEXTO PEDAGÓGICO</span><i>→</i><span>MATERIAL EDITÁVEL</span><i>→</i><span>REVISÃO DOCENTE</span></div>
       </section>
 
@@ -161,4 +223,5 @@ export function PublicLanding(): React.ReactElement {
     </main>
   );
 }
+
 
