@@ -2143,6 +2143,76 @@ body:has(.studioShell) .mindAppHeader {
 .studioComposer textarea::placeholder {
   color: #536a84;
 }
+.studioFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.studioAttachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.studioAttachments > span {
+  min-width: min(100%, 235px);
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(91, 180, 225, 0.22);
+  border-radius: 11px;
+  padding: 7px 8px;
+  background: rgba(31, 74, 112, 0.2);
+}
+.studioAttachments > span > i {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(79, 124, 237, 0.16);
+  color: #79dce6;
+  font-style: normal;
+}
+.studioAttachments > span > span {
+  min-width: 0;
+}
+.studioAttachments strong,
+.studioAttachments small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studioAttachments strong {
+  color: #dfeaf7;
+  font-size: 0.68rem;
+}
+.studioAttachments small {
+  margin-top: 2px;
+  color: #7890aa;
+  font-size: 0.58rem;
+}
+.studioAttachments button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #9cb0c5;
+  font: inherit;
+  cursor: pointer;
+}
+.studioAttachments button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
 .studioComposerBottom {
   display: flex;
   align-items: center;
@@ -2165,6 +2235,29 @@ body:has(.studioShell) .mindAppHeader {
   border: 1px solid var(--studio-border);
   border-radius: 7px;
   font-size: 0.7rem;
+}
+.studioComposerBottom .studioAttachButton {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(112, 164, 218, 0.24);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #8edee6;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.studioComposerBottom .studioAttachButton:hover:not(:disabled) {
+  border-color: rgba(100, 211, 224, 0.46);
+  background: rgba(68, 141, 224, 0.12);
+  color: #fff;
+}
+.studioComposerBottom .studioAttachButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .studioComposerBottom small {
   font-size: 0.63rem;
@@ -3186,4 +3279,5 @@ body:has(.studioShell) .mindAppHeader {
     grid-template-columns: 1fr;
   }
 }
+
 
