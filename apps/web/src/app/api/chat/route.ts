@@ -530,4 +530,3 @@ function extractResponseText(payload: any): string {
     .trim();
 }
 
-

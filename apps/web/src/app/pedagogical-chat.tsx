@@ -1158,4 +1158,3 @@ function escapeHtml(value: string): string {
       })[character] ?? character,
   );
 }
-
