@@ -50,7 +50,7 @@ export function PublicLanding(): React.ReactElement {
     <main className="publicLanding incubatorLanding">
       <header className="landingNav">
         <a className="landingBrand" href="/" aria-label="ACESSA+ início"><span>A+</span><strong>ACESSA<span>+</span></strong></a>
-        <nav aria-label="Navegação da página"><a href="#produto">Produto</a><a href="#demonstracao">Demonstração</a><a href="#evidencias">Exemplos</a><a href="#diferenciais">Diferenciais</a><a href="#fundador">Fundador</a></nav>
+        <nav aria-label="Navegação da página"><a href="#produto">Produto</a><a href="#demonstracao">Demonstração</a><a href="#evidencias">Exemplos</a><a href="#diferenciais">Diferenciais</a><a href="#visao">Visão</a></nav>
         <div className="landingActions"><a href="/login">Entrar</a><a className="landingButton small" href="/cadastro">Acessar o protótipo</a></div>
       </header>
 
@@ -126,13 +126,13 @@ export function PublicLanding(): React.ReactElement {
         <ol className="visionRoadmap">{investmentMilestones.map((item, index) => <li key={item}><span>{String(index + 1).padStart(2, "0")}</span><p>{item}</p></li>)}</ol>
       </section>
 
-      <section className="founderSection" id="fundador" aria-labelledby="founder-title">
-        <div className="founderMonogram" aria-hidden="true"><span>A+</span><i>MOZAHINTER<br />ALVES VIEIRA</i></div>
-        <div className="founderNarrative"><p className="landingKicker"><span aria-hidden="true" /> Founder–problem fit</p><h2 id="founder-title">Criado por quem vive a inclusão por diferentes perspectivas.</h2><p>Mozahinter Alves Vieira é professor do Atendimento Educacional Especializado, autista, pai atípico e autor de <em>“Sou Autista, e Agora?”</em>. O ACESSA+ nasce do encontro entre experiência profissional, vivência pessoal e a urgência de tornar o currículo acessível sem reduzir o potencial dos estudantes.</p><blockquote>“Não quero uma IA que substitua o professor. Quero uma mente pedagógica que o ajude a transformar acesso em aprendizagem.”</blockquote></div>
+      <section className="institutionalSection" aria-labelledby="institutional-title">
+        <div className="institutionalMonogram" aria-hidden="true"><span>A+</span><i>INTELIGÊNCIA<br />PEDAGÓGICA INCLUSIVA</i></div>
+        <div className="institutionalNarrative"><p className="landingKicker"><span aria-hidden="true" /> Origem pedagógica</p><h2 id="institutional-title">Tecnologia construída a partir das necessidades reais da educação inclusiva.</h2><p>O ACESSA+ nasce da prática pedagógica e da urgência de tornar o currículo acessível sem reduzir o potencial dos estudantes. Sua proposta reúne conhecimento educacional, acessibilidade e inteligência artificial em um ambiente de trabalho orientado pela decisão docente.</p><blockquote>“A tecnologia organiza caminhos. O professor preserva a autoria, a avaliação e a decisão sobre o que chega ao estudante.”</blockquote></div>
       </section>
 
-      <section className="landingFinalCta"><p className="landingKicker"><span aria-hidden="true" /> ACESSA+ · Protótipo para apresentação</p><h2>Uma tecnologia educacional criada para ampliar possibilidades.</h2><p>Conheça o laboratório, teste o fluxo e converse diretamente com o fundador.</p><div className="landingCtas"><a className="landingButton" href="/cadastro">Acessar o protótipo <span aria-hidden="true">→</span></a><a className="landingTextButton" href="https://wa.me/5527992977703">Falar pelo WhatsApp</a></div></section>
-      <footer className="landingFooter"><span>ACESSA+ · Inteligência pedagógica inclusiva</span><div><a href="mailto:acessamais5.0@gmail.com">Contato</a><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a><a href="/login">Entrar</a></div></footer>
+      <section className="landingFinalCta"><p className="landingKicker"><span aria-hidden="true" /> ACESSA+ · Protótipo para apresentação</p><h2>Uma tecnologia educacional criada para ampliar possibilidades.</h2><p>Conheça o laboratório, teste o fluxo e fale com o ACESSA+ pelo canal institucional.</p><div className="landingCtas"><a className="landingButton" href="/cadastro">Acessar o protótipo <span aria-hidden="true">→</span></a><a className="landingTextButton" href="mailto:acessamais5.0@gmail.com">acessamais5.0@gmail.com</a></div></section>
+      <footer className="landingFooter"><span>ACESSA+ · Inteligência pedagógica inclusiva</span><div><a href="mailto:acessamais5.0@gmail.com">acessamais5.0@gmail.com</a><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a><a href="/login">Entrar</a></div></footer>
     </main>
   );
 }
