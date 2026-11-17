@@ -149,6 +149,9 @@ async function call({
       `ANO LETIVO VIGENTE: ${new Date().getFullYear()}`,
     ),
   );
+  assert.ok(success.sent.instructions.includes("BASE NACIONAL COMUM CURRICULAR"));
+  assert.ok(success.sent.instructions.includes("https://basenacionalcomum.mec.gov.br/"));
+  assert.ok(success.sent.instructions.includes("base nacional e o currículo da rede"));
   assert.ok(success.sent.instructions.includes("LEITURA GUIADA"));
   assert.ok(success.sent.instructions.includes("EXEMPLO COMPLETO RESOLVIDO"));
   assert.ok(success.sent.instructions.includes("GABARITO COMENTADO"));
@@ -347,6 +350,29 @@ async function call({
     },
   );
   assert.equal(catalogPdf.status, "CURRENT_YEAR_DOCUMENT_CITED");
+  const bnccEvidence = evidenceModule.curriculumEvidence(
+    {
+      output: [
+        {
+          type: "web_search_call",
+          status: "completed",
+          action: {
+            sources: [
+              {
+                url: "https://basenacionalcomum.mec.gov.br/images/BNCC_20dez_site.pdf?utm_source=openai",
+                title: "Base Nacional Comum Curricular",
+              },
+            ],
+          },
+        },
+      ],
+    },
+    new Date().getFullYear(),
+  );
+  assert.equal(bnccEvidence.citations.length, 1);
+  assert.equal(bnccEvidence.citations[0].scope, "BNCC");
+  assert.equal(bnccEvidence.citations[0].specificDocument, true);
+  assert.equal(bnccEvidence.citations[0].currentYear, false);
   const selectedCatalog = evidenceModule.curriculumCatalogInstructions(
     {
       year: new Date().getFullYear(),
@@ -740,4 +766,5 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   console.error(error);
   process.exitCode = 1;
 });
+
 

@@ -3168,6 +3168,101 @@ body:has(.studioShell) .mindAppHeader {
 .landingExampleGrid details p {
   margin: 0 0 8px;
 }
+.prototypeAccessNote { margin: 12px 0 0; color: #8fa8c2; font-size: .76rem; line-height: 1.55; }
+.curriculumScopeNote { max-width: 920px; margin: -12px auto 0; padding: 0 24px 42px; color: #8fa8c2; font-size: .78rem; line-height: 1.65; text-align: center; }
+.curriculumScopeNote strong { color: #dff8fb; }
+.flowConversationExample {
+  display: grid; grid-template-columns: minmax(240px,.8fr) minmax(320px,1.2fr); gap: clamp(24px,5vw,70px);
+  align-items: center; margin-top: 26px; border: 1px solid rgba(94,216,226,.2); border-radius: 24px;
+  padding: clamp(22px,4vw,38px); background: radial-gradient(circle at 92% 8%,rgba(83,80,220,.15),transparent 34%),rgba(7,20,35,.88);
+}
+.flowConversationExample > div:first-child > span { color: #62dce5; font-size: .66rem; font-weight: 850; letter-spacing: .12em; }
+.flowConversationExample h3 { margin: 10px 0 8px; color: #f7fbff; font-size: clamp(1.25rem,2.2vw,1.8rem); }
+.flowConversationExample > div:first-child p { margin: 0; color: #91a8be; font-size: .82rem; line-height: 1.65; }
+.flowConversationMessages { display: grid; gap: 10px; }
+.flowConversationMessages p { margin: 0; border: 1px solid rgba(137,181,224,.18); border-radius: 16px; padding: 15px 17px; color: #dcecff; background: rgba(12,29,48,.92); font-size: .88rem; line-height: 1.55; }
+.flowConversationMessages p:last-child { margin-left: clamp(0px,4vw,42px); border-color: rgba(100,222,229,.28); background: rgba(10,41,52,.76); }
+.flowConversationMessages strong { display: block; margin-bottom: 5px; color: #67e0e8; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; }
+
+.fractionDemoDisclosure { max-width: 1280px; margin: 28px auto 0; border: 1px solid rgba(116,175,231,.24); border-radius: 26px; overflow: clip; background: rgba(7,18,32,.92); box-shadow: 0 30px 90px rgba(0,0,0,.24); }
+.fractionDemoDisclosure > summary { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: center; min-height: 78px; padding: 18px clamp(20px,4vw,34px); color: #f8fbff; cursor: pointer; list-style: none; background: linear-gradient(110deg,rgba(31,80,139,.32),rgba(69,67,180,.16)); }
+.fractionDemoDisclosure > summary::-webkit-details-marker { display: none; }
+.fractionDemoDisclosure > summary:hover { background: linear-gradient(110deg,rgba(38,96,163,.42),rgba(75,70,195,.22)); }
+.fractionDemoDisclosure > summary:focus-visible { outline: 3px solid #77e8ef; outline-offset: -5px; }
+.fractionDemoDisclosure > summary span { font-size: clamp(1rem,2vw,1.2rem); font-weight: 850; }
+.fractionDemoDisclosure > summary small { color: #a8c5df; font-size: .73rem; }
+.fractionDemoDisclosure > summary i { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid rgba(122,213,232,.32); border-radius: 50%; color: #71e3eb; font-style: normal; font-size: 1.25rem; transition: transform .18s ease; }
+.fractionDemoDisclosure[open] > summary i { transform: rotate(45deg); }
+.fractionDemoContent { padding: clamp(24px,5vw,56px); }
+.fractionDemoHeading { max-width: 820px; margin-bottom: 30px; }
+.fractionDemoHeading h3 { margin: 12px 0; color: #fff; font-size: clamp(1.8rem,4vw,3.5rem); letter-spacing: -.05em; line-height: 1.05; }
+.fractionDemoHeading > p:not(.landingKicker) { margin: 9px 0 0; color: #9fb5ca; line-height: 1.7; }
+.fractionDemoHeading strong,.fractionDemoHeading b { color: #eef8ff; }
+.fractionComparison { display: grid; grid-template-columns: minmax(280px,.72fr) minmax(500px,1.28fr); gap: clamp(20px,3vw,34px); align-items: start; }
+.startingActivity { border: 1px solid rgba(126,174,219,.2); border-radius: 20px; padding: clamp(22px,3vw,32px); color: #c8d9e9; background: rgba(13,29,47,.88); }
+.comparisonLabel { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.comparisonLabel span { color: #68dfe7; font-size: .68rem; font-weight: 850; letter-spacing: .11em; }
+.comparisonLabel small { border: 1px solid rgba(130,179,224,.18); border-radius: 999px; padding: 5px 9px; color: #9bb2c8; font-size: .65rem; }
+.startingActivity h4 { margin: 0 0 14px; color: #fff; font-size: 1.45rem; }
+.startingActivity p,.startingActivity li { font-size: .86rem; line-height: 1.68; }
+.startingActivity ol { display: grid; gap: 13px; padding-left: 20px; }
+.startingActivityNote { margin: 24px 0 0; border-top: 1px solid rgba(132,177,218,.15); padding-top: 16px; color: #8fa9c0; font-size: .73rem !important; }
+
+.publicA4Preview { box-sizing: border-box; width: 100%; min-height: min(297mm,1120px); border: 1px solid #d6deea; border-radius: 8px; padding: clamp(24px,4vw,48px); color: #10223b; background: #fff; box-shadow: 0 24px 70px rgba(0,0,0,.3); font-family: Arial,Helvetica,sans-serif; }
+.publicA4Brand { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; border-bottom: 3px solid #173e78; padding-bottom: 14px; }
+.publicA4Brand > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; color: #fff; background: #173e78; font-size: 1.05rem; font-weight: 900; }
+.publicA4Brand div { display: grid; gap: 3px; }
+.publicA4Brand strong { color: #102c59; letter-spacing: .08em; }
+.publicA4Brand small,.publicA4Brand em { color: #48627f; font-size: .66rem; font-style: normal; font-weight: 750; text-transform: uppercase; }
+.publicA4Preview > h4 { max-width: 620px; margin: 30px 0 10px; color: #102c59; font-size: clamp(1.75rem,4vw,2.7rem); letter-spacing: -.04em; line-height: 1.05; }
+.a4Objective { margin: 0 0 22px; border-left: 5px solid #147c67; padding: 10px 14px; background: #eef9f6; line-height: 1.5; }
+.publicA4Preview section { margin-top: 22px; }
+.publicA4Preview h5 { margin: 0 0 9px; color: #102c59; font-size: 1rem; text-transform: uppercase; letter-spacing: .045em; }
+.publicA4Preview section > p,.fractionWorkedExample li,.fractionStudentQuestions p,.fractionChoiceOptions { font-size: .88rem; line-height: 1.6; }
+.fractionWorkedExample { border: 2px solid #267b6a; border-radius: 16px; padding: 18px; background: #f6fbfa; }
+.fractionBar { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); min-height: 82px; margin: 16px 0; border: 3px solid #122b4d; }
+.fractionBar > span { position: relative; display: grid; place-items: center; border-left: 3px solid #122b4d; color: #10223b; background: #fff; font-size: 1.75rem; font-weight: 900; }
+.fractionBar > span:first-child { border-left: 0; }
+.fractionBar > span.selected { color: #071b34; background: repeating-linear-gradient(135deg,rgba(255,255,255,.58) 0 7px,rgba(33,154,133,.22) 7px 14px),#bfeadf; }
+.fractionBar small { position: absolute; right: 6px; bottom: 4px; color: #16334f; font-size: .62rem; }
+.fractionWorkedExample ol { display: grid; gap: 4px; margin: 0; padding-left: 21px; }
+.fractionStudentQuestions { display: grid; gap: 12px; }
+.fractionStudentQuestions > h5 { margin-bottom: 0; }
+.fractionStudentQuestions > div { display: grid; grid-template-columns: 34px 1fr; gap: 8px 10px; border: 1px solid #bdc9d8; border-radius: 12px; padding: 14px; background: #fbfdff; }
+.fractionStudentQuestions > div > b { grid-row: 1 / span 4; display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; color: #fff; background: #173e78; }
+.fractionStudentQuestions p { margin: 3px 0; }
+.fractionChoiceOptions { display: flex; flex-wrap: wrap; gap: 10px 24px; color: #142d4e; font-weight: 700; }
+.fractionChoiceOptions i { margin-right: 4px; font-style: normal; }
+.responseLine { min-height: 30px; border-bottom: 2px solid #53677e; padding-top: 8px; color: #38516f; font-size: .75rem; }
+.drawingResponse { min-height: 90px; border: 2px dashed #53677e; border-radius: 8px; background-image: linear-gradient(#eef2f7 1px,transparent 1px),linear-gradient(90deg,#eef2f7 1px,transparent 1px); background-size: 20px 20px; }
+.publicA4Preview footer { margin-top: 20px; border-top: 2px solid #173e78; padding-top: 12px; color: #294968; font-size: .76rem; font-weight: 750; text-align: center; }
+.fractionAnswerKey { display: grid; grid-template-columns: minmax(210px,.45fr) minmax(320px,1.55fr); gap: 24px; margin-top: 24px; border: 1px solid rgba(102,220,228,.23); border-radius: 18px; padding: clamp(20px,3vw,30px); color: #d5e6f7; background: rgba(8,38,47,.72); }
+.fractionAnswerKey span { color: #66dce6; font-size: .64rem; font-weight: 850; letter-spacing: .1em; }
+.fractionAnswerKey h4 { margin: 8px 0 0; color: #fff; font-size: 1.25rem; }
+.fractionAnswerKey ol { display: grid; gap: 8px; margin: 0; padding-left: 22px; }
+.fractionAnswerKey li { font-size: .82rem; line-height: 1.6; }
+
+@media (max-width: 900px) {
+  .flowConversationExample,.fractionComparison,.fractionAnswerKey { grid-template-columns: 1fr; }
+  .flowConversationMessages p:last-child { margin-left: 0; }
+  .fractionDemoDisclosure > summary { grid-template-columns: 1fr auto; }
+  .fractionDemoDisclosure > summary small { grid-column: 1; grid-row: 2; }
+  .fractionDemoDisclosure > summary i { grid-column: 2; grid-row: 1 / span 2; }
+  .publicA4Preview { min-height: 0; }
+}
+@media (max-width: 560px) {
+  .fractionDemoContent { padding: 18px 12px 24px; }
+  .publicA4Preview { border-radius: 4px; padding: 20px 14px; }
+  .publicA4Brand { grid-template-columns: auto 1fr; }
+  .publicA4Brand em { grid-column: 1 / -1; }
+  .fractionBar { min-height: 68px; }
+  .fractionStudentQuestions > div { grid-template-columns: 30px 1fr; padding: 12px 10px; }
+}
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  .publicA4Preview { width: 186mm; min-height: 273mm; border: 0; border-radius: 0; padding: 0; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; break-inside: avoid; }
+  .fractionWorkedExample,.fractionStudentQuestions > div { break-inside: avoid; }
+}
 .landingFounder {
   max-width: 1180px;
   display: grid;
@@ -3279,4 +3374,5 @@ body:has(.studioShell) .mindAppHeader {
     grid-template-columns: 1fr;
   }
 }
+
 
