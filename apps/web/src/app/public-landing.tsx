@@ -50,7 +50,7 @@ export function PublicLanding(): React.ReactElement {
     <main className="publicLanding incubatorLanding">
       <header className="landingNav">
         <a className="landingBrand" href="/" aria-label="ACESSA+ início"><span>A+</span><strong>ACESSA<span>+</span></strong></a>
-        <nav aria-label="Navegação da página"><a href="#produto">Produto</a><a href="#demonstracao">Demonstração</a><a href="#evidencias">Exemplos</a><a href="#diferenciais">Diferenciais</a><a href="#visao">Visão</a></nav>
+        <nav aria-label="Navegação da página"><a href="#produto">Produto</a><a href="#demonstracao">Demonstração</a><a href="#evidencias">Exemplos</a><a href="#diferenciais">Diferenciais</a><a href="#historia">Nossa história</a></nav>
         <div className="landingActions"><a href="/login">Entrar</a><a className="landingButton small" href="/cadastro">Acessar o protótipo</a></div>
       </header>
 
@@ -129,6 +129,28 @@ export function PublicLanding(): React.ReactElement {
       <section className="institutionalSection" aria-labelledby="institutional-title">
         <div className="institutionalMonogram" aria-hidden="true"><span>A+</span><i>INTELIGÊNCIA<br />PEDAGÓGICA INCLUSIVA</i></div>
         <div className="institutionalNarrative"><p className="landingKicker"><span aria-hidden="true" /> Origem pedagógica</p><h2 id="institutional-title">Tecnologia construída a partir das necessidades reais da educação inclusiva.</h2><p>O ACESSA+ nasce da prática pedagógica e da urgência de tornar o currículo acessível sem reduzir o potencial dos estudantes. Sua proposta reúne conhecimento educacional, acessibilidade e inteligência artificial em um ambiente de trabalho orientado pela decisão docente.</p><blockquote>“A tecnologia organiza caminhos. O professor preserva a autoria, a avaliação e a decisão sobre o que chega ao estudante.”</blockquote></div>
+      </section>
+
+      <section className="originStorySection" id="historia" aria-labelledby="origin-story-title">
+        <div className="originStoryVisual">
+          <div className="originStoryOrbit" aria-hidden="true"><span /><span /><span /></div>
+          <figure>
+            <img
+              src="/ana-juntos-podemos.jpg"
+              alt="Desenho circular criado por Ana, com crianças de mãos dadas formando uma grande corrente. Ana aparece como a menina negra de vestido amarelo e é a única criança colorida."
+            />
+            <figcaption>Desenho original de Ana · inspiração afetiva do ACESSA+</figcaption>
+          </figure>
+          <div className="originStorySignal" aria-hidden="true"><span>A</span><i>afeto</i><b>+</b><i>acesso</i><b>+</b><i>aprendizagem</i></div>
+        </div>
+        <div className="originStoryCopy">
+          <p className="landingKicker"><span aria-hidden="true" /> Você sabia?</p>
+          <h2 id="origin-story-title">Antes de ser tecnologia, o ACESSA+ começou como uma ideia de pertencimento.</h2>
+          <p>O desenho que inspira esta história foi criado por Ana. Nele, crianças formam uma grande corrente: algumas têm deficiências físicas, motoras ou cognitivas; outras convivem com diferentes transtornos. Todas permanecem unidas.</p>
+          <p>Ana também se colocou nessa corrente. Ela é a única criança colorida — a menina negra de vestido amarelo. Sua presença não a separa das demais: afirma que ela pertence, participa e acredita na força do coletivo.</p>
+          <blockquote>“Juntos, todos podemos conseguir.”<cite>— Ana</cite></blockquote>
+          <p className="originStoryClosing">Por isso, o <strong>A</strong> de ACESSA+ também guarda uma origem: <strong>Ana</strong>. Uma lembrança permanente de que acessibilidade, afeto e aprendizagem precisam caminhar de mãos dadas.</p>
+        </div>
       </section>
 
       <section className="landingFinalCta"><p className="landingKicker"><span aria-hidden="true" /> ACESSA+ · Protótipo para apresentação</p><h2>Uma tecnologia educacional criada para ampliar possibilidades.</h2><p>Conheça o laboratório, teste o fluxo e fale com o ACESSA+ pelo canal institucional.</p><div className="landingCtas"><a className="landingButton" href="/cadastro">Acessar o protótipo <span aria-hidden="true">→</span></a><a className="landingTextButton" href="mailto:acessamais5.0@gmail.com">acessamais5.0@gmail.com</a></div></section>
