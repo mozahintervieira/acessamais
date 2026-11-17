@@ -144,12 +144,15 @@ export function PublicLanding(): React.ReactElement {
           <div className="originStorySignal" aria-hidden="true"><span>A</span><i>afeto</i><b>+</b><i>acesso</i><b>+</b><i>aprendizagem</i></div>
         </div>
         <div className="originStoryCopy">
-          <p className="landingKicker"><span aria-hidden="true" /> Você sabia?</p>
-          <h2 id="origin-story-title">Antes de ser tecnologia, o ACESSA+ começou como uma ideia de pertencimento.</h2>
-          <p>O desenho que inspira esta história foi criado por Ana. Nele, crianças formam uma grande corrente: algumas têm deficiências físicas, motoras ou cognitivas; outras convivem com diferentes transtornos. Todas permanecem unidas.</p>
-          <p>Ana também se colocou nessa corrente. Ela é a única criança colorida — a menina negra de vestido amarelo. Sua presença não a separa das demais: afirma que ela pertence, participa e acredita na força do coletivo.</p>
+          <p className="landingKicker"><span aria-hidden="true" /> Onde nasce o ACESSA+</p>
+          <h2 id="origin-story-title">A plataforma nasceu de uma pergunta que não pode ser ignorada: o estudante está na sala, mas encontra condições reais para aprender?</h2>
+          <p>Em uma turma numerosa, o professor precisa ensinar o currículo a todos. Ao mesmo tempo, alguns estudantes encontram barreiras na leitura, na comunicação, na visão, na audição, na compreensão das etapas ou na forma de registrar uma resposta. Preparar caminhos diferentes, sem reduzir o objetivo de aprendizagem, exige tempo, conhecimento e trabalho conjunto.</p>
+          <p>Foi da experiência cotidiana no Atendimento Educacional Especializado que nasceu o ACESSA+. Adaptar não é simplesmente facilitar uma atividade: é identificar a barreira, preservar o que deve ser aprendido e oferecer apoios para que o estudante participe, produza e demonstre o que sabe.</p>
+          <p>Por isso, o ACESSA+ está sendo desenvolvido como uma mente pedagógica inclusiva. A inteligência artificial organiza possibilidades, consulta referências curriculares e ajuda a transformar materiais; o professor continua responsável pela decisão, pela revisão e pelo olhar sobre cada contexto.</p>
+          <p>É uma solução nascida no interior do Espírito Santo, com o propósito de apoiar quem ensina e ampliar as oportunidades de quem aprende. Seu ponto de partida é simples e inegociável: inclusão não é apenas estar na sala de aula. É ter condições reais de aprender.</p>
+          <p>Essa origem também ganhou um símbolo criado por Ana. Em seu desenho, crianças com diferentes características formam uma grande corrente. Ana se colocou entre elas como a menina negra de vestido amarelo e resumiu, com sensibilidade, o compromisso que orienta a plataforma:</p>
           <blockquote>“Juntos, todos podemos conseguir.”<cite>— Ana</cite></blockquote>
-          <p className="originStoryClosing">Por isso, o <strong>A</strong> de ACESSA+ também guarda uma origem: <strong>Ana</strong>. Uma lembrança permanente de que acessibilidade, afeto e aprendizagem precisam caminhar de mãos dadas.</p>
+          <p className="originStoryClosing">Por isso, o <strong>A</strong> de ACESSA+ também guarda a presença de <strong>Ana</strong>: uma lembrança permanente de que acessibilidade, afeto, aprendizagem e pertencimento precisam caminhar juntos.</p>
         </div>
       </section>
 

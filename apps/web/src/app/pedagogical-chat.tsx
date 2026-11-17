@@ -19,6 +19,12 @@ type Turn = {
   content: string;
   curriculum?: Curriculum;
 };
+type ProjectAttachment = {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+};
 type Project = {
   id: string;
   name: string;
@@ -74,8 +80,12 @@ export function PedagogicalChat(): React.ReactElement {
   const [editingDocument, setEditingDocument] = useState(false);
   const [exportingDocument, setExportingDocument] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [projectAttachments, setProjectAttachments] = useState<
+    Record<string, ProjectAttachment[]>
+  >({});
   const sending = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const dialogue = useRef<HTMLDivElement>(null);
   const documentPreviews = useRef<Array<HTMLElement | null>>([]);
   const activeProject = useMemo(
@@ -85,6 +95,7 @@ export function PedagogicalChat(): React.ReactElement {
       starterProject,
     [activeId, projects],
   );
+  const activeAttachments = projectAttachments[activeProject.id] ?? [];
 
   useEffect(() => {
     try {
@@ -182,10 +193,17 @@ export function PedagogicalChat(): React.ReactElement {
 
   async function send(event: React.FormEvent): Promise<void> {
     event.preventDefault();
-    if (sending.current || !draft.trim()) return;
-    const content = draft.trim();
+    if (sending.current || (!draft.trim() && !activeAttachments.length)) return;
+    const content =
+      draft.trim() ||
+      "Analise o material anexado, identifique sua estrutura e aguarde minha orientação para adaptá-lo.";
     const next: Turn[] = [...activeProject.turns, { role: "user", content }];
-    const requestMessages = next.map((turn) => ({ ...turn }));
+    const requestMessages = next.map((turn, index) => ({
+      ...turn,
+      ...(index === next.length - 1 && activeAttachments.length
+        ? { attachments: activeAttachments }
+        : {}),
+    }));
     let lastAssistantIndex = -1;
     for (let index = requestMessages.length - 1; index >= 0; index -= 1) {
       if (requestMessages[index]?.role === "assistant") {
@@ -270,6 +288,66 @@ export function PedagogicalChat(): React.ReactElement {
       setBusy(false);
       input.current?.focus();
     }
+  }
+
+  async function addAttachment(file: File): Promise<void> {
+    const accepted = new Set([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "text/plain",
+    ]);
+    if (!accepted.has(file.type)) {
+      setError("Envie PDF, Word (.docx), imagem JPG/PNG/WebP ou texto.");
+      return;
+    }
+    if (activeAttachments.length >= 3) {
+      setError("Este protótipo aceita até três arquivos por projeto.");
+      return;
+    }
+    try {
+      const prepared = file.type.startsWith("image/")
+        ? await prepareImageAttachment(file)
+        : await prepareDocumentAttachment(file);
+      const totalSize = activeAttachments.reduce(
+        (sum, attachment) => sum + attachment.size,
+        prepared.size,
+      );
+      if (totalSize > 3 * 1024 * 1024)
+        throw new Error(
+          "Os arquivos deste projeto podem somar até 3 MB nesta versão do protótipo.",
+        );
+      setProjectAttachments((current) => ({
+        ...current,
+        [activeProject.id]: [...(current[activeProject.id] ?? []), prepared],
+      }));
+      setHomeOpen(false);
+      setError("");
+      if (!draft.trim())
+        setDraft(
+          "Analise este material. Primeiro informe o que conseguiu ler, sinalize qualquer trecho ilegível e preserve o que é essencial antes de propor adaptações.",
+        );
+      input.current?.focus();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Não foi possível preparar o arquivo.",
+      );
+    } finally {
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
+
+  function removeAttachment(index: number): void {
+    setProjectAttachments((current) => ({
+      ...current,
+      [activeProject.id]: (current[activeProject.id] ?? []).filter(
+        (_, itemIndex) => itemIndex !== index,
+      ),
+    }));
   }
 
   async function copyDocument(): Promise<void> {
@@ -555,14 +633,52 @@ export function PedagogicalChat(): React.ReactElement {
             placeholder="Ex.: Crie uma sequência didática de Ciências para o 7º ano, com leitura guiada, exemplo resolvido e apoio para um estudante que precisa de comandos curtos..."
             aria-describedby="chat-privacy"
           />
+          <input
+            className="studioFileInput"
+            ref={fileInput}
+            type="file"
+            accept=".pdf,.docx,.txt,image/jpeg,image/png,image/webp"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) void addAttachment(file);
+            }}
+          />
+          {activeAttachments.length ? (
+            <div className="studioAttachments" aria-label="Materiais anexados">
+              {activeAttachments.map((attachment, index) => (
+                <span key={`${attachment.name}-${index}`}>
+                  <i aria-hidden="true">{attachment.type.startsWith("image/") ? "▧" : "▤"}</i>
+                  <span>
+                    <strong>{attachment.name}</strong>
+                    <small>{formatFileSize(attachment.size)} · disponível nesta sessão</small>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(index)}
+                    aria-label={`Remover ${attachment.name}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className="studioComposerBottom">
             <div>
-              <span>⌘</span>
-              <small>Enter envia · Shift + Enter cria uma linha</small>
+              <button
+                className="studioAttachButton"
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={busy}
+                aria-label="Anexar atividade em PDF, Word ou imagem"
+              >
+                ＋
+              </button>
+              <small>Anexar atividade · Enter envia · Shift + Enter cria uma linha</small>
             </div>
             <button
               className="mindGenerate"
-              disabled={busy || !draft.trim()}
+              disabled={busy || (!draft.trim() && !activeAttachments.length)}
               type="submit"
             >
               {busy ? "Construindo..." : "Enviar"}
@@ -694,6 +810,70 @@ export function PedagogicalChat(): React.ReactElement {
       ) : null}
     </main>
   );
+}
+
+async function prepareDocumentAttachment(file: File): Promise<ProjectAttachment> {
+  const maximumBytes = 3 * 1024 * 1024;
+  if (file.size > maximumBytes)
+    throw new Error("PDF, Word e texto podem ter até 3 MB nesta versão do protótipo.");
+  return {
+    name: file.name.slice(0, 120),
+    type: file.type,
+    size: file.size,
+    dataUrl: await fileToDataUrl(file),
+  };
+}
+
+async function prepareImageAttachment(file: File): Promise<ProjectAttachment> {
+  const image = await loadImage(file);
+  const scale = Math.min(1, 2000 / Math.max(image.width, image.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("O navegador não conseguiu preparar a imagem.");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.84);
+  const size = Math.ceil((dataUrl.length * 3) / 4);
+  if (size > 3 * 1024 * 1024)
+    throw new Error("A foto continua muito grande. Reduza a resolução e tente novamente.");
+  return {
+    name: file.name.replace(/\.[^.]+$/, "") + ".jpg",
+    type: "image/jpeg",
+    size,
+    dataUrl,
+  };
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("A imagem não pôde ser lida."));
+    };
+    image.src = url;
+  });
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("O arquivo não pôde ser lido."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function DocumentPreview({
