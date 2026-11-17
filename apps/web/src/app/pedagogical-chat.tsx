@@ -311,6 +311,14 @@ export function PedagogicalChat(): React.ReactElement {
       const prepared = file.type.startsWith("image/")
         ? await prepareImageAttachment(file)
         : await prepareDocumentAttachment(file);
+      const totalSize = activeAttachments.reduce(
+        (sum, attachment) => sum + attachment.size,
+        prepared.size,
+      );
+      if (totalSize > 3 * 1024 * 1024)
+        throw new Error(
+          "Os arquivos deste projeto podem somar até 3 MB nesta versão do protótipo.",
+        );
       setProjectAttachments((current) => ({
         ...current,
         [activeProject.id]: [...(current[activeProject.id] ?? []), prepared],

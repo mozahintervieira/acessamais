@@ -103,7 +103,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             0,
           ),
         0,
-      ) > 9 * 1024 * 1024
+      ) > 3 * 1024 * 1024
     ) {
       return NextResponse.json(
         {
