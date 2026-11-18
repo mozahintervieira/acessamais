@@ -14,7 +14,9 @@ const cookieName = "acessa_plus_session";
 const sessionDays = 30;
 
 function getSecret(): string {
-  return process.env.AUTH_SECRET || "acessa-plus-dev-secret-change-in-production";
+  return (
+    process.env.AUTH_SECRET || "acessa-plus-dev-secret-change-in-production"
+  );
 }
 
 function hashToken(token: string): string {
@@ -60,8 +62,8 @@ export async function createSession(userId: string): Promise<void> {
       data: {
         userId,
         tokenHash: hashToken(token),
-        expiresAt
-      }
+        expiresAt,
+      },
     });
   } else if (canUseMemoryFallback()) {
     devSessions.set(hashToken(token), { userId, expiresAt });
@@ -74,9 +76,10 @@ export async function createSession(userId: string): Promise<void> {
   cookieStore.set(cookieName, encodeCookie(token), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.VERCEL === "1" || process.env.AUTH_COOKIE_SECURE === "true",
+    secure:
+      process.env.VERCEL === "1" || process.env.AUTH_COOKIE_SECURE === "true",
     path: "/",
-    expires: expiresAt
+    expires: expiresAt,
   });
 }
 
@@ -87,7 +90,7 @@ export async function clearSession(): Promise<void> {
   if (token) {
     if (hasDatabaseUrl()) {
       await getPrisma().authSession.deleteMany({
-        where: { tokenHash: hashToken(token) }
+        where: { tokenHash: hashToken(token) },
       });
     } else if (canUseMemoryFallback()) {
       devSessions.delete(hashToken(token));
@@ -107,7 +110,10 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
 
   if (!hasDatabaseUrl() && canUseMemoryFallback()) {
     const session = devSessions.get(hashToken(token));
-    const user = session && session.expiresAt > new Date() ? devUsers.get(session.userId) : null;
+    const user =
+      session && session.expiresAt > new Date()
+        ? devUsers.get(session.userId)
+        : null;
 
     return user ? toAuthenticatedUser(user) : null;
   }
@@ -118,7 +124,7 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
 
   const session = await getPrisma().authSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: true }
+    include: { user: true },
   });
 
   if (!session || session.expiresAt <= new Date()) {
@@ -130,7 +136,7 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
     organizationId: session.user.organizationId,
     name: session.user.name,
     email: session.user.email,
-    role: session.user.role
+    role: session.user.role,
   };
 }
 
@@ -140,7 +146,7 @@ function toAuthenticatedUser(user: AuthenticatedUser): AuthenticatedUser {
     organizationId: user.organizationId,
     name: user.name,
     email: user.email,
-    role: user.role
+    role: user.role,
   };
 }
 
@@ -154,6 +160,19 @@ export async function requireCurrentUser(): Promise<AuthenticatedUser> {
   return user;
 }
 
+export function canViewObservability(user: AuthenticatedUser): boolean {
+  if (user.role === "ADMIN") return true;
+  const configuredEmails = (process.env.OBSERVABILITY_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  const allowedEmails = new Set([
+    "acessamais5.0@gmail.com",
+    ...configuredEmails,
+  ]);
+  return allowedEmails.has(user.email.trim().toLowerCase());
+}
+
 type DevSession = { userId: string; expiresAt: Date };
 
 const globalSessionStore = globalThis as typeof globalThis & {
@@ -161,9 +180,11 @@ const globalSessionStore = globalThis as typeof globalThis & {
   __acessaPlusDevUsers?: Map<string, AuthenticatedUser>;
 };
 
-const devSessions = globalSessionStore.__acessaPlusDevSessions ?? new Map<string, DevSession>();
+const devSessions =
+  globalSessionStore.__acessaPlusDevSessions ?? new Map<string, DevSession>();
 globalSessionStore.__acessaPlusDevSessions = devSessions;
 
 export const devUsers =
-  globalSessionStore.__acessaPlusDevUsers ?? new Map<string, AuthenticatedUser>();
+  globalSessionStore.__acessaPlusDevUsers ??
+  new Map<string, AuthenticatedUser>();
 globalSessionStore.__acessaPlusDevUsers = devUsers;
