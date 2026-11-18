@@ -629,7 +629,7 @@ Mediação preservada.`,
           content: [
             {
               type: "output_text",
-              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
+              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n@MOZAHINTERVIEIRA\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
             },
           ],
         },
@@ -647,6 +647,9 @@ Mediação preservada.`,
     ),
   );
   assert.ok(!normalizedComplete.response.body.reply.includes("http"));
+  assert.ok(
+    !normalizedComplete.response.body.reply.includes("MOZAHINTERVIEIRA"),
+  );
   const conversational = await call({
     messages: [
       {
@@ -687,6 +690,55 @@ Mediação preservada.`,
     missingRequestedComponent.issues.some((issue) =>
       issue.includes("componente curricular solicitado: matematica"),
     ),
+  );
+  assert.equal(
+    qualityModule.hasCriticalQualityFailure(missingRequestedComponent.issues),
+    true,
+  );
+
+  const unrelatedLocalFallback = await call({
+    messages: [
+      {
+        role: "user",
+        content:
+          "Crie uma atividade adaptada de Matemática sobre áreas em malha quadriculada para estudante com DI.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: `**MATERIAL DO ESTUDANTE**
+**LEITURA GUIADA** Texto é uma mensagem.
+**TABELA DE DADOS**
+| Gênero | Finalidade |
+|---|---|
+| Cartaz | Informar |
+| Bilhete | Comunicar |
+**EXEMPLO COMPLETO RESOLVIDO** Um cartaz informa.
+**ATIVIDADES**
+1. Marque o gênero. ☐ Cartaz ☐ Bilhete
+2. Consulte a tabela e responda. Resposta: _____
+3. Explique a finalidade. Resposta: _____
+4. Escreva uma mensagem. Resposta: _____
+**GABARITO COMENTADO** Respostas.
+**GUIA DO PROFESSOR** Mediação.`,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(unrelatedLocalFallback.response.status, 502);
+  assert.equal(
+    unrelatedLocalFallback.response.body.code,
+    "PEDAGOGICAL_MISMATCH",
+  );
+  assert.ok(
+    !JSON.stringify(unrelatedLocalFallback.response.body).includes("Cartaz"),
   );
 
   const completeSequenceText = `**PLANEJAMENTO DA SEQUÊNCIA DIDÁTICA**
