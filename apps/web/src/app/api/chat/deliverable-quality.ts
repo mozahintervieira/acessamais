@@ -10,6 +10,15 @@ export function validatePedagogicalDeliverable(
   const asksForSequence = asksForDidacticSequence(normalizedRequest);
 
   if (asksForMaterial) {
+    const normalizedResponse = normalize(response);
+    for (const component of requestedCurricularComponents(normalizedRequest))
+      if (!normalizedResponse.includes(component))
+        issues.push(
+          `a resposta divergiu do componente curricular solicitado: ${component}`,
+        );
+  }
+
+  if (asksForMaterial) {
     const studentSection = extractStudentSection(response);
     if (/\bFRENTE\s+E\s+VERSO\b/i.test(response))
       issues.push(
@@ -131,11 +140,6 @@ export function validatePedagogicalDeliverable(
       issues.push(...validateSequenceLessonPages(response, requestedLessons));
     }
 
-    const normalizedResponse = normalize(response);
-    for (const component of requestedCurricularComponents(normalizedRequest))
-      if (!normalizedResponse.includes(component))
-        issues.push(`faltou o componente curricular solicitado: ${component}`);
-
     if (
       !/(?:FOLHA|ATIVIDADE) A4|P[AÁ]GINA DO ESTUDANTE|MATERIAL DO ESTUDANTE/i.test(
         response,
@@ -151,6 +155,12 @@ export function validatePedagogicalDeliverable(
   if (/\[(?:insira|adicione|imagem|figura|resposta)[^\]]*\]/i.test(response))
     issues.push("há marcador vazio ou recurso prometido que não foi entregue");
   return { valid: issues.length === 0, issues };
+}
+
+export function hasCriticalQualityFailure(issues: string[]): boolean {
+  return issues.some((issue) =>
+    issue.includes("a resposta divergiu do componente curricular solicitado"),
+  );
 }
 
 export function asksForPedagogicalDeliverable(request: string): boolean {
@@ -445,4 +455,3 @@ function normalize(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
-
