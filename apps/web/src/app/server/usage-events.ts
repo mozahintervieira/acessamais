@@ -16,6 +16,7 @@ export type UsageEventType =
 export type ChatGenerationStatus =
   | "SUCCESS"
   | "VALIDATION_REJECTED"
+  | "QUALITY_REJECTED"
   | "CURRICULUM_SEARCH_FAILED"
   | "PROVIDER_FAILED"
   | "INCOMPLETE"
@@ -318,3 +319,4 @@ function percentile(values: number[], fraction: number): number {
     ] ?? 0
   );
 }
+
