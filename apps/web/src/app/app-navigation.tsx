@@ -18,7 +18,7 @@ const navItems = [
   { href: "/#assistiva", label: "Recursos de Acessibilidade", icon: "○" },
   { href: "/#assistiva", label: "Tecnologia Assistiva", icon: "⌁" },
   { href: "/#assistiva", label: "Guia Pedagogico", icon: "?" },
-  { href: "/settings", label: "Configuracoes", icon: "⚙" }
+  { href: "/settings", label: "Configuracoes", icon: "⚙" },
 ];
 
 export function AppNavigation(): React.ReactElement | null {
@@ -27,6 +27,7 @@ export function AppNavigation(): React.ReactElement | null {
   const [simpleMode, setSimpleMode] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
   const [fontScale, setFontScale] = useState(0);
+  const [showObservability, setShowObservability] = useState(false);
 
   useEffect(() => {
     document.body.classList.toggle("simpleMode", simpleMode);
@@ -34,14 +35,43 @@ export function AppNavigation(): React.ReactElement | null {
     document.body.dataset.fontScale = String(fontScale);
   }, [simpleMode, highContrast, fontScale]);
 
-  const publicRoutes = ["/", "/termos", "/privacidade", "/demonstracoes", "/recuperar-senha", "/redefinir-senha"];
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const user = payload?.user;
+        if (!active || !user) return;
+        setShowObservability(
+          user.role === "ADMIN" ||
+            String(user.email).toLowerCase() === "acessamais5.0@gmail.com",
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const publicRoutes = [
+    "/",
+    "/termos",
+    "/privacidade",
+    "/demonstracoes",
+    "/recuperar-senha",
+    "/redefinir-senha",
+  ];
 
   if (publicRoutes.includes(pathname)) {
     return null;
   }
 
   if (pathname === "/login" || pathname === "/cadastro") {
-    return <a className="publicHomeLink" href="/">ACESSA+</a>;
+    return (
+      <a className="publicHomeLink" href="/">
+        ACESSA+
+      </a>
+    );
   }
 
   async function logout(): Promise<void> {
@@ -51,18 +81,98 @@ export function AppNavigation(): React.ReactElement | null {
 
   return (
     <header className="mindAppHeader">
-      <a className="mindAppBrand" href="/app" aria-label="Abrir mente pedagógica ACESSA+"><span>A+</span><strong>ACESSA<span>+</span></strong></a>
-      <div className="mindAppCenter"><span className="mindOnlineDot" aria-hidden="true" /> Mente pedagógica ativa</div>
-      <div className="mindAppActions">
-        <button className="mindAccessButton" type="button" onClick={() => setSimpleMode((value) => !value)} aria-pressed={simpleMode}>Modo simples</button>
-        <button className="mindMenuButton" type="button" aria-expanded={isOpen} aria-controls="main-navigation" onClick={() => setIsOpen((current) => !current)}>Abrir menu <span aria-hidden="true">⌄</span></button>
+      <a
+        className="mindAppBrand"
+        href="/app"
+        aria-label="Abrir mente pedagógica ACESSA+"
+      >
+        <span>A+</span>
+        <strong>
+          ACESSA<span>+</span>
+        </strong>
+      </a>
+      <div className="mindAppCenter">
+        <span className="mindOnlineDot" aria-hidden="true" /> Mente pedagógica
+        ativa
       </div>
-      {isOpen ? <div className="mindMenu" id="main-navigation">
-        <div className="mindMenuAccessibility"><button type="button" onClick={() => setHighContrast((value) => !value)} aria-pressed={highContrast}>Alto contraste</button><button type="button" onClick={() => setFontScale((value) => Math.min(value + 1, 2))}>A+</button><button type="button" onClick={() => setFontScale((value) => Math.max(value - 1, -1))}>A−</button></div>
-        <nav aria-label="Navegação da área do professor">{navItems.map((item) => { const cleanHref = item.href.split("#")[0] || "/"; return <a aria-current={pathname === cleanHref ? "page" : undefined} href={item.href} key={`${item.href}-${item.label}`} onClick={() => setIsOpen(false)}><span aria-hidden="true">{item.icon}</span>{item.label}</a>; })}</nav>
-        <button className="mindLogout" type="button" onClick={() => void logout()}>Sair da conta</button>
-      </div> : null}
+      <div className="mindAppActions">
+        <button
+          className="mindAccessButton"
+          type="button"
+          onClick={() => setSimpleMode((value) => !value)}
+          aria-pressed={simpleMode}
+        >
+          Modo simples
+        </button>
+        <button
+          className="mindMenuButton"
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls="main-navigation"
+          onClick={() => setIsOpen((current) => !current)}
+        >
+          Abrir menu <span aria-hidden="true">⌄</span>
+        </button>
+      </div>
+      {isOpen ? (
+        <div className="mindMenu" id="main-navigation">
+          <div className="mindMenuAccessibility">
+            <button
+              type="button"
+              onClick={() => setHighContrast((value) => !value)}
+              aria-pressed={highContrast}
+            >
+              Alto contraste
+            </button>
+            <button
+              type="button"
+              onClick={() => setFontScale((value) => Math.min(value + 1, 2))}
+            >
+              A+
+            </button>
+            <button
+              type="button"
+              onClick={() => setFontScale((value) => Math.max(value - 1, -1))}
+            >
+              A−
+            </button>
+          </div>
+          <nav aria-label="Navegação da área do professor">
+            {[
+              ...navItems,
+              ...(showObservability
+                ? [
+                    {
+                      href: "/admin/observabilidade",
+                      label: "Qualidade do chat",
+                      icon: "◉",
+                    },
+                  ]
+                : []),
+            ].map((item) => {
+              const cleanHref = item.href.split("#")[0] || "/";
+              return (
+                <a
+                  aria-current={pathname === cleanHref ? "page" : undefined}
+                  href={item.href}
+                  key={`${item.href}-${item.label}`}
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  {item.label}
+                </a>
+              );
+            })}
+          </nav>
+          <button
+            className="mindLogout"
+            type="button"
+            onClick={() => void logout()}
+          >
+            Sair da conta
+          </button>
+        </div>
+      ) : null}
     </header>
   );
 }
-
