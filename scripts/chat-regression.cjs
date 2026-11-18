@@ -61,6 +61,7 @@ async function call({
   const exports = {};
   let sent;
   const logs = [];
+  const metrics = [];
   vm.runInNewContext(code, {
     exports,
     AbortController,
@@ -83,22 +84,29 @@ async function call({
                   json: (body, options) => ({
                     body,
                     status: options?.status ?? 200,
+                    headers: options?.headers ?? {},
                   }),
                 },
               }
-            : {
-                getCurrentUser: async () => {
-                  if (user?.failure) throw user.failure;
-                  return user;
+            : name === "../../server/usage-events"
+              ? {
+                  recordChatGenerationMetric: async (userId, metric) => {
+                    metrics.push({ userId, metric });
+                  },
+                }
+              : {
+                  getCurrentUser: async () => {
+                    if (user?.failure) throw user.failure;
+                    return user;
+                  },
                 },
-              },
     fetch: async (url, options) => {
       sent = JSON.parse(options.body);
       return { ok: status === 200, status, json: async () => payload };
     },
   });
   const response = await exports.POST({ json: async () => ({ messages }) });
-  return { response, sent, logs };
+  return { response, sent, logs, metrics };
 }
 (async () => {
   assert.equal((await call({ user: null })).response.status, 401);
@@ -144,14 +152,28 @@ async function call({
   assert.equal(success.sent.tools[0].external_web_access, undefined);
   assert.equal(success.sent.tools[0].type, "web_search");
   assert.equal(success.sent.tools[0].filters, undefined);
+  assert.equal(success.metrics.length, 1);
+  assert.equal(success.metrics[0].userId, "teacher");
+  assert.equal(success.metrics[0].metric.status, "SUCCESS");
+  assert.equal(success.metrics[0].metric.requestKind, "REVISION");
+  assert.equal(success.metrics[0].metric.messageCount, history.length);
+  assert.equal(success.metrics[0].metric.curriculumSearchCompleted, true);
+  assert.ok(success.response.headers["X-Request-Id"].startsWith("chat_"));
+  assert.ok(!JSON.stringify(success.metrics).includes(history[0].content));
   assert.ok(
     success.sent.instructions.includes(
       `ANO LETIVO VIGENTE: ${new Date().getFullYear()}`,
     ),
   );
-  assert.ok(success.sent.instructions.includes("BASE NACIONAL COMUM CURRICULAR"));
-  assert.ok(success.sent.instructions.includes("https://basenacionalcomum.mec.gov.br/"));
-  assert.ok(success.sent.instructions.includes("base nacional e o currículo da rede"));
+  assert.ok(
+    success.sent.instructions.includes("BASE NACIONAL COMUM CURRICULAR"),
+  );
+  assert.ok(
+    success.sent.instructions.includes("https://basenacionalcomum.mec.gov.br/"),
+  );
+  assert.ok(
+    success.sent.instructions.includes("base nacional e o currículo da rede"),
+  );
   assert.ok(success.sent.instructions.includes("LEITURA GUIADA"));
   assert.ok(success.sent.instructions.includes("EXEMPLO COMPLETO RESOLVIDO"));
   assert.ok(success.sent.instructions.includes("GABARITO COMENTADO"));
@@ -581,10 +603,18 @@ Mediação preservada.`,
       ],
     },
   });
-  assert.ok(!sectionSanitization.response.body.reply.includes("Referência interna"));
-  assert.ok(sectionSanitization.response.body.reply.includes("Conteúdo preservado"));
-  assert.ok(sectionSanitization.response.body.reply.includes("Resposta preservada"));
-  assert.ok(sectionSanitization.response.body.reply.includes("Mediação preservada"));
+  assert.ok(
+    !sectionSanitization.response.body.reply.includes("Referência interna"),
+  );
+  assert.ok(
+    sectionSanitization.response.body.reply.includes("Conteúdo preservado"),
+  );
+  assert.ok(
+    sectionSanitization.response.body.reply.includes("Resposta preservada"),
+  );
+  assert.ok(
+    sectionSanitization.response.body.reply.includes("Mediação preservada"),
+  );
   const normalizedComplete = await call({
     messages: [
       {
@@ -599,7 +629,7 @@ Mediação preservada.`,
           content: [
             {
               type: "output_text",
-              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
+              text: "**Atividade de Ciências**\n\n**EXEMPLO COMPLETO RESOLVIDO**\nPasso a passo.\n\n**GABARITO COMENTADO**\nResposta explicada.\n\n**GUIA DO PROFESSOR**\nMediação.\n\n@MOZAHINTERVIEIRA\n\n[fonte externa](https://exemplo.test/material?utm_source=openai)",
             },
           ],
         },
@@ -617,6 +647,9 @@ Mediação preservada.`,
     ),
   );
   assert.ok(!normalizedComplete.response.body.reply.includes("http"));
+  assert.ok(
+    !normalizedComplete.response.body.reply.includes("MOZAHINTERVIEIRA"),
+  );
   const conversational = await call({
     messages: [
       {
@@ -657,6 +690,55 @@ Mediação preservada.`,
     missingRequestedComponent.issues.some((issue) =>
       issue.includes("componente curricular solicitado: matematica"),
     ),
+  );
+  assert.equal(
+    qualityModule.hasCriticalQualityFailure(missingRequestedComponent.issues),
+    true,
+  );
+
+  const unrelatedLocalFallback = await call({
+    messages: [
+      {
+        role: "user",
+        content:
+          "Crie uma atividade adaptada de Matemática sobre áreas em malha quadriculada para estudante com DI.",
+      },
+    ],
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: `**MATERIAL DO ESTUDANTE**
+**LEITURA GUIADA** Texto é uma mensagem.
+**TABELA DE DADOS**
+| Gênero | Finalidade |
+|---|---|
+| Cartaz | Informar |
+| Bilhete | Comunicar |
+**EXEMPLO COMPLETO RESOLVIDO** Um cartaz informa.
+**ATIVIDADES**
+1. Marque o gênero. ☐ Cartaz ☐ Bilhete
+2. Consulte a tabela e responda. Resposta: _____
+3. Explique a finalidade. Resposta: _____
+4. Escreva uma mensagem. Resposta: _____
+**GABARITO COMENTADO** Respostas.
+**GUIA DO PROFESSOR** Mediação.`,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(unrelatedLocalFallback.response.status, 502);
+  assert.equal(
+    unrelatedLocalFallback.response.body.code,
+    "PEDAGOGICAL_MISMATCH",
+  );
+  assert.ok(
+    !JSON.stringify(unrelatedLocalFallback.response.body).includes("Cartaz"),
   );
 
   const completeSequenceText = `**PLANEJAMENTO DA SEQUÊNCIA DIDÁTICA**
@@ -766,5 +848,3 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   console.error(error);
   process.exitCode = 1;
 });
-
-
