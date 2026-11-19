@@ -105,13 +105,20 @@ export function curriculumEvidence(
       record(item).type === "web_search_call" &&
       record(item).status === "completed",
   );
-  const citations = new Map<string, CurriculumCitation>();
+  const annotatedCitations = new Map<string, CurriculumCitation>();
+  const discoveredCitations = new Map<string, CurriculumCitation>();
+  const attachedCitations = new Map<string, CurriculumCitation>();
   for (const item of output) {
     const itemRecord = record(item);
     const actionSources = record(itemRecord.action).sources;
     if (Array.isArray(actionSources)) {
       for (const source of actionSources)
-        addOfficialCitation(citations, record(source), currentYear, catalog);
+        addOfficialCitation(
+          discoveredCitations,
+          record(source),
+          currentYear,
+          catalog,
+        );
     }
     const content = itemRecord.content;
     if (!Array.isArray(content)) continue;
@@ -121,13 +128,13 @@ export function curriculumEvidence(
       for (const annotation of annotations) {
         const source = record(annotation);
         if (source.type === "url_citation")
-          addOfficialCitation(citations, source, currentYear, catalog);
+          addOfficialCitation(annotatedCitations, source, currentYear, catalog);
       }
     }
   }
   for (const url of attachedDocumentUrls) {
     addOfficialCitation(
-      citations,
+      attachedCitations,
       {
         url,
         title: `Documento curricular ${currentYear}: ${decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "arquivo oficial")}`,
@@ -136,6 +143,17 @@ export function curriculumEvidence(
       catalog,
     );
   }
+  // Search providers can return dozens of pages merely discovered during a
+  // query. The public evidence list must privilege sources actually cited in
+  // the generated answer. Discovered sources remain a fallback for responses
+  // whose provider does not emit URL annotations.
+  const primaryCitations = annotatedCitations.size
+    ? annotatedCitations
+    : discoveredCitations;
+  const citations = new Map<string, CurriculumCitation>([
+    ...primaryCitations,
+    ...attachedCitations,
+  ]);
   const values = [...citations.values()];
   const status: CurriculumEvidenceStatus = values.some(
     (source) => source.currentYear && source.specificDocument,
@@ -159,19 +177,22 @@ function addOfficialCitation(
   try {
     const url = new URL(source.url);
     const scope = officialCurriculumScope(url);
-    if (url.protocol !== "https:" || !scope)
-      return;
-    const title =
-      typeof source.title === "string" && source.title.trim()
-        ? source.title
-        : scope === "BNCC"
-          ? "Base Nacional Comum Curricular — MEC"
-          : "Documento oficial SEDU/ES";
+    if (url.protocol !== "https:" || !scope) return;
+    const sourceTitle =
+      typeof source.title === "string" ? source.title.trim() : "";
+    const title = officialCitationTitle(
+      scope,
+      url,
+      sourceTitle,
+      currentYear,
+      catalog,
+    );
     const yearPattern = new RegExp(`(^|\\D)${currentYear}(\\D|$)`);
     const catalogUrls = new Set(
       catalog.documentUrls.map((item) => canonicalUrl(item)),
     );
-    const currentYearSource = scope === "SEDU_ES" &&
+    const currentYearSource =
+      scope === "SEDU_ES" &&
       (catalogUrls.has(canonicalUrl(url.href)) ||
         yearPattern.test(`${title} ${url.pathname}`) ||
         url.pathname === "/curriculo/orientacoescurriculares/");
@@ -192,6 +213,66 @@ function addOfficialCitation(
   } catch {
     /* Invalid URLs must never become clickable citations. */
   }
+}
+
+function officialCitationTitle(
+  scope: "BNCC" | "SEDU_ES",
+  url: URL,
+  sourceTitle: string,
+  currentYear: number,
+  catalog: CurriculumCatalog,
+): string {
+  if (scope === "BNCC") return "Base Nacional Comum Curricular — MEC";
+  if (url.pathname.endsWith("/orientacoescurriculares/"))
+    return `Orientações Curriculares ${currentYear} — SEDU/ES`;
+  if (url.pathname.endsWith("/documentoscurriculares/"))
+    return "Documentos curriculares — SEDU/ES";
+
+  const filename = decodeURIComponent(
+    url.pathname.split("/").pop() ?? "",
+  ).toUpperCase();
+  const catalogUrls = new Set(
+    catalog.documentUrls.map((item) => canonicalUrl(item)),
+  );
+  const isCurrentCatalogDocument = catalogUrls.has(canonicalUrl(url.href));
+  const yearPattern = new RegExp(`(^|\\D)${currentYear}(\\D|$)`);
+  const isCurrentYearDocument =
+    isCurrentCatalogDocument ||
+    yearPattern.test(`${sourceTitle} ${url.pathname}`);
+  const stages: Array<[string, string]> = [
+    ["EFAI", "Ensino Fundamental — Anos Iniciais"],
+    ["EFAF", "Ensino Fundamental — Anos Finais"],
+  ];
+  const components: Array<[string, string]> = [
+    ["MAT", "Matemática"],
+    ["CI", "Ciências"],
+    ["LP", "Língua Portuguesa"],
+    ["HIS", "História"],
+    ["GEO", "Geografia"],
+    ["GE", "Geografia"],
+    ["ARTE", "Arte"],
+    ["ART", "Arte"],
+    ["EF", "Educação Física"],
+    ["ER", "Ensino Religioso"],
+    ["LI", "Língua Inglesa"],
+    ["ING", "Língua Inglesa"],
+    ["BIO", "Biologia"],
+    ["FIS", "Física"],
+    ["QUI", "Química"],
+    ["FIL", "Filosofia"],
+    ["SOC", "Sociologia"],
+  ];
+  const stage = stages.find(([code]) => filename.startsWith(`${code}_`));
+  const component = components.find(([code]) =>
+    new RegExp(`(?:^|_)${code}(?:_|\\.|-)`).test(filename),
+  );
+  if (stage || component || isCurrentCatalogDocument) {
+    const details = [component?.[1], stage?.[1]].filter(Boolean).join(" — ");
+    return `${isCurrentYearDocument ? `Orientações Curriculares ${currentYear}` : "Documento curricular oficial"}${details ? ` — ${details}` : ""} — SEDU/ES`;
+  }
+  if (/\.pdf$/i.test(url.pathname))
+    return "Documento curricular oficial — SEDU/ES";
+  return sourceTitle || "Fonte curricular oficial — SEDU/ES";
 }
 
 function officialCurriculumScope(url: URL): "BNCC" | "SEDU_ES" | null {
