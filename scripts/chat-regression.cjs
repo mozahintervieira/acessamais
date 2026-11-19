@@ -449,6 +449,72 @@ async function call({
   assert.equal(bnccEvidence.citations[0].scope, "BNCC");
   assert.equal(bnccEvidence.citations[0].specificDocument, true);
   assert.equal(bnccEvidence.citations[0].currentYear, false);
+  assert.equal(
+    bnccEvidence.citations[0].title,
+    "Base Nacional Comum Curricular — MEC",
+  );
+  const conciseCitations = evidenceModule.curriculumEvidence(
+    {
+      output: [
+        {
+          type: "web_search_call",
+          status: "completed",
+          action: {
+            sources: [
+              {
+                url: "https://curriculo.sedu.es.gov.br/curriculo/rpe/",
+                title: "Referências pedagógicas gerais",
+              },
+              {
+                url: "https://curriculo.sedu.es.gov.br/curriculo/wp-content/uploads/2026/01/EM_MAT_26.pdf",
+                title: "Documento de outro segmento",
+              },
+            ],
+          },
+        },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Resposta com duas fontes efetivamente citadas.",
+              annotations: [
+                {
+                  type: "url_citation",
+                  url: "https://basenacionalcomum.mec.gov.br/images/BNCC_20dez_site.pdf?utm_source=openai",
+                  title: "BNCC",
+                },
+                {
+                  type: "url_citation",
+                  url: "https://curriculo.sedu.es.gov.br/curriculo/wp-content/uploads/2026/01/EFAF_MAT_26.pdf?utm_source=openai",
+                  title: "2026 6º ano Habilidade EF06MA29 Analisar",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    new Date().getFullYear(),
+    {
+      year: new Date().getFullYear(),
+      sourceUrl:
+        "https://curriculo.sedu.es.gov.br/curriculo/orientacoescurriculares/",
+      documentUrls: [
+        "https://curriculo.sedu.es.gov.br/curriculo/wp-content/uploads/2026/01/EFAF_MAT_26.pdf",
+      ],
+    },
+  );
+  assert.equal(conciseCitations.citations.length, 2);
+  assert.ok(
+    conciseCitations.citations.every(
+      (citation) =>
+        !citation.url.includes("/rpe/") && !citation.url.includes("EM_MAT"),
+    ),
+  );
+  assert.equal(
+    conciseCitations.citations[1].title,
+    `Orientações Curriculares ${new Date().getFullYear()} — Matemática — Ensino Fundamental — Anos Finais — SEDU/ES`,
+  );
   const selectedCatalog = evidenceModule.curriculumCatalogInstructions(
     {
       year: new Date().getFullYear(),
