@@ -318,55 +318,70 @@ export async function POST(request: Request): Promise<NextResponse> {
         stage = "quality-retry";
         const firstText = text;
         const firstEvidence = evidence;
-        const retryResponse = await fetch(
-          "https://api.openai.com/v1/responses",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
+        try {
+          const retryResponse = await fetch(
+            "https://api.openai.com/v1/responses",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              signal: controller.signal,
+              body: JSON.stringify({
+                model: telemetryModel,
+                store: false,
+                instructions:
+                  instructions +
+                  "\n\n" +
+                  curriculumInstructions(currentYear) +
+                  "\n\n" +
+                  curriculumCatalogInstructions(
+                    curriculumCatalog,
+                    latestRequest,
+                  ) +
+                  `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
+                tools: [curriculumSearchTool],
+                tool_choice: "required",
+                include: ["web_search_call.action.sources"],
+                input: buildResponseInput(messages),
+                max_output_tokens: sequenceRequest ? 14000 : 7000,
+              }),
             },
-            signal: controller.signal,
-            body: JSON.stringify({
-              model: telemetryModel,
-              store: false,
-              instructions:
-                instructions +
-                "\n\n" +
-                curriculumInstructions(currentYear) +
-                "\n\n" +
-                curriculumCatalogInstructions(
-                  curriculumCatalog,
-                  latestRequest,
-                ) +
-                `\n\nREVISÃO OBRIGATÓRIA DE QUALIDADE: a primeira versão precisa ser completada pelos seguintes motivos: ${quality.issues.join("; ")}. Refaça integralmente, mantenha o pedido original e confira cada requisito antes de responder.`,
-              tools: [curriculumSearchTool],
-              tool_choice: "required",
-              include: ["web_search_call.action.sources"],
-              input: buildResponseInput(messages),
-              max_output_tokens: sequenceRequest ? 14000 : 7000,
-            }),
-          },
-        );
-        if (retryResponse.ok) {
-          const retryPayload = await retryResponse.json();
-          addTokenUsage(tokenUsage, retryPayload);
-          const retryText = extractResponseText(retryPayload);
-          const retryEvidence = curriculumEvidence(
-            retryPayload,
-            currentYear,
-            curriculumCatalog,
-            [],
           );
-          if (retryText.trim()) {
-            payload = retryPayload;
-            text = retryText;
-            evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
-            quality = validatePedagogicalDeliverable(latestRequest, text);
-            telemetryCurriculumSearchCompleted = evidence.searched;
-            telemetryCurriculumStatus = evidence.status;
-            telemetryOfficialSourceCount = evidence.citations.length;
+          if (retryResponse.ok) {
+            const retryPayload = await retryResponse.json();
+            addTokenUsage(tokenUsage, retryPayload);
+            const retryText = extractResponseText(retryPayload);
+            const retryEvidence = curriculumEvidence(
+              retryPayload,
+              currentYear,
+              curriculumCatalog,
+              [],
+            );
+            if (retryText.trim()) {
+              payload = retryPayload;
+              text = retryText;
+              evidence = retryEvidence.searched ? retryEvidence : firstEvidence;
+              quality = validatePedagogicalDeliverable(latestRequest, text);
+              telemetryCurriculumSearchCompleted = evidence.searched;
+              telemetryCurriculumStatus = evidence.status;
+              telemetryOfficialSourceCount = evidence.citations.length;
+            }
           }
+        } catch (retryError) {
+          const retryDetails =
+            retryError && typeof retryError === "object"
+              ? (retryError as Record<string, unknown>)
+              : {};
+          if (retryDetails.name !== "AbortError") throw retryError;
+          console.error("chat_quality_retry_aborted", {
+            fallback: "first-response",
+            issueCount: quality.issues.length,
+          });
+          text = firstText;
+          evidence = firstEvidence;
+          quality = validatePedagogicalDeliverable(latestRequest, text);
         }
         if (!text.trim()) {
           text = firstText;
@@ -742,3 +757,4 @@ function qualityIssueCodes(issues: string[]): string[] {
   }
   return [...codes].slice(0, 12);
 }
+
