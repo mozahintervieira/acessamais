@@ -37,6 +37,7 @@ async function call({
   key = "test-only",
   messages = [{ role: "user", content: "Como pode me ajudar no AEE?" }],
   status = 200,
+  retryError,
   payload = {
     output: [
       { type: "web_search_call", status: "completed" },
@@ -60,6 +61,7 @@ async function call({
 } = {}) {
   const exports = {};
   let sent;
+  let fetchCount = 0;
   const logs = [];
   const metrics = [];
   vm.runInNewContext(code, {
@@ -101,12 +103,14 @@ async function call({
                   },
                 },
     fetch: async (url, options) => {
+      fetchCount += 1;
+      if (fetchCount > 1 && retryError) throw retryError;
       sent = JSON.parse(options.body);
       return { ok: status === 200, status, json: async () => payload };
     },
   });
   const response = await exports.POST({ json: async () => ({ messages }) });
-  return { response, sent, logs, metrics };
+  return { response, sent, logs, metrics, fetchCount };
 }
 (async () => {
   assert.equal((await call({ user: null })).response.status, 401);
@@ -160,6 +164,56 @@ async function call({
   assert.equal(success.metrics[0].metric.curriculumSearchCompleted, true);
   assert.ok(success.response.headers["X-Request-Id"].startsWith("chat_"));
   assert.ok(!JSON.stringify(success.metrics).includes(history[0].content));
+
+  const retryAbort = new Error("quality retry exceeded the request budget");
+  retryAbort.name = "AbortError";
+  const preservedFirstResponse = await call({
+    messages: [
+      {
+        role: "user",
+        content: "Crie uma atividade de Matemática para o 6º ano.",
+      },
+    ],
+    retryError: retryAbort,
+    payload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "MATERIAL DO ESTUDANTE — MATEMÁTICA\nATIVIDADES\n1. Conte dois quadrados.\nResposta: ____",
+              annotations: [
+                {
+                  type: "url_citation",
+                  url: "https://curriculo.sedu.es.gov.br/curriculo/documentoscurriculares/",
+                  title: "Currículo ES",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(preservedFirstResponse.fetchCount, 2);
+  assert.equal(preservedFirstResponse.response.status, 200);
+  assert.ok(
+    preservedFirstResponse.response.body.reply.includes(
+      "MATERIAL DO ESTUDANTE — MATEMÁTICA",
+    ),
+  );
+  assert.equal(
+    preservedFirstResponse.response.body.quality.status,
+    "NEEDS_TEACHER_REVIEW",
+  );
+  assert.equal(preservedFirstResponse.metrics[0].metric.status, "SUCCESS");
+  assert.equal(
+    preservedFirstResponse.logs.some(
+      (entry) => entry[0] === "chat_quality_retry_aborted",
+    ),
+    true,
+  );
   assert.ok(
     success.sent.instructions.includes(
       `ANO LETIVO VIGENTE: ${new Date().getFullYear()}`,
@@ -848,3 +902,4 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   console.error(error);
   process.exitCode = 1;
 });
+
