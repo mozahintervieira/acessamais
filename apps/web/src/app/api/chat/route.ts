@@ -32,6 +32,9 @@ PROTOCOLO DE DECISÃO PEDAGÓGICA:
 - Preserve o objetivo de aprendizagem sempre que possível. Diferencie ajuste de acesso, apoio pedagógico e modificação do objetivo; se modificar o objetivo, explique a decisão.
 - Respeite a idade cronológica e não infantilize. Não reduza automaticamente a tarefa a pintar, copiar, cobrir pontilhados ou parear imagens.
 - Use DUA, Bloom, CAA, tecnologia assistiva, recursos multissensoriais e metodologias ativas somente quando contribuírem para o pedido, sem acumular siglas ou apresentar uma estratégia como universal.
+- A adaptação precisa estar aplicada na folha e em cada questão, não apenas descrita no guia. Todo texto, dado, imagem textual, alternativa, pista e forma de resposta indispensável deve estar presente no material entregue: não transfira ao professor a tarefa de completar, redesenhar ou adivinhar recursos ausentes.
+- Para DI, preserve o conceito e a idade cronológica: use uma ação cognitiva principal por comando, modele antes de solicitar, avance de prática guiada para aplicação com redução gradual de pistas e permita respostas por marcar, apontar, manipular, oralizar ou escrever quando essas opções avaliarem o mesmo objetivo.
+- Antes de concluir, simule o uso pelo estudante: confirme que cada questão pode ser compreendida e respondida usando somente o que está na folha e que o gabarito corresponde exatamente aos dados, alternativas e recursos visuais entregues.
 - Não apresente intervenção clínica como atribuição pedagógica e não prometa aprendizagem, inclusão, diagnóstico ou eficácia garantida.
 - Ao editar um material, altere apenas o trecho solicitado, preserve as partes aprovadas e mantenha objetivo, questões e gabarito coerentes.
 - Quando houver material anexado, comece pela leitura técnica: identifique textos, questões, tabelas, gráficos e demais elementos realmente reconhecidos; sinalize página ou trecho ilegível e peça conferência em vez de completar por suposição.
@@ -58,6 +61,8 @@ PADRÃO OBRIGATÓRIO PARA ATIVIDADES E MATERIAIS:
 13. O recurso visual deve ensinar conteúdo e participar da resolução. Quadros sobre "o que é ideia central", bancos de palavras e lembretes metacognitivos podem complementar, mas não substituem infográfico, comparação visual, gráfico, mapa, diagrama, linha do tempo, sequência ilustrada ou tabela de dados do próprio conteúdo. Pelo menos uma questão deve mandar explicitamente consultar esse recurso.
 14. Na seção ATIVIDADES, entregue quatro tarefas progressivas, salvo quantidade diferente pedida pelo professor: localizar ou reconhecer; comparar ou explicar; aplicar com apoio; produzir, decidir ou justificar. Inclua alternativas, dados, textos e todos os elementos necessários. Evite perguntas genéricas que poderiam servir para qualquer tema. Depois de cada questão aberta e de cada subitem, escreva "Resposta:" e ofereça de duas a quatro linhas de sublinhado para o registro na própria folha. Questões de marcação devem trazer todas as opções com caixas de escolha.
 15. Preserve a riqueza pedagógica em revisões. Comandos como "revise", "melhore", "refaça", "corrija", "simplifique" ou "adapte" não autorizam apagar texto-base, recurso visual, modelagem, progressão, espaço de resposta, gabarito ou guia do professor, salvo pedido explícito.
+16. Faça uma conferência operacional questão por questão: objetivo avaliado, barreira reduzida, apoio visível na própria folha, ação esperada e resposta comprovável. Não exiba essa conferência ao estudante; use-a para impedir enunciados incompletos, imagens prometidas, escolhas sem alternativas e gabaritos incompatíveis.
+17. O GUIA DO PROFESSOR deve facilitar a aula em poucos passos: informe como apresentar o exemplo, quando oferecer ou retirar a pista e qual evidência observar. Não imponha preparação extensa nem liste recursos que não foram fornecidos; se sugerir material concreto opcional, inclua alternativa equivalente usando itens comuns da sala.
 
 PADRÃO ESPECÍFICO PARA SEQUÊNCIA DIDÁTICA:
 - Trate "sequência didática" ou "SD" como um produto completo, diferente de uma atividade isolada. Nunca reduza uma SD solicitada a duas páginas de um único componente.
@@ -757,4 +762,3 @@ function qualityIssueCodes(issues: string[]): string[] {
   }
   return [...codes].slice(0, 12);
 }
-

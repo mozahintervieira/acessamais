@@ -232,6 +232,16 @@ async function call({
   assert.ok(success.sent.instructions.includes("EXEMPLO COMPLETO RESOLVIDO"));
   assert.ok(success.sent.instructions.includes("GABARITO COMENTADO"));
   assert.ok(
+    success.sent.instructions.includes(
+      "A adaptação precisa estar aplicada na folha e em cada questão",
+    ),
+  );
+  assert.ok(
+    success.sent.instructions.includes(
+      "simule o uso pelo estudante",
+    ),
+  );
+  assert.ok(
     success.sent.instructions.includes("Não escreva “observe a imagem abaixo”"),
   );
   assert.ok(!success.response.body.reply.includes(`NOTA CURRICULAR`));
@@ -451,6 +461,31 @@ async function call({
   assert.equal(bnccEvidence.citations[0].currentYear, false);
   assert.equal(
     bnccEvidence.citations[0].title,
+    "Base Nacional Comum Curricular — MEC",
+  );
+  const bnccCdnEvidence = evidenceModule.curriculumEvidence(
+    {
+      output: [
+        {
+          type: "web_search_call",
+          status: "completed",
+          action: {
+            sources: [
+              {
+                url: "https://cdn.mec.gov.br/BNCC_EI_EF_110518_versaofinal_site.pdf",
+                title: "BNCC Educação Infantil e Ensino Fundamental",
+              },
+            ],
+          },
+        },
+      ],
+    },
+    new Date().getFullYear(),
+  );
+  assert.equal(bnccCdnEvidence.citations.length, 1);
+  assert.equal(bnccCdnEvidence.citations[0].scope, "BNCC");
+  assert.equal(
+    bnccCdnEvidence.citations[0].title,
     "Base Nacional Comum Curricular — MEC",
   );
   const conciseCitations = evidenceModule.curriculumEvidence(
@@ -968,4 +1003,3 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   console.error(error);
   process.exitCode = 1;
 });
-

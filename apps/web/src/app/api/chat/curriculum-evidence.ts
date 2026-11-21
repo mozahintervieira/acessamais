@@ -281,6 +281,7 @@ function officialCurriculumScope(url: URL): "BNCC" | "SEDU_ES" | null {
   if (
     [
       "basenacionalcomum.mec.gov.br",
+      "cdn.mec.gov.br",
       "downloadbncc.mec.gov.br",
       "acervoportal.mec.gov.br",
     ].includes(url.hostname)
@@ -374,4 +375,3 @@ function record(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
-
