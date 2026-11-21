@@ -265,6 +265,7 @@ export function PedagogicalChat(): React.ReactElement {
         ),
       );
       setDraft("");
+      setSidebarOpen(false);
       setDocumentOpen(true);
     } catch (caught) {
       setProjects((current) =>
@@ -421,7 +422,14 @@ export function PedagogicalChat(): React.ReactElement {
           <button
             className="studioIconButton"
             type="button"
-            onClick={() => setSidebarOpen((value) => !value)}
+            onClick={() => {
+              if (documentOpen) {
+                setDocumentOpen(false);
+                setSidebarOpen(true);
+                return;
+              }
+              setSidebarOpen((value) => !value);
+            }}
             aria-label={sidebarOpen ? "Recolher projetos" : "Abrir projetos"}
           >
             ☰
@@ -512,7 +520,11 @@ export function PedagogicalChat(): React.ReactElement {
             <button
               className="studioIconButton"
               type="button"
-              onClick={() => setDocumentOpen((value) => !value)}
+              onClick={() => {
+                const willOpen = !documentOpen;
+                if (willOpen) setSidebarOpen(false);
+                setDocumentOpen(willOpen);
+              }}
               aria-label={documentOpen ? "Fechar editor" : "Abrir editor"}
             >
               ▱
@@ -572,7 +584,10 @@ export function PedagogicalChat(): React.ReactElement {
                     <button
                       className="studioOpenDocument"
                       type="button"
-                      onClick={() => setDocumentOpen(true)}
+                      onClick={() => {
+                        setSidebarOpen(false);
+                        setDocumentOpen(true);
+                      }}
                     >
                       Abrir material completo no editor →
                     </button>
