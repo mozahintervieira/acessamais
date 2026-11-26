@@ -207,7 +207,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         "AI_NOT_CONFIGURED",
       );
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 105000);
+    const timer = setTimeout(() => controller.abort(), 72000);
     try {
       stage = "provider";
       const currentYear = new Date().getFullYear();
@@ -223,29 +223,76 @@ export async function POST(request: Request): Promise<NextResponse> {
         process.env.OPENAI_PEDAGOGICAL_MODEL?.trim() ||
         process.env.OPENAI_MODEL?.trim() ||
         "gpt-6.1-sol";
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: telemetryModel,
-          store: false,
-          instructions:
-            instructions +
-            "\n\n" +
-            curriculumInstructions(currentYear) +
-            "\n\n" +
-            curriculumCatalogInstructions(curriculumCatalog, latestRequest),
-          tools: [curriculumSearchTool],
-          tool_choice: "required",
-          include: ["web_search_call.action.sources"],
-          input: buildResponseInput(messages),
-          max_output_tokens: sequenceRequest ? 12000 : 6000,
-        }),
-      });
+      const primaryRequest = {
+        model: telemetryModel,
+        store: false,
+        instructions:
+          instructions +
+          "\n\n" +
+          curriculumInstructions(currentYear) +
+          "\n\n" +
+          curriculumCatalogInstructions(curriculumCatalog, latestRequest),
+        tools: [curriculumSearchTool],
+        tool_choice: "required",
+        include: ["web_search_call.action.sources"],
+        input: buildResponseInput(messages),
+        max_output_tokens: sequenceRequest ? 12000 : 6000,
+      };
+      let providerFallbackUsed = false;
+      let response: Response;
+      try {
+        response = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+          body: JSON.stringify(primaryRequest),
+        });
+      } catch (providerError) {
+        const providerDetails =
+          providerError && typeof providerError === "object"
+            ? (providerError as Record<string, unknown>)
+            : {};
+        if (providerDetails.name !== "AbortError") throw providerError;
+
+        providerFallbackUsed = true;
+        telemetryRetried = true;
+        stage = "provider-fallback";
+        const primaryModel = telemetryModel;
+        telemetryModel =
+          process.env.OPENAI_FAST_PEDAGOGICAL_MODEL?.trim() || "gpt-5-mini";
+        console.error("chat_provider_timeout_retry", {
+          primaryModel,
+          fallbackModel: telemetryModel,
+        });
+        const fallbackController = new AbortController();
+        const fallbackTimer = setTimeout(
+          () => fallbackController.abort(),
+          36000,
+        );
+        try {
+          response = await fetch("https://api.openai.com/v1/responses", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            signal: fallbackController.signal,
+            body: JSON.stringify({
+              ...primaryRequest,
+              model: telemetryModel,
+              instructions:
+                primaryRequest.instructions +
+                "\n\nMODO DE CONTINGÊNCIA: entregue uma versão completa e concisa, pronta para uso, em no máximo três páginas A4. Preserve todos os componentes pedidos, consulte as fontes oficiais e não explique o processo interno.",
+              max_output_tokens: sequenceRequest ? 6500 : 4200,
+            }),
+          });
+        } finally {
+          clearTimeout(fallbackTimer);
+        }
+      }
       if (!response.ok) {
         const providerPayload = await response.json().catch(() => null);
         const providerError =
@@ -318,7 +365,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           "MODEL_OUTPUT_EMPTY",
         );
       let quality = validatePedagogicalDeliverable(latestRequest, text);
-      if (!quality.valid) {
+      if (!quality.valid && !providerFallbackUsed) {
         telemetryRetried = true;
         stage = "quality-retry";
         const firstText = text;
@@ -481,6 +528,20 @@ export async function POST(request: Request): Promise<NextResponse> {
         503,
         "INTERNAL_ERROR",
         "SESSION_SERVICE_UNAVAILABLE",
+      );
+    if (
+      details.name === "AbortError" &&
+      (stage === "provider" || stage === "provider-fallback")
+    )
+      return await trackedResponse(
+        {
+          code: "PROVIDER_TIMEOUT",
+          message:
+            "A consulta curricular e a geração excederam o tempo seguro desta tentativa. Seu pedido foi preservado; tente novamente.",
+        },
+        503,
+        "PROVIDER_FAILED",
+        "PROVIDER_TIMEOUT",
       );
     return await trackedResponse(
       {
@@ -762,3 +823,4 @@ function qualityIssueCodes(issues: string[]): string[] {
   }
   return [...codes].slice(0, 12);
 }
+

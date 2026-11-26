@@ -38,6 +38,8 @@ async function call({
   messages = [{ role: "user", content: "Como pode me ajudar no AEE?" }],
   status = 200,
   retryError,
+  providerError,
+  fallbackPayload,
   payload = {
     output: [
       { type: "web_search_call", status: "completed" },
@@ -104,9 +106,15 @@ async function call({
                 },
     fetch: async (url, options) => {
       fetchCount += 1;
+      if (fetchCount === 1 && providerError) throw providerError;
       if (fetchCount > 1 && retryError) throw retryError;
       sent = JSON.parse(options.body);
-      return { ok: status === 200, status, json: async () => payload };
+      return {
+        ok: status === 200,
+        status,
+        json: async () =>
+          fetchCount > 1 && fallbackPayload ? fallbackPayload : payload,
+      };
     },
   });
   const response = await exports.POST({ json: async () => ({ messages }) });
@@ -164,6 +172,41 @@ async function call({
   assert.equal(success.metrics[0].metric.curriculumSearchCompleted, true);
   assert.ok(success.response.headers["X-Request-Id"].startsWith("chat_"));
   assert.ok(!JSON.stringify(success.metrics).includes(history[0].content));
+
+  const providerAbort = new Error("primary provider exceeded its budget");
+  providerAbort.name = "AbortError";
+  const providerFallback = await call({
+    providerError: providerAbort,
+    fallbackPayload: {
+      output: [
+        { type: "web_search_call", status: "completed" },
+        {
+          content: [
+            {
+              type: "output_text",
+              text: "Posso apoiar o professor do AEE com atividades acessíveis.",
+              annotations: [
+                {
+                  type: "url_citation",
+                  url: "https://curriculo.sedu.es.gov.br/curriculo/documentoscurriculares/",
+                  title: "Currículo ES",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(providerFallback.fetchCount, 2);
+  assert.equal(providerFallback.sent.model, "gpt-5-mini");
+  assert.equal(providerFallback.response.status, 200);
+  assert.equal(
+    providerFallback.logs.some(
+      (entry) => entry[0] === "chat_provider_timeout_retry",
+    ),
+    true,
+  );
 
   const retryAbort = new Error("quality retry exceeded the request budget");
   retryAbort.name = "AbortError";
@@ -1003,3 +1046,4 @@ Mediação, DUA, Bloom, avaliação formativa e evidências de aprendizagem.`;
   console.error(error);
   process.exitCode = 1;
 });
+
